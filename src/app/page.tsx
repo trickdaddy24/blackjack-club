@@ -1,0 +1,105 @@
+import Link from "next/link";
+import { Crown, Spade, Heart, Diamond, Club } from "lucide-react";
+import { auth } from "@/auth";
+import { prisma } from "@/lib/prisma";
+import { TopBar } from "@/components/TopBar";
+
+export default async function LobbyPage() {
+  const session = await auth();
+
+  const leaders = await prisma.user.findMany({
+    orderBy: { chips: "desc" },
+    take: 5,
+    select: { id: true, name: true, chips: true },
+  });
+
+  return (
+    <div className="flex min-h-screen flex-col">
+      <TopBar />
+
+      <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col items-center px-4 pb-16">
+        {/* hero */}
+        <div className="fade-up mt-10 flex flex-col items-center text-center">
+          <div className="mb-6 flex gap-3 text-[var(--gold)]/60">
+            <Spade className="h-5 w-5" fill="currentColor" />
+            <Heart className="h-5 w-5 text-[var(--suit-red)]/70" fill="currentColor" />
+            <Diamond className="h-5 w-5 text-[var(--suit-red)]/70" fill="currentColor" />
+            <Club className="h-5 w-5" fill="currentColor" />
+          </div>
+          <h1 className="font-display text-5xl font-black tracking-[0.08em] gold-text sm:text-6xl">
+            BLACKJACK
+          </h1>
+          <p className="font-display mt-1 text-xl tracking-[0.5em] text-[var(--cream)]/60">
+            C L U B
+          </p>
+          <p className="mt-6 max-w-md text-[15px] leading-relaxed text-[var(--cream)]/70">
+            Pull up a chair at the midnight table. Real rules — six decks, dealer
+            stands on all 17s, blackjack pays 3 to 2. Free chips every day,
+            never a dime of real money.
+          </p>
+
+          <Link
+            href={session?.user ? "/play" : "/register"}
+            className="action-btn primary mt-8 !px-12 !py-4 !text-base"
+          >
+            {session?.user ? "Take Your Seat" : "Join — 1,000 Free Chips"}
+          </Link>
+          {!session?.user && (
+            <Link
+              href="/login"
+              className="mt-4 text-sm text-[var(--cream)]/50 underline-offset-4 hover:text-[var(--gold-bright)] hover:underline"
+            >
+              Already a member? Sign in
+            </Link>
+          )}
+        </div>
+
+        {/* leaderboard */}
+        {leaders.length > 0 && (
+          <section className="fade-up mt-16 w-full max-w-md" style={{ animationDelay: "150ms" }}>
+            <h2 className="mb-4 flex items-center justify-center gap-2 font-display text-sm font-bold uppercase tracking-[0.3em] text-[var(--cream)]/60">
+              <Crown className="h-4 w-4 text-[var(--gold-bright)]" />
+              High Rollers
+            </h2>
+            <ol className="gold-ring divide-y divide-[var(--gold)]/15 overflow-hidden rounded-2xl bg-black/30">
+              {leaders.map((u, i) => (
+                <li key={u.id} className="flex items-center justify-between px-5 py-3">
+                  <span className="flex items-center gap-3">
+                    <span className="font-display w-5 text-right text-sm font-bold text-[var(--gold)]/70">
+                      {i + 1}
+                    </span>
+                    <span className="text-sm text-[var(--cream)]/85">{u.name ?? "Anonymous"}</span>
+                  </span>
+                  <span className="text-sm font-semibold tabular-nums gold-text">
+                    {u.chips.toLocaleString()}
+                  </span>
+                </li>
+              ))}
+            </ol>
+          </section>
+        )}
+
+        {/* house rules */}
+        <section className="fade-up mt-14 grid w-full max-w-2xl grid-cols-2 gap-3 sm:grid-cols-4" style={{ animationDelay: "300ms" }}>
+          {[
+            ["3:2", "Blackjack payout"],
+            ["6", "Decks in the shoe"],
+            ["S17", "Dealer stands soft 17"],
+            ["2:1", "Insurance payout"],
+          ].map(([big, small]) => (
+            <div key={small} className="gold-ring rounded-xl bg-black/25 px-3 py-4 text-center">
+              <div className="font-display text-2xl font-bold gold-text">{big}</div>
+              <div className="mt-1 text-[11px] uppercase tracking-wider text-[var(--cream)]/50">
+                {small}
+              </div>
+            </div>
+          ))}
+        </section>
+      </main>
+
+      <footer className="pb-6 text-center text-xs text-[var(--cream)]/30">
+        Play-money only. No purchases, no payouts — just cards.
+      </footer>
+    </div>
+  );
+}

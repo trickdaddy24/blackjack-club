@@ -1,0 +1,60 @@
+import Link from "next/link";
+import { Spade, LogOut, User } from "lucide-react";
+import { auth } from "@/auth";
+import { logout } from "@/lib/actions";
+
+export async function TopBar() {
+  const session = await auth();
+
+  return (
+    <header className="mx-auto flex w-full max-w-4xl items-center justify-between px-3 py-4">
+      <Link href="/" className="flex items-center gap-2">
+        <Spade className="h-5 w-5 text-[var(--gold-bright)]" fill="currentColor" />
+        <span className="font-display text-lg font-bold tracking-[0.2em] gold-text">
+          BLACKJACK CLUB
+        </span>
+      </Link>
+
+      <nav className="flex items-center gap-4 text-sm">
+        {session?.user ? (
+          <>
+            <Link
+              href="/play"
+              className="uppercase tracking-widest text-[var(--cream)]/70 hover:text-[var(--gold-bright)] transition-colors"
+            >
+              Table
+            </Link>
+            <Link
+              href="/profile"
+              className="flex items-center gap-1.5 uppercase tracking-widest text-[var(--cream)]/70 hover:text-[var(--gold-bright)] transition-colors"
+            >
+              <User className="h-3.5 w-3.5" />
+              {session.user.name?.split(" ")[0] ?? "Profile"}
+            </Link>
+            <form action={logout}>
+              <button
+                type="submit"
+                className="flex items-center gap-1.5 uppercase tracking-widest text-[var(--cream)]/50 hover:text-[var(--gold-bright)] transition-colors"
+                title="Sign out"
+              >
+                <LogOut className="h-3.5 w-3.5" />
+              </button>
+            </form>
+          </>
+        ) : (
+          <>
+            <Link
+              href="/login"
+              className="uppercase tracking-widest text-[var(--cream)]/70 hover:text-[var(--gold-bright)] transition-colors"
+            >
+              Sign In
+            </Link>
+            <Link href="/register" className="action-btn primary !py-2 !px-4 !text-xs">
+              Join the Club
+            </Link>
+          </>
+        )}
+      </nav>
+    </header>
+  );
+}

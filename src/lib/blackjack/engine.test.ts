@@ -1,0 +1,361 @@
+import { describe, it, expect } from "vitest";
+import {
+  applyAction,
+  blackjackPayout,
+  canSplit,
+  cardValue,
+  clientView,
+  createShoe,
+  handValue,
+  IllegalActionError,
+  insuranceCost,
+  netResult,
+  RESHUFFLE_AT,
+  SHOE_SIZE,
+  startRound,
+  type Card,
+  type Rank,
+  type RoundState,
+  type Suit,
+} from "./engine";
+
+function c(rank: Rank, suit: Suit = "C"): Card {
+  return { rank, suit };
+}
+
+/**
+ * Build a shoe that deals the given cards in order. `startRound` draws
+ * player, dealer-up, player, dealer-hole, then any later draws continue
+ * in sequence. Padded so the shoe passes the reshuffle threshold.
+ */
+function shoeFor(...dealOrder: Card[]): Card[] {
+  const filler: Card[] = Array.from({ length: 100 }, () => c("2", "D"));
+  return [...filler, ...[...dealOrder].reverse()];
+}
+
+describe("handValue", () => {
+  it("counts soft aces as 11", () => {
+    expect(handValue([c("A"), c("6")])).toEqual({ total: 17, soft: true });
+  });
+
+  it("demotes aces to 1 to avoid busting", () => {
+    expect(handValue([c("A"), c("6"), c("10")])).toEqual({ total: 17, soft: false });
+  });
+
+  it("handles multiple aces", () => {
+    expect(handValue([c("A"), c("A")])).toEqual({ total: 12, soft: true });
+    expect(handValue([c("A"), c("A"), c("9")])).toEqual({ total: 21, soft: true });
+    expect(handValue([c("A"), c("A"), c("A"), c("K")])).toEqual({ total: 13, soft: false });
+  });
+
+  it("values face cards at 10", () => {
+    expect(cardValue(c("J"))).toBe(10);
+    expect(cardValue(c("Q"))).toBe(10);
+    expect(cardValue(c("K"))).toBe(10);
+    expect(handValue([c("K"), c("Q")]).total).toBe(20);
+  });
+});
+
+describe("startRound", () => {
+  it("debits the bet and deals 2+2", () => {
+    const { state, debit } = startRound(10, shoeFor(c("5"), c("9"), c("6"), c("7")));
+    expect(debit).toBe(10);
+    expect(state.hands[0].cards).toEqual([c("5"), c("6")]);
+    expect(state.dealer).toEqual([c("9"), c("7")]);
+    expect(state.phase).toBe("player");
+    expect(state.staked).toBe(10);
+  });
+
+  it("rejects invalid bets", () => {
+    expect(() => startRound(0)).toThrow(IllegalActionError);
+    expect(() => startRound(-5)).toThrow(IllegalActionError);
+    expect(() => startRound(2.5)).toThrow(IllegalActionError);
+  });
+
+  it("pays player blackjack 3:2 immediately", () => {
+    const { state } = startRound(10, shoeFor(c("A"), c("5"), c("K"), c("9")));
+    expect(state.phase).toBe("settled");
+    expect(state.hands[0].outcome).toBe("blackjack");
+    expect(state.hands[0].payout).toBe(25);
+    expect(netResult(state)).toBe(15);
+  });
+
+  it("peeks on a ten upcard and ends the round on dealer blackjack", () => {
+    const { state } = startRound(10, shoeFor(c("9"), c("K"), c("8"), c("A")));
+    expect(state.phase).toBe("settled");
+    expect(state.hands[0].outcome).toBe("lose");
+    expect(netResult(state)).toBe(-10);
+  });
+
+  it("pushes player blackjack against dealer blackjack (ten up)", () => {
+    const { state } = startRound(10, shoeFor(c("A"), c("K"), c("Q"), c("A")));
+    expect(state.phase).toBe("settled");
+    expect(state.hands[0].outcome).toBe("push");
+    expect(netResult(state)).toBe(0);
+  });
+
+  it("offers insurance on a dealer ace", () => {
+    const { state } = startRound(10, shoeFor(c("9"), c("A"), c("8"), c("K")));
+    expect(state.phase).toBe("insurance");
+    expect(state.insuranceBet).toBeNull();
+  });
+
+  it("reuses a healthy shoe and reshuffles a depleted one", () => {
+    const healthy = shoeFor(c("5"), c("9"), c("6"), c("7"));
+    const reused = startRound(10, healthy).state;
+    expect(reused.shoe.length).toBe(healthy.length - 4);
+
+    const depleted = healthy.slice(0, RESHUFFLE_AT - 1);
+    const fresh = startRound(10, depleted).state;
+    expect(fresh.shoe.length).toBe(SHOE_SIZE - 4);
+  });
+});
+
+describe("insurance", () => {
+  const insuranceStart = (dealOrder: Card[]) => startRound(10, shoeFor(...dealOrder)).state;
+
+  it("costs half the base bet and pays 2:1 on dealer blackjack", () => {
+    const state = insuranceStart([c("9"), c("A"), c("8"), c("K")]);
+    const { state: settled, debit } = applyAction(state, "insurance-yes");
+    expect(debit).toBe(5);
+    expect(settled.phase).toBe("settled");
+    expect(settled.hands[0].outcome).toBe("lose");
+    // Lost 10 on the hand, staked 5 insurance returned as 15 → net -10 + 10 = 0
+    expect(settled.payoutTotal).toBe(15);
+    expect(netResult(settled)).toBe(0);
+  });
+
+  it("loses the insurance bet when the dealer has no blackjack", () => {
+    const state = insuranceStart([c("9"), c("A"), c("8"), c("7")]);
+    const { state: after, debit } = applyAction(state, "insurance-yes");
+    expect(debit).toBe(5);
+    expect(after.phase).toBe("player");
+    expect(after.staked).toBe(15);
+  });
+
+  it("declining insurance costs nothing", () => {
+    const state = insuranceStart([c("9"), c("A"), c("8"), c("7")]);
+    const { state: after, debit } = applyAction(state, "insurance-no");
+    expect(debit).toBe(0);
+    expect(after.phase).toBe("player");
+    expect(after.staked).toBe(10);
+  });
+
+  it("settles a player blackjack 3:2 after the insurance decision", () => {
+    const state = insuranceStart([c("A"), c("A"), c("K"), c("7")]);
+    const { state: settled } = applyAction(state, "insurance-no");
+    expect(settled.phase).toBe("settled");
+    expect(settled.hands[0].outcome).toBe("blackjack");
+    expect(netResult(settled)).toBe(15);
+  });
+
+  it("rejects game actions while insurance is pending", () => {
+    const state = insuranceStart([c("9"), c("A"), c("8"), c("K")]);
+    expect(() => applyAction(state, "hit")).toThrow(IllegalActionError);
+  });
+
+  it("rejects insurance when not offered", () => {
+    const { state } = startRound(10, shoeFor(c("5"), c("9"), c("6"), c("7")));
+    expect(() => applyAction(state, "insurance-yes")).toThrow(IllegalActionError);
+  });
+});
+
+describe("dealer play", () => {
+  it("stands on soft 17", () => {
+    // Player 20 stands; dealer 6 + A = soft 17 must not draw
+    const { state } = startRound(10, shoeFor(c("10"), c("6"), c("10"), c("A")));
+    const { state: settled } = applyAction(state, "stand");
+    expect(settled.dealer.length).toBe(2);
+    expect(handValue(settled.dealer)).toEqual({ total: 17, soft: true });
+    expect(settled.hands[0].outcome).toBe("win");
+    expect(settled.hands[0].payout).toBe(20);
+  });
+
+  it("draws to 17 and can bust", () => {
+    // Dealer 6 + 8 = 14, draws K → 24 bust
+    const { state } = startRound(10, shoeFor(c("10"), c("6"), c("9"), c("8"), c("K")));
+    const { state: settled } = applyAction(state, "stand");
+    expect(handValue(settled.dealer).total).toBe(24);
+    expect(settled.hands[0].outcome).toBe("win");
+  });
+
+  it("does not draw when every player hand busted", () => {
+    // Player 10+9, hits K → 29 bust; dealer 6+8 stays at 2 cards
+    const { state } = startRound(10, shoeFor(c("10"), c("6"), c("9"), c("8"), c("K")));
+    const { state: settled } = applyAction(state, "hit");
+    expect(settled.phase).toBe("settled");
+    expect(settled.dealer.length).toBe(2);
+    expect(settled.hands[0].outcome).toBe("lose");
+    expect(netResult(settled)).toBe(-10);
+  });
+
+  it("pushes equal totals", () => {
+    const { state } = startRound(10, shoeFor(c("10"), c("K"), c("9"), c("9")));
+    const { state: settled } = applyAction(state, "stand");
+    expect(settled.hands[0].outcome).toBe("push");
+    expect(netResult(settled)).toBe(0);
+  });
+});
+
+describe("hit / stand / double", () => {
+  it("hit draws a card and auto-stands on 21", () => {
+    const { state } = startRound(10, shoeFor(c("10"), c("6"), c("9"), c("8"), c("2"), c("7")));
+    const one = applyAction(state, "hit").state; // 10+9+2 = 21 → done
+    expect(one.hands[0].done).toBe(true);
+    expect(one.phase).toBe("settled"); // single hand done → dealer plays out
+  });
+
+  it("double doubles the bet, draws exactly one card, and finishes the hand", () => {
+    // Player 6+5=11 doubles, draws K → 21; dealer 9+8=17 stands
+    const { state } = startRound(10, shoeFor(c("6"), c("9"), c("5"), c("8"), c("K")));
+    const { state: settled, debit } = applyAction(state, "double");
+    expect(debit).toBe(10);
+    expect(settled.hands[0].bet).toBe(20);
+    expect(settled.hands[0].cards.length).toBe(3);
+    expect(settled.hands[0].outcome).toBe("win");
+    expect(settled.hands[0].payout).toBe(40);
+    expect(netResult(settled)).toBe(20);
+  });
+
+  it("rejects double after hitting", () => {
+    const { state } = startRound(10, shoeFor(c("2", "S"), c("9"), c("3"), c("8"), c("2", "H")));
+    const after = applyAction(state, "hit").state;
+    expect(after.phase).toBe("player");
+    expect(() => applyAction(after, "double")).toThrow(IllegalActionError);
+  });
+
+  it("rejects any action on a settled round", () => {
+    const { state } = startRound(10, shoeFor(c("A"), c("5"), c("K"), c("9")));
+    expect(state.phase).toBe("settled");
+    expect(() => applyAction(state, "hit")).toThrow(IllegalActionError);
+    expect(() => applyAction(state, "stand")).toThrow(IllegalActionError);
+  });
+});
+
+describe("split", () => {
+  it("requires equal ranks", () => {
+    const { state } = startRound(10, shoeFor(c("10"), c("9"), c("K"), c("8")));
+    expect(canSplit(state, 0)).toBe(false);
+    expect(() => applyAction(state, "split")).toThrow(IllegalActionError);
+  });
+
+  it("splits into two hands, debiting a second bet", () => {
+    // 8,8 vs dealer 7; hands draw 2 (→10) and 3 (→11)
+    const { state } = startRound(10, shoeFor(c("8", "S"), c("7"), c("8", "H"), c("9"), c("2"), c("3")));
+    const { state: after, debit } = applyAction(state, "split");
+    expect(debit).toBe(10);
+    expect(after.hands.length).toBe(2);
+    expect(after.hands[0].cards).toEqual([c("8", "S"), c("2")]);
+    expect(after.hands[1].cards).toEqual([c("8", "H"), c("3")]);
+    expect(after.hands.every((h) => h.fromSplit)).toBe(true);
+    expect(after.staked).toBe(20);
+    expect(after.active).toBe(0);
+  });
+
+  it("plays hands in order and settles both", () => {
+    // Split 8s vs dealer 9+9=18. Hand 1: 8+2, hit 10 → 20. Hand 2: 8+3, hit 5 → 16, stand.
+    const { state } = startRound(
+      10,
+      shoeFor(c("8", "S"), c("9", "S"), c("8", "H"), c("9", "H"), c("2"), c("3"), c("10"), c("5"))
+    );
+    let s = applyAction(state, "split").state;
+    s = applyAction(s, "hit").state; // hand 0: 20
+    s = applyAction(s, "stand").state; // hand 0 done → active = 1
+    expect(s.active).toBe(1);
+    s = applyAction(s, "hit").state; // hand 1: 16
+    const settled = applyAction(s, "stand").state;
+    expect(settled.phase).toBe("settled");
+    expect(settled.hands[0].outcome).toBe("win"); // 20 > 18
+    expect(settled.hands[1].outcome).toBe("lose"); // 16 < 18
+    expect(netResult(settled)).toBe(0);
+  });
+
+  it("split aces get exactly one card each and cannot be hit", () => {
+    // A,A vs dealer 20; draws K and 9 → 21 and 20
+    const { state } = startRound(
+      10,
+      shoeFor(c("A", "S"), c("K", "S"), c("A", "H"), c("Q"), c("K", "H"), c("9"))
+    );
+    const { state: settled } = applyAction(state, "split");
+    // Both hands auto-complete → round settles
+    expect(settled.phase).toBe("settled");
+    expect(settled.hands[0].cards.length).toBe(2);
+    expect(settled.hands[1].cards.length).toBe(2);
+    // 21 after split is NOT blackjack — wins 1:1 vs dealer 20
+    expect(settled.hands[0].outcome).toBe("win");
+    expect(settled.hands[0].payout).toBe(20);
+    expect(settled.hands[1].outcome).toBe("push");
+  });
+
+  it("allows one re-split (max 3 hands) and doubling after split", () => {
+    // 8,8 vs dealer 7+K=17. Split → hand0 draws 8 (re-splittable), hand1 draws 3.
+    // Re-split hand0 → draws 2 (→10) and 5 (→13).
+    const { state } = startRound(
+      10,
+      shoeFor(c("8", "S"), c("7"), c("8", "H"), c("K"), c("8", "D"), c("3"), c("2"), c("5"), c("9"), c("10"), c("6"))
+    );
+    let s = applyAction(state, "split").state;
+    expect(canSplit(s, 0)).toBe(true);
+    s = applyAction(s, "split").state;
+    expect(s.hands.length).toBe(3);
+    expect(s.splits).toBe(2);
+    expect(s.staked).toBe(30);
+    // No third re-split even with another pair
+    expect(canSplit(s, 0)).toBe(false);
+
+    // Double after split: hand 0 is 8+2=10, doubles and draws 9 → 19
+    const dbl = applyAction(s, "double");
+    expect(dbl.debit).toBe(10);
+    expect(dbl.state.hands[0].bet).toBe(20);
+    expect(dbl.state.hands[0].outcome).toBeNull(); // not settled yet
+    expect(dbl.state.staked).toBe(40);
+  });
+});
+
+describe("clientView", () => {
+  it("hides the hole card and shoe until reveal", () => {
+    const { state } = startRound(10, shoeFor(c("5"), c("9"), c("6"), c("7")));
+    const view = clientView(state);
+    expect(view.dealer.cards).toEqual([c("9"), null]);
+    expect(view.dealer.total).toBe(9);
+    expect(view.dealer.revealed).toBe(false);
+    expect(JSON.stringify(view)).not.toContain('"shoe"');
+    expect(view.actions).toContain("hit");
+    expect(view.actions).toContain("stand");
+    expect(view.actions).toContain("double");
+    expect(view.actions).not.toContain("split");
+  });
+
+  it("reveals the dealer hand once settled", () => {
+    const { state } = startRound(10, shoeFor(c("10"), c("K"), c("9"), c("9")));
+    const settled = applyAction(state, "stand").state;
+    const view = clientView(settled);
+    expect(view.dealer.cards).toEqual([c("K"), c("9")]);
+    expect(view.dealer.total).toBe(19);
+    expect(view.actions).toEqual([]);
+    expect(view.netResult).toBe(0);
+  });
+
+  it("offers insurance actions during the insurance phase", () => {
+    const { state } = startRound(10, shoeFor(c("9"), c("A"), c("8"), c("K")));
+    const view = clientView(state);
+    expect(view.actions).toEqual(["insurance-yes", "insurance-no"]);
+    expect(view.insuranceCost).toBe(5);
+    expect(view.dealer.cards[1]).toBeNull();
+  });
+});
+
+describe("shoe", () => {
+  it("contains 312 unique-position cards with correct composition", () => {
+    const shoe = createShoe();
+    expect(shoe.length).toBe(SHOE_SIZE);
+    const aces = shoe.filter((card) => card.rank === "A").length;
+    expect(aces).toBe(24); // 6 decks × 4 suits
+  });
+
+  it("blackjackPayout and insuranceCost round down", () => {
+    expect(blackjackPayout(10)).toBe(25);
+    expect(blackjackPayout(5)).toBe(12); // 5 + floor(7.5)
+    expect(insuranceCost(25)).toBe(12);
+  });
+});
