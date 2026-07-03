@@ -17,6 +17,9 @@
 //   - Bonus 21 payouts (void after doubling): 5-card 21 pays 3:2, 6-card 2:1,
 //     7+ card 3:1; 6-7-8 or 7-7-7 pays 3:2 mixed suits, 2:1 suited, 3:1 spades
 //
+// Perfect Pairs side bet (per seat): the seat's own first two cards as a
+// pair — mixed 5:1, colored 10:1, perfect 30:1 — resolved at the deal.
+//
 // Up to MAX_BOTS simulated players can share the table. Bots consume real
 // cards from the shoe (so card counting stays honest) and settle against the
 // dealer for display, but never touch the human player's chips.
@@ -52,9 +55,10 @@ export interface Rules {
   player21AlwaysWins: boolean;
   lateSurrender: boolean;
   bonus21: boolean;
-  /** Match the Dealer side bet: X-to-1 per matching card. */
-  mtdUnsuited: number;
-  mtdSuited: number;
+  /** Perfect Pairs side bet: X-to-1 by pair type. */
+  ppMixed: number;
+  ppColored: number;
+  ppPerfect: number;
 }
 
 export function rulesFor(variant: Variant = "classic"): Rules {
@@ -70,16 +74,17 @@ export function rulesFor(variant: Variant = "classic"): Rules {
     player21AlwaysWins: spanish,
     lateSurrender: spanish,
     bonus21: spanish,
-    // Standard 6-deck paytables: 4/11 with 52-card decks, 4/9 Spanish
-    mtdUnsuited: 4,
-    mtdSuited: spanish ? 9 : 11,
+    // Common US Perfect Pairs paytable: mixed 5:1, colored 10:1, perfect 30:1
+    ppMixed: 5,
+    ppColored: 10,
+    ppPerfect: 30,
   };
 }
 
-/** Match the Dealer result attached to a hand at the deal. */
-export interface MtdResult {
+/** Side-bet result attached to a hand at the deal (Perfect Pairs today). */
+export interface SideBetResult {
   bet: number;
-  /** 0 on a loss; stake + winnings on any match. */
+  /** 0 on a loss; stake + winnings on a win. */
   payout: number;
   label: string;
 }
@@ -95,8 +100,10 @@ export interface HandState {
   payout: number;
   /** Spanish 21 bonus that paid on this hand (e.g. "5-Card 21"), for the UI. */
   bonus?: string;
-  /** Match the Dealer side bet, resolved at the deal. */
-  mtd?: MtdResult;
+  /** Perfect Pairs side bet, resolved at the deal. */
+  pp?: SideBetResult;
+  /** Legacy Match the Dealer field — only read at settle for in-flight rounds. */
+  mtd?: SideBetResult;
 }
 
 /** A simulated player's hand. Cosmetic bet — never touches the human's chips. */
@@ -293,8 +300,8 @@ export interface RoundOptions {
   variant?: Variant;
   /** Simulated players at the table, 0–MAX_BOTS. */
   bots?: number;
-  /** Match the Dealer side bet per seat (0 = none). */
-  matchTheDealer?: number;
+  /** Perfect Pairs side bet per seat (0 = none). */
+  perfectPairs?: number;
 }
 
 /**
@@ -327,7 +334,7 @@ export function startRound(
   const seats = opts.seats ?? 1;
   const variant = opts.variant ?? "classic";
   const bots = opts.bots ?? 0;
-  const mtdBet = opts.matchTheDealer ?? 0;
+  const ppBet = opts.perfectPairs ?? 0;
   const rules = rulesFor(variant);
 
   if (!Number.isInteger(bet) || bet <= 0) {
@@ -339,8 +346,8 @@ export function startRound(
   if (!Number.isInteger(bots) || bots < 0 || bots > MAX_BOTS) {
     throw new IllegalActionError(`Bots must be between 0 and ${MAX_BOTS}`);
   }
-  if (!Number.isInteger(mtdBet) || mtdBet < 0) {
-    throw new IllegalActionError("Match the Dealer bet must be a non-negative integer");
+  if (!Number.isInteger(ppBet) || ppBet < 0) {
+    throw new IllegalActionError("Perfect Pairs bet must be a non-negative integer");
   }
 
   const { previousShoe } = opts;
@@ -350,7 +357,7 @@ export function startRound(
     (opts.previousVariant ?? "classic") === variant;
   const shuffled = !reuseShoe;
 
-  const debit = (bet + mtdBet) * seats;
+  const debit = (bet + ppBet) * seats;
   const state: RoundState = {
     shoe: reuseShoe ? [...previousShoe] : createShoe(rng, rules),
     dealer: [],
@@ -394,23 +401,30 @@ export function startRound(
 
   const upcard = state.dealer[0];
 
-  // Match the Dealer resolves right at the deal: each of the seat's first two
-  // cards that matches the upcard's rank pays (suited pays more, both add)
-  if (mtdBet > 0) {
+  // Perfect Pairs resolves right at the deal: the seat's own first two cards
+  // as a pair — perfect (same rank + suit) > colored (same color) > mixed
+  if (ppBet > 0) {
+    const isRed = (s: Suit) => s === "H" || s === "D";
     for (const hand of state.hands) {
+      const [c1, c2] = hand.cards;
       let mult = 0;
-      const parts: string[] = [];
-      for (const c of hand.cards) {
-        if (c.rank === upcard.rank) {
-          const suited = c.suit === upcard.suit;
-          mult += suited ? rules.mtdSuited : rules.mtdUnsuited;
-          parts.push(suited ? "suited" : "unsuited");
+      let label = "no pair";
+      if (c1.rank === c2.rank) {
+        if (c1.suit === c2.suit) {
+          mult = rules.ppPerfect;
+          label = "perfect pair";
+        } else if (isRed(c1.suit) === isRed(c2.suit)) {
+          mult = rules.ppColored;
+          label = "colored pair";
+        } else {
+          mult = rules.ppMixed;
+          label = "mixed pair";
         }
       }
-      hand.mtd = {
-        bet: mtdBet,
-        payout: mult > 0 ? mtdBet + mtdBet * mult : 0,
-        label: mult > 0 ? `${parts.join(" + ")} match` : "no match",
+      hand.pp = {
+        bet: ppBet,
+        payout: mult > 0 ? ppBet + ppBet * mult : 0,
+        label,
       };
     }
   }
@@ -738,7 +752,11 @@ function settle(state: RoundState): RoundState {
     ).outcome;
   }
 
-  s.payoutTotal = s.hands.reduce((sum, h) => sum + h.payout + (h.mtd?.payout ?? 0), 0);
+  // Side bets resolved at the deal pay out here (mtd = legacy in-flight rounds)
+  s.payoutTotal = s.hands.reduce(
+    (sum, h) => sum + h.payout + (h.pp?.payout ?? 0) + (h.mtd?.payout ?? 0),
+    0
+  );
 
   // Insurance pays 2:1 when the dealer has blackjack
   if (dealerBJ && s.insuranceBet && s.insuranceBet > 0) {
@@ -776,8 +794,8 @@ export interface ClientHand {
   payout: number;
   /** Spanish 21 bonus label when one paid (e.g. "5-Card 21"). */
   bonus?: string;
-  /** Match the Dealer side bet result (resolved at the deal). */
-  mtd?: MtdResult;
+  /** Perfect Pairs side bet result (resolved at the deal). */
+  pp?: SideBetResult;
 }
 
 export interface ClientBotHand {
@@ -872,7 +890,7 @@ export function clientView(state: RoundState): ClientView {
         outcome: h.outcome,
         payout: h.payout,
         ...(h.bonus ? { bonus: h.bonus } : {}),
-        ...(h.mtd ? { mtd: h.mtd } : {}),
+        ...(h.pp ? { pp: h.pp } : {}),
       };
     }),
     bots: state.bots.map((b) => {

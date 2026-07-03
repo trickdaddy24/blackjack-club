@@ -2,15 +2,16 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Coins, Eye, EyeOff, Gift, Lightbulb, Loader2, Volume2, VolumeX } from "lucide-react";
+import { Coins, Eye, EyeOff, Gift, HandCoins, Lightbulb, Loader2, Volume2, VolumeX } from "lucide-react";
 import type { ClientView, PlayerAction, Variant } from "@/lib/blackjack/engine";
 import { PlayingCard } from "@/components/PlayingCard";
 import { sounds } from "@/lib/sound";
 
-const CHIP_VALUES = [5, 25, 100, 500, 1000] as const;
-const MTD_CHIP_VALUES = [1, 5, 25] as const;
+const CHIP_VALUES = [1, 5, 25, 100, 500, 1000] as const;
+const SIDE_CHIP_VALUES = [1, 5, 25] as const;
+const TIP_VALUES = [1, 5, 25] as const;
 const MAX_BET = 1_000_000;
-const MAX_MTD_BET = 100;
+const MAX_SIDE_BET = 100;
 const MAX_BOTS = 3;
 const SHUFFLE_MS = 1200;
 
@@ -44,6 +45,7 @@ interface TableState {
   bonusAvailable: boolean;
   round: ClientView | null;
   tableMin?: TableMin;
+  dealerTips?: number;
 }
 
 async function api<T>(path: string, body?: unknown): Promise<T> {
@@ -94,7 +96,8 @@ export function GameTable() {
   const [showCount, setShowCount] = useState(false);
   const [showHints, setShowHints] = useState(false);
   const [shuffling, setShuffling] = useState(false);
-  const [mtdBet, setMtdBet] = useState(0);
+  const [ppBet, setPpBet] = useState(0);
+  const [tips, setTips] = useState(0);
   const [tableMin, setTableMin] = useState<TableMin>({ min: 15, label: "standard rates" });
   /** Last-seen Hi-Lo values — kept so the pill survives between rounds. */
   const [count, setCount] = useState<CountInfo | null>(null);
@@ -116,6 +119,7 @@ export function GameTable() {
         setBonusAvailable(s.bonusAvailable);
         setRound(s.round);
         if (s.tableMin) setTableMin(s.tableMin);
+        setTips(s.dealerTips ?? 0);
         if (s.round) {
           setCount({
             runningCount: s.round.runningCount,
@@ -138,13 +142,28 @@ export function GameTable() {
     });
   }, []);
 
+  async function tipDealer(amount: number) {
+    setBusy(true);
+    try {
+      const r = await api<{ chips: number; dealerTips: number }>("/api/game/tip", { amount });
+      setChips(r.chips);
+      setTips(r.dealerTips);
+      sounds.coins();
+      toast.success("🙏 The dealer says thanks!");
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function deal() {
     if (pendingBet < tableMin.min) return;
     setBusy(true);
     try {
       const r = await api<{ chips: number; round: ClientView; shuffled?: boolean }>(
         "/api/game/bet",
-        { bet: pendingBet, hands: seats, variant, bots: botCount, matchTheDealer: mtdBet }
+        { bet: pendingBet, hands: seats, variant, bots: botCount, perfectPairs: ppBet }
       );
       if (r.shuffled) {
         // Hold the response while the shuffle plays, then deal as usual
@@ -327,6 +346,14 @@ export function GameTable() {
                 {round && round.dealer.total !== null && (
                   <span className="ml-2 text-[var(--gold-bright)]">{round.dealer.total}</span>
                 )}
+                {tips > 0 && (
+                  <span
+                    className="ml-3 tracking-normal text-[var(--cream)]/40 normal-case"
+                    title="Your lifetime dealer tips"
+                  >
+                    🪙 tips {tips.toLocaleString()}
+                  </span>
+                )}
               </span>
               <div className="flex gap-2">
                 {round?.dealer.cards.map((card, i) => (
@@ -418,18 +445,18 @@ export function GameTable() {
                                 : hand.outcome}
                           </span>
                         )}
-                        {hand.mtd && (
+                        {hand.pp && (
                           <span
                             className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
-                              hand.mtd.payout > 0
+                              hand.pp.payout > 0
                                 ? "bg-[var(--gold)]/25 text-[var(--gold-bright)]"
                                 : "bg-black/40 text-[var(--cream-dim)]"
                             }`}
-                            title={`Match the Dealer: ${hand.mtd.label}`}
+                            title={`Perfect Pairs: ${hand.pp.label}`}
                           >
-                            {hand.mtd.payout > 0
-                              ? `MTD +${(hand.mtd.payout - hand.mtd.bet).toLocaleString()}`
-                              : "MTD ✕"}
+                            {hand.pp.payout > 0
+                              ? `${hand.pp.label} +${(hand.pp.payout - hand.pp.bet).toLocaleString()}`
+                              : "Pairs ✕"}
                           </span>
                         )}
                       </div>
@@ -490,7 +517,13 @@ export function GameTable() {
 
             {/* result banner */}
             {settled && round && (
-              <ResultBanner net={round.netResult ?? 0} onNext={newHand} disabled={busy} />
+              <ResultBanner
+                net={round.netResult ?? 0}
+                onNext={newHand}
+                disabled={busy}
+                chips={chips ?? 0}
+                onTip={tipDealer}
+              />
             )}
 
             {/* controls */}
@@ -520,10 +553,10 @@ export function GameTable() {
                   variant={variant}
                   botCount={botCount}
                   tableMin={tableMin}
-                  mtd={mtdBet}
-                  onMtd={(v) => {
+                  pp={ppBet}
+                  onPp={(v) => {
                     sounds.chip();
-                    setMtdBet(v);
+                    setPpBet(v);
                   }}
                   onVariant={(v) => {
                     sounds.chip();
@@ -542,13 +575,13 @@ export function GameTable() {
                   onAdd={(v) => {
                     sounds.chip();
                     setPendingBet((p) =>
-                      Math.min(p + v, MAX_BET, Math.floor((chips ?? 0) / seats) - mtdBet)
+                      Math.min(p + v, MAX_BET, Math.floor((chips ?? 0) / seats) - ppBet)
                     );
                   }}
                   onAllIn={() => {
                     sounds.coins();
                     setPendingBet(
-                      Math.min(Math.floor((chips ?? 0) / seats) - mtdBet, MAX_BET)
+                      Math.min(Math.floor((chips ?? 0) / seats) - ppBet, MAX_BET)
                     );
                   }}
                   onClear={() => setPendingBet(0)}
@@ -568,10 +601,14 @@ function ResultBanner({
   net,
   onNext,
   disabled,
+  chips,
+  onTip,
 }: {
   net: number;
   onNext: () => void;
   disabled: boolean;
+  chips: number;
+  onTip: (amount: number) => void;
 }) {
   const title = net > 0 ? "YOU WIN" : net < 0 ? "HOUSE WINS" : "PUSH";
   return (
@@ -583,6 +620,20 @@ function ResultBanner({
       </div>
       <div className="text-sm tabular-nums text-[var(--cream)]/70">
         {net > 0 ? `+${net.toLocaleString()} chips` : net < 0 ? `${net.toLocaleString()} chips` : "Your bet is returned"}
+      </div>
+      <div className="flex items-center gap-1.5 text-xs text-[var(--cream)]/50">
+        <HandCoins className="h-3.5 w-3.5" />
+        Tip the dealer
+        {TIP_VALUES.map((v) => (
+          <button
+            key={v}
+            onClick={() => onTip(v)}
+            disabled={disabled || chips < v}
+            className="rounded-full border border-[var(--gold)]/40 px-2 py-0.5 font-mono text-[11px] text-[var(--gold-bright)] transition-colors hover:bg-[var(--gold)]/15 disabled:opacity-35"
+          >
+            +{v}
+          </button>
+        ))}
       </div>
       <button className="action-btn primary mt-1" onClick={onNext} disabled={disabled}>
         New Hand
@@ -717,8 +768,8 @@ function BetPicker({
   variant,
   botCount,
   tableMin,
-  mtd,
-  onMtd,
+  pp,
+  onPp,
   onSeats,
   onVariant,
   onBots,
@@ -734,8 +785,8 @@ function BetPicker({
   variant: Variant;
   botCount: number;
   tableMin: TableMin;
-  mtd: number;
-  onMtd: (v: number) => void;
+  pp: number;
+  onPp: (v: number) => void;
   onSeats: (n: number) => void;
   onVariant: (v: Variant) => void;
   onBots: (n: number) => void;
@@ -745,8 +796,8 @@ function BetPicker({
   onDeal: () => void;
   disabled: boolean;
 }) {
-  const total = (pending + mtd) * seats;
-  const allInAmount = Math.floor(chips / seats) - mtd;
+  const total = (pending + pp) * seats;
+  const allInAmount = Math.floor(chips / seats) - pp;
   const isAllIn = pending > 0 && pending === allInAmount;
   return (
     <div className="fade-up flex flex-col items-center gap-4">
@@ -762,7 +813,7 @@ function BetPicker({
             key={v}
             className={`chip-btn chip-${v}`}
             onClick={() => onAdd(v)}
-            disabled={disabled || pending + v > MAX_BET || (pending + v + mtd) * seats > chips}
+            disabled={disabled || pending + v > MAX_BET || (pending + v + pp) * seats > chips}
             aria-label={`Add ${v} chip`}
           >
             {v}
@@ -770,27 +821,30 @@ function BetPicker({
         ))}
       </div>
 
-      {/* Match the Dealer side bet */}
+      {/* Perfect Pairs side bet */}
       <div className="flex flex-wrap items-center justify-center gap-2 rounded-full bg-black/30 px-3 py-1.5 gold-ring">
-        <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--cream)]/50">
-          Match the Dealer
+        <span
+          className="text-[11px] font-semibold uppercase tracking-wider text-[var(--cream)]/50"
+          title="Your first two cards as a pair: mixed 5:1 · colored 10:1 · perfect 30:1"
+        >
+          Perfect Pairs <span className="text-[var(--cream)]/30">$1 min</span>
         </span>
-        {MTD_CHIP_VALUES.map((v) => (
+        {SIDE_CHIP_VALUES.map((v) => (
           <button
             key={v}
-            onClick={() => onMtd(Math.min(mtd + v, MAX_MTD_BET))}
-            disabled={disabled || mtd + v > MAX_MTD_BET || (pending + mtd + v) * seats > chips}
+            onClick={() => onPp(Math.min(pp + v, MAX_SIDE_BET))}
+            disabled={disabled || pp + v > MAX_SIDE_BET || (pending + pp + v) * seats > chips}
             className="rounded-full border border-[var(--gold)]/40 px-2.5 py-0.5 text-[11px] font-mono text-[var(--gold-bright)] transition-colors hover:bg-[var(--gold)]/15 disabled:opacity-35"
           >
             +{v}
           </button>
         ))}
         <span className="min-w-8 text-center font-mono text-sm font-bold gold-text tabular-nums">
-          {mtd}
+          {pp}
         </span>
-        {mtd > 0 && (
+        {pp > 0 && (
           <button
-            onClick={() => onMtd(0)}
+            onClick={() => onPp(0)}
             disabled={disabled}
             className="text-[11px] text-[var(--cream)]/40 underline-offset-2 hover:underline"
           >
@@ -860,11 +914,11 @@ function BetPicker({
         <div className="min-w-24 text-center sm:min-w-28">
           <div className="text-[10px] uppercase tracking-[0.3em] text-[var(--cream)]/50">
             {seats === 2 ? "Bet × 2" : "Bet"}
-            {mtd > 0 ? " + MTD" : ""}
+            {pp > 0 ? " + Pairs" : ""}
           </div>
           <div className="font-display text-2xl font-bold gold-text tabular-nums">
             {pending.toLocaleString()}
-            {(seats === 2 || mtd > 0) && (
+            {(seats === 2 || pp > 0) && (
               <span className="ml-1 text-sm text-[var(--cream)]/50">
                 = {total.toLocaleString()}
               </span>

@@ -278,6 +278,7 @@ body::before {
   cursor: not-allowed;
 }
 
+.chip-1 { --chip-color: #6e7f92; }
 .chip-5 { --chip-color: #b3282d; }
 .chip-25 { --chip-color: #1e6b3c; }
 .chip-100 { --chip-color: #22303f; }

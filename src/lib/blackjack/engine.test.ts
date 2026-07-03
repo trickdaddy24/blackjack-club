@@ -766,64 +766,67 @@ describe("bots", () => {
   });
 });
 
-describe("match the dealer", () => {
-  const mtdRound = (dealOrder: Card[], opts: object = {}) =>
-    startRound(10, { previousShoe: shoeFor(...dealOrder), matchTheDealer: 5, ...opts });
+describe("perfect pairs", () => {
+  // Deal order: player c1, dealer up, player c2, hole
+  const ppRound = (c1: Card, c2: Card) =>
+    startRound(10, {
+      previousShoe: shoeFor(c1, c("9", "D"), c2, c("5", "H")),
+      perfectPairs: 5,
+    });
 
-  it("pays 4:1 on an unsuited match (classic)", () => {
-    const { state, debit } = mtdRound([c("K", "C"), c("K", "H"), c("9", "C"), c("5", "H")]);
-    expect(debit).toBe(15); // 10 bet + 5 mtd
+  it("pays 30:1 on a perfect pair (same rank + suit)", () => {
+    const { state, debit } = ppRound(c("K", "H"), c("K", "H"));
+    expect(debit).toBe(15); // 10 bet + 5 pairs
     expect(state.staked).toBe(15);
-    expect(state.hands[0].mtd).toEqual({ bet: 5, payout: 25, label: "unsuited match" });
+    expect(state.hands[0].pp).toEqual({ bet: 5, payout: 155, label: "perfect pair" });
     const settled = applyAction(state, "stand").state;
-    expect(settled.payoutTotal).toBe(settled.hands[0].payout + 25);
+    expect(settled.payoutTotal).toBe(settled.hands[0].payout + 155);
   });
 
-  it("pays 11:1 on a suited match (classic)", () => {
-    const { state } = mtdRound([c("K", "H"), c("K", "H"), c("9", "C"), c("5", "H")]);
-    expect(state.hands[0].mtd).toEqual({ bet: 5, payout: 60, label: "suited match" });
+  it("pays 10:1 on a colored pair (same color, different suit)", () => {
+    const { state } = ppRound(c("K", "H"), c("K", "D"));
+    expect(state.hands[0].pp).toEqual({ bet: 5, payout: 55, label: "colored pair" });
+    const black = ppRound(c("8", "S"), c("8", "C"));
+    expect(black.state.hands[0].pp?.label).toBe("colored pair");
   });
 
-  it("pays both matches added together", () => {
-    const { state } = mtdRound([c("K", "C"), c("K", "H"), c("K", "H"), c("5", "H")]);
-    // unsuited 4 + suited 11 = 15 → 5 + 75
-    expect(state.hands[0].mtd?.payout).toBe(80);
-    expect(state.hands[0].mtd?.label).toBe("unsuited + suited match");
+  it("pays 5:1 on a mixed pair (different colors)", () => {
+    const { state } = ppRound(c("K", "H"), c("K", "S"));
+    expect(state.hands[0].pp).toEqual({ bet: 5, payout: 30, label: "mixed pair" });
   });
 
-  it("loses the stake on no match", () => {
-    const { state } = mtdRound([c("2"), c("9"), c("5"), c("K")]);
-    expect(state.hands[0].mtd).toEqual({ bet: 5, payout: 0, label: "no match" });
+  it("loses the stake on no pair", () => {
+    const { state } = ppRound(c("K", "H"), c("9", "H"));
+    expect(state.hands[0].pp).toEqual({ bet: 5, payout: 0, label: "no pair" });
     const settled = applyAction(state, "stand").state;
     expect(netResult(settled)).toBe(settled.payoutTotal - 15);
   });
 
-  it("pays 9:1 suited in spanish 21", () => {
-    const { state } = startRound(10, {
-      previousShoe: shoeFor(c("7", "H"), c("7", "H"), c("9", "C"), c("5", "H")),
-      previousVariant: "spanish21",
-      variant: "spanish21",
-      matchTheDealer: 5,
-    });
-    expect(state.hands[0].mtd).toEqual({ bet: 5, payout: 50, label: "suited match" });
-  });
-
   it("applies per seat and debits accordingly", () => {
     const { state, debit } = startRound(10, {
-      previousShoe: shoeFor(c("K", "C"), c("2", "H"), c("K", "H"), c("9", "C"), c("3", "H"), c("5", "H")),
+      previousShoe: shoeFor(
+        c("K", "H"), c("2", "H"), c("9", "D"), c("K", "H"), c("3", "H"), c("5", "H")
+      ),
       seats: 2,
-      matchTheDealer: 5,
+      perfectPairs: 5,
     });
     expect(debit).toBe(30); // (10 + 5) × 2
-    expect(state.hands[0].mtd?.payout).toBe(25); // K♣ unsuited vs K♥
-    expect(state.hands[1].mtd?.payout).toBe(0);
+    expect(state.hands[0].pp?.label).toBe("perfect pair"); // K♥ + K♥
+    expect(state.hands[1].pp?.payout).toBe(0); // 2♥ + 3♥
   });
 
-  it("rejects invalid mtd bets and passes through clientView", () => {
-    expect(() => startRound(10, { matchTheDealer: -1 })).toThrow(IllegalActionError);
-    expect(() => startRound(10, { matchTheDealer: 2.5 })).toThrow(IllegalActionError);
-    const { state } = mtdRound([c("K", "C"), c("K", "H"), c("9", "C"), c("5", "H")]);
-    expect(clientView(state).hands[0].mtd?.payout).toBe(25);
+  it("still pays a legacy in-flight Match the Dealer result at settle", () => {
+    const { state } = startRound(10, { previousShoe: shoeFor(c("K", "H"), c("9", "D"), c("9", "H"), c("5", "H")) });
+    state.hands[0].mtd = { bet: 5, payout: 25, label: "unsuited match" };
+    const settled = applyAction(state, "stand").state;
+    expect(settled.payoutTotal).toBe(settled.hands[0].payout + 25);
+  });
+
+  it("rejects invalid bets and passes through clientView", () => {
+    expect(() => startRound(10, { perfectPairs: -1 })).toThrow(IllegalActionError);
+    expect(() => startRound(10, { perfectPairs: 2.5 })).toThrow(IllegalActionError);
+    const { state } = ppRound(c("K", "H"), c("K", "H"));
+    expect(clientView(state).hands[0].pp?.payout).toBe(155);
   });
 });
 

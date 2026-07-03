@@ -13,7 +13,7 @@ import {
   getActiveRound,
   getPreviousCarry,
   MAX_BET,
-  MAX_MTD_BET,
+  MAX_SIDE_BET,
   roundStatus,
 } from "@/lib/game";
 import { withHint } from "@/lib/blackjack/strategy";
@@ -32,9 +32,9 @@ export async function POST(req: Request) {
   let hands: unknown;
   let variant: unknown;
   let bots: unknown;
-  let matchTheDealer: unknown;
+  let perfectPairs: unknown;
   try {
-    ({ bet, hands, variant, bots, matchTheDealer } = await req.json());
+    ({ bet, hands, variant, bots, perfectPairs } = await req.json());
   } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
@@ -49,15 +49,15 @@ export async function POST(req: Request) {
     );
   }
 
-  const mtd = matchTheDealer === undefined ? 0 : matchTheDealer;
+  const pp = perfectPairs === undefined ? 0 : perfectPairs;
   if (
-    typeof mtd !== "number" ||
-    !Number.isInteger(mtd) ||
-    mtd < 0 ||
-    mtd > MAX_MTD_BET
+    typeof pp !== "number" ||
+    !Number.isInteger(pp) ||
+    pp < 0 ||
+    pp > MAX_SIDE_BET
   ) {
     return NextResponse.json(
-      { error: `Match the Dealer bet must be 0 to ${MAX_MTD_BET}` },
+      { error: `Perfect Pairs bet must be 0 to ${MAX_SIDE_BET}` },
       { status: 400 }
     );
   }
@@ -100,7 +100,7 @@ export async function POST(req: Request) {
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  if (user.chips < (bet + mtd) * seats) {
+  if (user.chips < (bet + pp) * seats) {
     return NextResponse.json({ error: "Not enough chips" }, { status: 400 });
   }
 
@@ -112,7 +112,7 @@ export async function POST(req: Request) {
     seats,
     variant: tableVariant as Variant,
     bots: botCount,
-    matchTheDealer: mtd,
+    perfectPairs: pp,
   });
   const settled = state.phase === "settled";
   const chipDelta = -debit + (settled ? state.payoutTotal : 0);

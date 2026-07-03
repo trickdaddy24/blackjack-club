@@ -15,7 +15,7 @@ export async function GET() {
 
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { chips: true, lastDailyBonus: true, name: true },
+    select: { chips: true, lastDailyBonus: true, name: true, dealerTips: true },
   });
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -39,5 +39,6 @@ export async function GET() {
     bonusAvailable,
     round: roundView,
     tableMin: currentTableMinimum(),
+    dealerTips: user.dealerTips,
   });
 }

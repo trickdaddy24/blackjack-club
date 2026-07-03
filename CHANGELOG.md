@@ -5,6 +5,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the `VERSION` fi
 
 ---
 
+## [0.6.0] — 2026-07-03
+
+### Changed
+- **Perfect Pairs replaces Match the Dealer** — your own first two cards as a pair:
+  mixed 5:1, colored 10:1, perfect 30:1. Same $1 units / $100 cap / per seat; result
+  badge shows the pair type. Legacy in-flight MTD rounds still pay out at settle.
+
+### Added
+- **$1 chip in the main rack** (blue-grey, Vegas style) — fine-tune any bet above the
+  table minimum; the Perfect Pairs row keeps its $1/$5/$25 quick buttons ("$1 min" label).
+- **Dealer tips** — +1/+5/+25 buttons on the result banner; chips move to a lifetime
+  `dealerTips` counter (new User column, applied automatically by `db push` at boot)
+  shown next to the dealer as "🪙 tips N". `POST /api/game/tip`.
+
 ## [0.5.1] — 2026-07-03
 
 ### Added
