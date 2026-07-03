@@ -13,6 +13,9 @@ ENV NODE_ENV=production
 ENV PORT=7600
 ENV HOSTNAME=0.0.0.0
 
+# Prisma's engines need OpenSSL, which node:alpine doesn't ship
+RUN apk add --no-cache openssl
+
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/prisma ./prisma
