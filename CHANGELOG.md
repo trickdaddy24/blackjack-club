@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the `VERSION` fi
 
 ---
 
+## [0.4.1] — 2026-07-03
+
+### Added
+- **Upgrade CTA on the static demo** — dismissible banner + permanent footer link pointing
+  players at the full club (play.minus-one-labs.com): accounts, cross-device chips,
+  Spanish 21, bot players, card counter.
+- Full server app deployed: **play.minus-one-labs.com** (server2, Docker + Traefik,
+  SQLite volume). Dockerfile fixes from the first real deploy: exclude `static/` from
+  the Next typecheck/build context, ship the full `@prisma` scope, `apk add openssl`.
+
 ## [0.4.0] — 2026-07-03
 
 ### Added

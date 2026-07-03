@@ -1,6 +1,7 @@
 import { Spade } from "lucide-react";
 import { GameTable } from "./GameTable";
 import { STARTING_CHIPS } from "./localGame";
+import { UpgradeBanner, FULL_SITE_URL } from "./UpgradeBanner";
 
 export function App() {
   return (
@@ -17,10 +18,18 @@ export function App() {
         </span>
       </header>
 
+      <UpgradeBanner />
+
       <GameTable />
 
       <footer className="flex items-center justify-center gap-3 pb-5 pt-3 text-xs text-[var(--cream)]/30">
         <span>No purchases, no payouts — just cards.</span>
+        <a
+          href={FULL_SITE_URL}
+          className="underline-offset-4 hover:text-[var(--gold-bright)] hover:underline"
+        >
+          Play the full club ♠
+        </a>
         <button
           className="underline-offset-4 hover:text-[var(--cream)]/60 hover:underline"
           onClick={() => {
