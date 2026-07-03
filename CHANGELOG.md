@@ -5,6 +5,23 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the `VERSION` fi
 
 ---
 
+## [0.8.0] — 2026-07-03
+
+### Added
+- **Instant side-bet payouts** — Perfect Pairs winnings are credited the moment the
+  cards land (same transaction as the deal), with a color-cycling glow animation on the
+  badge (💎 gold→emerald→pink) and a sparkling win sound. The hand plays on as normal.
+  Main-game accounting (result banner, round netResult) now excludes the side bet.
+- **Even money** — with blackjack against a dealer ace, choose a guaranteed 1:1 on the
+  spot or play it out for 3:2 (new `even-money-yes/no` actions, "Even Money ✓" badge;
+  hint advises playing it out). Falls back to regular insurance when only one of two
+  seats holds a natural.
+- **Chips on the felt** — each hand's bet renders as a mini chip stack beside the cards
+  (desktop screens only; hidden on small screens for space).
+
+### Notes
+- 99 tests. Player blackjack already settled immediately when no dealer peek is pending.
+
 ## [0.7.0] — 2026-07-03
 
 ### Added

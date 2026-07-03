@@ -105,7 +105,7 @@ export async function POST(req: Request) {
   }
 
   const carry = await getPreviousCarry(userId);
-  const { state, debit, shuffled } = startRound(bet, {
+  const { state, debit, shuffled, sideBetPayout } = startRound(bet, {
     previousShoe: carry?.shoe ?? null,
     previousVariant: carry?.variant,
     previousCount: carry?.runningCount,
@@ -115,7 +115,8 @@ export async function POST(req: Request) {
     perfectPairs: pp,
   });
   const settled = state.phase === "settled";
-  const chipDelta = -debit + (settled ? state.payoutTotal : 0);
+  // Side-bet winnings are paid on the spot, in the same transaction as the deal
+  const chipDelta = -debit + (sideBetPayout ?? 0) + (settled ? state.payoutTotal : 0);
 
   const [updated] = await prisma.$transaction([
     prisma.user.update({

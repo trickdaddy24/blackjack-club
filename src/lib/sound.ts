@@ -175,6 +175,24 @@ class Sounds {
     this.tone(440, { type: "triangle", delay: delay + 0.16, dur: 0.14, vol: 0.16 });
   }
 
+  /** Side bet hits — bright sparkling run + shimmer, distinct from a hand win. */
+  sideBet(delay = 0) {
+    const run = [659.25, 783.99, 987.77, 1318.5, 1567.98]; // E5 G5 B5 E6 G6
+    run.forEach((f, i) => {
+      this.tone(f, { type: "triangle", delay: delay + i * 0.07, dur: 0.22, vol: 0.32 });
+      this.tone(f * 2, { type: "sine", delay: delay + i * 0.07 + 0.02, dur: 0.12, vol: 0.1 });
+    });
+    // Coin shimmer on top
+    for (let i = 0; i < 5; i++) {
+      this.tone(2400 + Math.random() * 1200, {
+        type: "sine",
+        delay: delay + 0.3 + i * 0.05,
+        dur: 0.08,
+        vol: 0.12,
+      });
+    }
+  }
+
   /** Fresh shoe — riffle of rapid card swishes capped by a square-up tap. */
   shuffle(delay = 0) {
     for (let i = 0; i < 10; i++) {

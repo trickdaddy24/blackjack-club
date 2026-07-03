@@ -95,6 +95,11 @@ export default function HowToPlayPage() {
               your bet, pays 2:1 if the dealer has blackjack. (Basic strategy says: never
               take it.)
             </li>
+            <li>
+              <strong>Even money</strong> — if YOU have blackjack and the dealer shows an
+              ace, you can lock in a guaranteed 1:1 payout on the spot instead of risking a
+              push for the 3:2. (Basic strategy says: play it out.)
+            </li>
           </ul>
           <p className="mt-3 text-[var(--cream)]/55">
             💡 Not sure what to do? Turn on the <strong>lightbulb toggle</strong> in the game
@@ -142,7 +147,8 @@ export default function HowToPlayPage() {
           <p>
             Optional side bet placed before the deal ($1 minimum, $100 maximum, applies to
             each hand you play). It wins when <strong>your own first two cards are a
-            pair</strong> — settled instantly, win or lose the main hand:
+            pair</strong> — <strong>paid instantly at the deal</strong>, win or lose the
+            main hand, and you keep playing:
           </p>
           <PayTable
             rows={[

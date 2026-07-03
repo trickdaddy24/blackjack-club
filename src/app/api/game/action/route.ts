@@ -19,6 +19,8 @@ const ACTIONS: PlayerAction[] = [
   "surrender",
   "insurance-yes",
   "insurance-no",
+  "even-money-yes",
+  "even-money-no",
 ];
 
 export async function POST(req: Request) {

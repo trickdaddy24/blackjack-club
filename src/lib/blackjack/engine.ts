@@ -41,7 +41,7 @@ export interface Card {
   suit: Suit;
 }
 
-export type Outcome = "blackjack" | "win" | "push" | "lose" | "surrender";
+export type Outcome = "blackjack" | "win" | "push" | "lose" | "surrender" | "even-money";
 
 export type Variant = "classic" | "spanish21";
 
@@ -148,7 +148,9 @@ export type PlayerAction =
   | "split"
   | "surrender"
   | "insurance-yes"
-  | "insurance-no";
+  | "insurance-no"
+  | "even-money-yes"
+  | "even-money-no";
 
 /** Result of applying an action: new state + chips to debit immediately. */
 export interface ActionResult {
@@ -156,6 +158,8 @@ export interface ActionResult {
   debit: number;
   /** True when startRound built a fresh shoe (UI plays the shuffle). */
   shuffled?: boolean;
+  /** Side-bet winnings to credit IMMEDIATELY at the deal (paid on the spot). */
+  sideBetPayout?: number;
 }
 
 export class IllegalActionError extends Error {}
@@ -357,6 +361,8 @@ export function startRound(
     (opts.previousVariant ?? "classic") === variant;
   const shuffled = !reuseShoe;
 
+  // The side bet is debited with the deal but paid on the spot, so the main
+  // game's staked/payout accounting (and the result banner) excludes it.
   const debit = (bet + ppBet) * seats;
   const state: RoundState = {
     shoe: reuseShoe ? [...previousShoe] : createShoe(rng, rules),
@@ -368,7 +374,7 @@ export function startRound(
     baseBet: bet,
     insuranceBet: 0,
     splits: 0,
-    staked: debit,
+    staked: bet * seats,
     payoutTotal: 0,
     variant,
     runningCount: reuseShoe ? (opts.previousCount ?? 0) : 0,
@@ -429,20 +435,31 @@ export function startRound(
     }
   }
 
+  const sideBetPayout = state.hands.reduce((sum, h) => sum + (h.pp?.payout ?? 0), 0);
+
   if (upcard.rank === "A") {
-    // Insurance decision comes before the peek
+    // Insurance (or even money, when holding blackjack) comes before the peek
     state.phase = "insurance";
     state.insuranceBet = null;
-    return { state, debit, shuffled };
+    return { state, debit, shuffled, sideBetPayout };
   }
 
   if (cardValue(upcard) === 10 && dealerHasBlackjack(state.dealer)) {
     // Dealer peeks on ten and has it — round over immediately
-    return { state: settle(state), debit, shuffled };
+    return { state: settle(state), debit, shuffled, sideBetPayout };
   }
 
   // advance() settles right away when every hand is a natural
-  return { state: advance(state), debit, shuffled };
+  return { state: advance(state), debit, shuffled, sideBetPayout };
+}
+
+/** Even money is offered when every hand is a natural and the dealer shows an ace. */
+export function evenMoneyOffered(state: RoundState): boolean {
+  return (
+    state.phase === "insurance" &&
+    state.dealer[0]?.rank === "A" &&
+    state.hands.every((h) => isBlackjack(h))
+  );
 }
 
 /** Apply a player action. Returns the new state + any additional chips to debit. */
@@ -450,6 +467,22 @@ export function applyAction(state: RoundState, action: PlayerAction): ActionResu
   normalizeState(state);
   if (state.phase === "settled") {
     throw new IllegalActionError("Round is already settled");
+  }
+
+  if (action === "even-money-yes" || action === "even-money-no") {
+    if (!evenMoneyOffered(state)) {
+      throw new IllegalActionError("Even money is not being offered");
+    }
+    if (action === "even-money-no") {
+      // Play it out: identical to declining insurance (peek, push vs 3:2)
+      return resolveInsurance(state, false);
+    }
+    // Take the guaranteed 1:1 — pre-mark every hand; settle() pays bet × 2
+    const s = cloneState(state);
+    s.insuranceBet = 0;
+    for (const hand of s.hands) hand.outcome = "even-money";
+    s.phase = "player";
+    return { state: advance(s), debit: 0 };
   }
 
   if (action === "insurance-yes" || action === "insurance-no") {
@@ -736,6 +769,10 @@ function settle(state: RoundState): RoundState {
       hand.payout = Math.floor(hand.bet / 2);
       continue;
     }
+    if (hand.outcome === "even-money") {
+      hand.payout = hand.bet * 2; // guaranteed 1:1, dealer blackjack or not
+      continue;
+    }
     const r = settleHand(hand, dealerBJ, dealerTotal, rules);
     hand.outcome = r.outcome;
     hand.payout = r.payout;
@@ -752,9 +789,10 @@ function settle(state: RoundState): RoundState {
     ).outcome;
   }
 
-  // Side bets resolved at the deal pay out here (mtd = legacy in-flight rounds)
+  // Perfect Pairs was paid on the spot at the deal — NOT counted here.
+  // (mtd = legacy pre-0.6.0 in-flight rounds, still settled the old way.)
   s.payoutTotal = s.hands.reduce(
-    (sum, h) => sum + h.payout + (h.pp?.payout ?? 0) + (h.mtd?.payout ?? 0),
+    (sum, h) => sum + h.payout + (h.mtd?.payout ?? 0),
     0
   );
 
@@ -841,7 +879,11 @@ export function clientView(state: RoundState): ClientView {
 
   const actions: PlayerAction[] = [];
   if (state.phase === "insurance") {
-    actions.push("insurance-yes", "insurance-no");
+    if (evenMoneyOffered(state)) {
+      actions.push("even-money-yes", "even-money-no");
+    } else {
+      actions.push("insurance-yes", "insurance-no");
+    }
   } else if (state.phase === "player") {
     const hand = state.hands[state.active];
     if (!hand.splitAces) actions.push("hit");

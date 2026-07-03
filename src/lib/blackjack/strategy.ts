@@ -109,7 +109,9 @@ export function recommendAction(
   variant: Variant = "classic"
 ): PlayerAction | null {
   if (actions.length === 0) return null;
-  if (actions.includes("insurance-no")) return "insurance-no"; // never take insurance
+  // Basic strategy never takes insurance — and even money IS insurance
+  if (actions.includes("even-money-no")) return "even-money-no";
+  if (actions.includes("insurance-no")) return "insurance-no";
 
   const up = cardValue(upcard); // A = 11
   const spanish = variant === "spanish21";

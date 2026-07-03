@@ -27,7 +27,42 @@ const ACTION_LABELS: Record<string, string> = {
   split: "Split",
   surrender: "Surrender",
   "insurance-no": "decline insurance",
+  "even-money-no": "decline even money (play the 3:2)",
 };
+
+const CHIP_COLORS: Record<number, string> = {
+  1: "#6e7f92",
+  5: "#b3282d",
+  25: "#1e6b3c",
+  100: "#22303f",
+  500: "#5b2a86",
+  1000: "#8a6f1c",
+};
+
+/** Compact chip-stack rendering of a bet on the felt (desktop only). */
+function BetChips({ amount }: { amount: number }) {
+  const chips: number[] = [];
+  let left = amount;
+  for (const v of [1000, 500, 100, 25, 5, 1]) {
+    while (left >= v && chips.length < 8) {
+      chips.push(v);
+      left -= v;
+    }
+  }
+  if (chips.length === 0) return null;
+  return (
+    <span className="hidden items-center sm:flex" title={`${amount.toLocaleString()} chips`}>
+      {chips.map((v, i) => (
+        <span
+          key={i}
+          className="mini-chip"
+          style={{ ["--chip-color" as string]: CHIP_COLORS[v] }}
+        />
+      ))}
+      {left > 0 && <span className="ml-1 text-[10px] text-[var(--cream)]/40">+</span>}
+    </span>
+  );
+}
 
 interface CountInfo {
   runningCount: number;
@@ -176,6 +211,10 @@ export function GameTable() {
       // Opening deal: two cards per seat and bot, plus the dealer's two
       const dealt = (seats + (r.round.bots?.length ?? 0)) * 2 + 2;
       for (let i = 0; i < dealt; i++) sounds.deal(i * 0.13);
+      // Side bet hits are paid on the spot — celebrate right after the deal
+      if (r.round.hands.some((h) => (h.pp?.payout ?? 0) > 0)) {
+        sounds.sideBet(dealt * 0.13 + 0.15);
+      }
       if (r.round.phase === "settled") playResult(r.round, dealt * 0.13 + 0.3);
     } catch (e) {
       toast.error((e as Error).message);
@@ -423,6 +462,7 @@ export function GameTable() {
                           {hand.soft ? " soft" : ""}
                         </span>
                         <span className="text-[var(--cream)]/50 tabular-nums">bet {hand.bet}</span>
+                        <BetChips amount={hand.bet} />
                         {hand.doubled && (
                           <span className="rounded bg-[var(--gold)]/20 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-[var(--gold-bright)]">
                             2×
@@ -442,20 +482,22 @@ export function GameTable() {
                               ? `${hand.bonus}!`
                               : hand.outcome === "blackjack"
                                 ? "Blackjack!"
-                                : hand.outcome}
+                                : hand.outcome === "even-money"
+                                  ? "Even Money ✓"
+                                  : hand.outcome}
                           </span>
                         )}
                         {hand.pp && (
                           <span
                             className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
                               hand.pp.payout > 0
-                                ? "bg-[var(--gold)]/25 text-[var(--gold-bright)]"
+                                ? "sidebet-win bg-[var(--gold)]/25 text-[var(--gold-bright)]"
                                 : "bg-black/40 text-[var(--cream-dim)]"
                             }`}
-                            title={`Perfect Pairs: ${hand.pp.label}`}
+                            title={`Perfect Pairs: ${hand.pp.label} — paid instantly`}
                           >
                             {hand.pp.payout > 0
-                              ? `${hand.pp.label} +${(hand.pp.payout - hand.pp.bet).toLocaleString()}`
+                              ? `💎 ${hand.pp.label} +${(hand.pp.payout - hand.pp.bet).toLocaleString()}`
                               : "Pairs ✕"}
                           </span>
                         )}
@@ -529,13 +571,22 @@ export function GameTable() {
             {/* controls */}
             <div className="mt-auto pt-4">
               {round?.phase === "insurance" ? (
-                <InsurancePrompt
-                  cost={round.insuranceCost}
-                  onAnswer={(yes) => act(yes ? "insurance-yes" : "insurance-no")}
-                  disabled={busy}
-                  canAfford={(chips ?? 0) >= round.insuranceCost}
-                  showHint={showHints}
-                />
+                round.actions.includes("even-money-yes") ? (
+                  <EvenMoneyPrompt
+                    bet={round.baseBet}
+                    onAnswer={(yes) => act(yes ? "even-money-yes" : "even-money-no")}
+                    disabled={busy}
+                    showHint={showHints}
+                  />
+                ) : (
+                  <InsurancePrompt
+                    cost={round.insuranceCost}
+                    onAnswer={(yes) => act(yes ? "insurance-yes" : "insurance-no")}
+                    disabled={busy}
+                    canAfford={(chips ?? 0) >= round.insuranceCost}
+                    showHint={showHints}
+                  />
+                )
               ) : round && !settled ? (
                 <ActionBar
                   actions={round.actions}
@@ -638,6 +689,44 @@ function ResultBanner({
       <button className="action-btn primary mt-1" onClick={onNext} disabled={disabled}>
         New Hand
       </button>
+    </div>
+  );
+}
+
+function EvenMoneyPrompt({
+  bet,
+  onAnswer,
+  disabled,
+  showHint,
+}: {
+  bet: number;
+  onAnswer: (yes: boolean) => void;
+  disabled: boolean;
+  showHint?: boolean;
+}) {
+  return (
+    <div className="fade-up mx-auto flex max-w-md flex-col items-center gap-3 rounded-2xl bg-black/35 p-4 gold-ring">
+      <p className="font-display text-lg font-bold gold-text tracking-wide">
+        Blackjack! Even money?
+      </p>
+      <p className="text-xs text-[var(--cream)]/60">
+        The dealer is showing an ace. Take a guaranteed {bet.toLocaleString()} (1:1) right
+        now — or play it out for the 3:2 payout and risk a push if the dealer also has
+        blackjack.
+      </p>
+      {showHint && (
+        <p className="flex items-center gap-1 text-xs text-[var(--gold-bright)]/80">
+          <Lightbulb className="h-3 w-3" /> Basic strategy: decline — 3:2 wins more in the long run
+        </p>
+      )}
+      <div className="flex gap-3">
+        <button className="action-btn" onClick={() => onAnswer(true)} disabled={disabled}>
+          Take Even Money (+{bet.toLocaleString()})
+        </button>
+        <button className="action-btn primary" onClick={() => onAnswer(false)} disabled={disabled}>
+          Play It Out
+        </button>
+      </div>
     </div>
   );
 }

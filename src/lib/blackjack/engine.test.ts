@@ -774,13 +774,15 @@ describe("perfect pairs", () => {
       perfectPairs: 5,
     });
 
-  it("pays 30:1 on a perfect pair (same rank + suit)", () => {
-    const { state, debit } = ppRound(c("K", "H"), c("K", "H"));
-    expect(debit).toBe(15); // 10 bet + 5 pairs
-    expect(state.staked).toBe(15);
+  it("pays 30:1 on a perfect pair, credited immediately at the deal", () => {
+    const { state, debit, sideBetPayout } = ppRound(c("K", "H"), c("K", "H"));
+    expect(debit).toBe(15); // 10 bet + 5 pairs leave the stack together
+    expect(sideBetPayout).toBe(155); // …but the win comes right back on the spot
+    expect(state.staked).toBe(10); // main-game accounting excludes the side bet
     expect(state.hands[0].pp).toEqual({ bet: 5, payout: 155, label: "perfect pair" });
     const settled = applyAction(state, "stand").state;
-    expect(settled.payoutTotal).toBe(settled.hands[0].payout + 155);
+    // settle pays the main hand only — the side bet was already paid
+    expect(settled.payoutTotal).toBe(settled.hands[0].payout);
   });
 
   it("pays 10:1 on a colored pair (same color, different suit)", () => {
@@ -795,15 +797,17 @@ describe("perfect pairs", () => {
     expect(state.hands[0].pp).toEqual({ bet: 5, payout: 30, label: "mixed pair" });
   });
 
-  it("loses the stake on no pair", () => {
-    const { state } = ppRound(c("K", "H"), c("9", "H"));
+  it("loses the stake on no pair (zero immediate payout)", () => {
+    const { state, sideBetPayout } = ppRound(c("K", "H"), c("9", "H"));
+    expect(sideBetPayout).toBe(0);
     expect(state.hands[0].pp).toEqual({ bet: 5, payout: 0, label: "no pair" });
     const settled = applyAction(state, "stand").state;
-    expect(netResult(settled)).toBe(settled.payoutTotal - 15);
+    // netResult tracks the MAIN game only; the side-bet stake left with the debit
+    expect(netResult(settled)).toBe(settled.payoutTotal - 10);
   });
 
   it("applies per seat and debits accordingly", () => {
-    const { state, debit } = startRound(10, {
+    const { state, debit, sideBetPayout } = startRound(10, {
       previousShoe: shoeFor(
         c("K", "H"), c("2", "H"), c("9", "D"), c("K", "H"), c("3", "H"), c("5", "H")
       ),
@@ -811,6 +815,7 @@ describe("perfect pairs", () => {
       perfectPairs: 5,
     });
     expect(debit).toBe(30); // (10 + 5) × 2
+    expect(sideBetPayout).toBe(155); // seat 1's perfect pair, paid on the spot
     expect(state.hands[0].pp?.label).toBe("perfect pair"); // K♥ + K♥
     expect(state.hands[1].pp?.payout).toBe(0); // 2♥ + 3♥
   });
@@ -827,6 +832,54 @@ describe("perfect pairs", () => {
     expect(() => startRound(10, { perfectPairs: 2.5 })).toThrow(IllegalActionError);
     const { state } = ppRound(c("K", "H"), c("K", "H"));
     expect(clientView(state).hands[0].pp?.payout).toBe(155);
+  });
+});
+
+describe("even money", () => {
+  // Player blackjack vs dealer ace: A♣, up A♥, K♣, hole = ?
+  const bjVsAce = (hole: Card) =>
+    startRound(10, { previousShoe: shoeFor(c("A", "C"), c("A", "H"), c("K", "C"), hole) });
+
+  it("is offered instead of insurance when every hand is a natural", () => {
+    const { state } = bjVsAce(c("K", "H"));
+    expect(state.phase).toBe("insurance");
+    expect(clientView(state).actions).toEqual(["even-money-yes", "even-money-no"]);
+  });
+
+  it("pays 1:1 immediately — even when the dealer has blackjack", () => {
+    const { state } = bjVsAce(c("K", "H")); // dealer A+K = blackjack
+    const settled = applyAction(state, "even-money-yes").state;
+    expect(settled.phase).toBe("settled");
+    expect(settled.hands[0].outcome).toBe("even-money");
+    expect(settled.hands[0].payout).toBe(20); // bet × 2, guaranteed
+    expect(netResult(settled)).toBe(10);
+  });
+
+  it("declining plays it out: push vs dealer BJ, 3:2 otherwise", () => {
+    const pushed = applyAction(bjVsAce(c("K", "H")).state, "even-money-no").state;
+    expect(pushed.hands[0].outcome).toBe("push");
+    expect(netResult(pushed)).toBe(0);
+
+    const paid = applyAction(bjVsAce(c("5", "H")).state, "even-money-no").state;
+    expect(paid.hands[0].outcome).toBe("blackjack");
+    expect(netResult(paid)).toBe(15); // 3:2
+  });
+
+  it("falls back to regular insurance when only one of two hands is a natural", () => {
+    const { state } = startRound(10, {
+      previousShoe: shoeFor(
+        c("A", "C"), c("9", "C"), c("A", "H"), c("K", "C"), c("9", "H"), c("K", "H")
+      ),
+      seats: 2,
+    });
+    expect(state.phase).toBe("insurance");
+    expect(clientView(state).actions).toEqual(["insurance-yes", "insurance-no"]);
+    expect(() => applyAction(state, "even-money-yes")).toThrow(IllegalActionError);
+  });
+
+  it("is illegal outside the offer", () => {
+    const { state } = startRound(10, shoeFor(c("5"), c("9"), c("6"), c("7")));
+    expect(() => applyAction(state, "even-money-yes")).toThrow(IllegalActionError);
   });
 });
 
