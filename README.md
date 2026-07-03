@@ -13,8 +13,13 @@ chip balances, daily free chips, and a dim, gold-on-felt "midnight table" aesthe
   state and sends actions. The dealer's hole card and the shoe are never sent over the wire
   until reveal, and chip balances mutate in the same DB transaction as round state.
 - **Accounts & persistent chips** — Auth.js v5 (email/password, optional Google OAuth),
-  1,000 starting chips, +500 daily bonus, house rescue stake when you bust out.
+  10,000 starting chips, +2,500 daily bonus, house rescue stake when you bust out.
+- **Two hands at once** — seat selector deals casino-style and plays hands left to right;
+  plus an **All In** button for the brave.
+- **Synthesized sound effects** — chip clinks, card swishes, win fanfares, and an
+  arcade-death warble on losses; all Web Audio, no asset files, mutable from the HUD.
 - **Rounds survive refresh** — active round state is persisted; reload mid-hand and resume.
+- **Mobile-friendly** — compact card/chip layout and safe-area handling for iPhone.
 - **Lobby leaderboard & profile stats** — high rollers list, hands played, win rate,
   biggest win, recent-hands ledger.
 
@@ -37,7 +42,7 @@ npm run dev               # http://localhost:7600
 | Command | What it does |
 |---|---|
 | `npm run dev` | Dev server on port **7600** |
-| `npm test` | Engine test suite (35 tests, vitest) |
+| `npm test` | Engine test suite (40 tests, vitest) |
 | `npm run build` | `prisma generate` + production build (standalone output) |
 | `npm start` | Serve the production build |
 

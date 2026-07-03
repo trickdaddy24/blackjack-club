@@ -21,7 +21,7 @@ function LoginForm() {
   useEffect(() => {
     if (searchParams.get("registered") === "true") {
       toast.success("Welcome to the club", {
-        description: "Your seat is ready — sign in to collect your 1,000 chips.",
+        description: "Your seat is ready — sign in to collect your 10,000 chips.",
       });
     }
   }, [searchParams]);

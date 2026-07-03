@@ -35,6 +35,11 @@ body {
   color: var(--cream);
   font-family: var(--font-jost), sans-serif;
   letter-spacing: 0.01em;
+  -webkit-tap-highlight-color: transparent;
+}
+
+button {
+  touch-action: manipulation; /* no 300ms double-tap delay on iOS */
 }
 
 /* Fine grain over everything for that low-light casino texture */
@@ -226,6 +231,7 @@ body::before {
 .chip-25 { --chip-color: #1e6b3c; }
 .chip-100 { --chip-color: #22303f; }
 .chip-500 { --chip-color: #5b2a86; }
+.chip-1000 { --chip-color: #8a6f1c; }
 
 /* ------------------------------------------------------------- buttons -- */
 
@@ -319,4 +325,63 @@ body::before {
 
 .input-dark::placeholder {
   color: rgba(246, 238, 218, 0.3);
+}
+
+/* ------------------------------------------------------ small screens -- */
+
+@media (max-width: 480px) {
+  :root {
+    --card-w: 54px;
+  }
+
+  .pcard {
+    border-radius: 6px;
+  }
+
+  .pcard .corner {
+    font-size: 12px;
+    top: 3px;
+    left: 4px;
+  }
+
+  .pcard .corner .suit {
+    font-size: 10px;
+  }
+
+  .pcard .corner.br {
+    bottom: 3px;
+    right: 4px;
+  }
+
+  .pcard .pip {
+    font-size: 22px;
+  }
+
+  .chip-btn {
+    width: 50px;
+    height: 50px;
+    font-size: 12px;
+    box-shadow:
+      0 2px 0 rgba(0, 0, 0, 0.45),
+      0 4px 10px rgba(0, 0, 0, 0.5),
+      inset 0 0 0 5px var(--chip-color),
+      inset 0 0 0 6px rgba(255, 255, 255, 0.25);
+  }
+
+  .action-btn {
+    padding: 10px 14px;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+  }
+
+  .felt-table {
+    border-width: 6px;
+  }
+}
+
+/* Respect the iPhone home-indicator area */
+@supports (padding: env(safe-area-inset-bottom)) {
+  body {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
 }

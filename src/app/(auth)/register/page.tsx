@@ -41,7 +41,7 @@ export default function RegisterPage() {
           <h1 className="font-display text-2xl font-bold tracking-[0.15em] gold-text">
             JOIN THE CLUB
           </h1>
-          <p className="text-sm text-[var(--cream)]/50">1,000 chips on the house</p>
+          <p className="text-sm text-[var(--cream)]/50">10,000 chips on the house</p>
         </div>
 
         <div className="gold-ring rounded-2xl bg-black/30 p-6">

@@ -2,10 +2,11 @@ import { prisma } from "@/lib/prisma";
 import type { RoundState } from "@/lib/blackjack/engine";
 
 export const MIN_BET = 5;
-export const MAX_BET = 1000;
-export const STARTING_CHIPS = 1000;
-export const DAILY_BONUS = 500;
-export const RESCUE_CHIPS = 100;
+// Generous table max so "All In" is a real all-in even on a big stack
+export const MAX_BET = 1_000_000;
+export const STARTING_CHIPS = 10000;
+export const DAILY_BONUS = 2500;
+export const RESCUE_CHIPS = 1000;
 
 export async function getActiveRound(userId: string) {
   return prisma.round.findFirst({

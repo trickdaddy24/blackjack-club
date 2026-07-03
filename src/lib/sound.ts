@@ -1,0 +1,188 @@
+// Synthesized casino sound effects — Web Audio API, no assets.
+// All triggers come from user gestures (clicks), so the AudioContext can be
+// created/resumed lazily without tripping autoplay policies.
+
+const MUTE_KEY = "bj-muted";
+
+class Sounds {
+  private ctx: AudioContext | null = null;
+  private master: GainNode | null = null;
+  private _muted = false;
+
+  constructor() {
+    if (typeof window !== "undefined") {
+      this._muted = localStorage.getItem(MUTE_KEY) === "1";
+    }
+  }
+
+  get muted() {
+    return this._muted;
+  }
+
+  setMuted(m: boolean) {
+    this._muted = m;
+    localStorage.setItem(MUTE_KEY, m ? "1" : "0");
+  }
+
+  private ensure(): AudioContext | null {
+    if (typeof window === "undefined" || this._muted) return null;
+    if (!this.ctx) {
+      const Ctor =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (!Ctor) return null;
+      this.ctx = new Ctor();
+      this.master = this.ctx.createGain();
+      this.master.gain.value = 0.5;
+      this.master.connect(this.ctx.destination);
+    }
+    if (this.ctx.state === "suspended") void this.ctx.resume();
+    return this.ctx;
+  }
+
+  /** Single oscillator blip with exponential decay. */
+  private tone(
+    freq: number,
+    {
+      type = "sine",
+      delay = 0,
+      dur = 0.15,
+      vol = 0.5,
+      glideTo,
+    }: {
+      type?: OscillatorType;
+      delay?: number;
+      dur?: number;
+      vol?: number;
+      glideTo?: number;
+    } = {}
+  ) {
+    const ctx = this.ensure();
+    if (!ctx || !this.master) return;
+    const t = ctx.currentTime + delay;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, t);
+    if (glideTo) osc.frequency.exponentialRampToValueAtTime(glideTo, t + dur);
+    gain.gain.setValueAtTime(vol, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    osc.connect(gain).connect(this.master);
+    osc.start(t);
+    osc.stop(t + dur + 0.02);
+  }
+
+  /** Band-passed noise burst — the basis of card swishes. */
+  private swish(
+    { delay = 0, dur = 0.09, freq = 1800, vol = 0.35 } = {}
+  ) {
+    const ctx = this.ensure();
+    if (!ctx || !this.master) return;
+    const t = ctx.currentTime + delay;
+    const len = Math.ceil(ctx.sampleRate * dur);
+    const buffer = ctx.createBuffer(1, len, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < len; i++) {
+      data[i] = (Math.random() * 2 - 1) * (1 - i / len); // built-in decay
+    }
+    const src = ctx.createBufferSource();
+    src.buffer = buffer;
+    const filter = ctx.createBiquadFilter();
+    filter.type = "bandpass";
+    filter.frequency.value = freq;
+    filter.Q.value = 0.8;
+    const gain = ctx.createGain();
+    gain.gain.value = vol;
+    src.connect(filter).connect(gain).connect(this.master);
+    src.start(t);
+  }
+
+  /** Ceramic chip clink — two detuned high blips. */
+  chip(delay = 0) {
+    this.tone(2100, { type: "triangle", delay, dur: 0.06, vol: 0.3 });
+    this.tone(2740, { type: "sine", delay: delay + 0.02, dur: 0.08, vol: 0.18 });
+  }
+
+  /** Card leaving the shoe. */
+  deal(delay = 0) {
+    this.swish({ delay, dur: 0.09, freq: 1800, vol: 0.32 });
+  }
+
+  /** Hole-card flip — swish plus a snap. */
+  flip(delay = 0) {
+    this.swish({ delay, dur: 0.07, freq: 2400, vol: 0.3 });
+    this.tone(1300, { type: "triangle", delay: delay + 0.04, dur: 0.05, vol: 0.15 });
+  }
+
+  /** Winning hand — ascending major arpeggio. */
+  win(delay = 0) {
+    const notes = [523.25, 659.25, 783.99]; // C5 E5 G5
+    notes.forEach((f, i) =>
+      this.tone(f, { type: "triangle", delay: delay + i * 0.09, dur: 0.28, vol: 0.35 })
+    );
+  }
+
+  /** Natural blackjack — longer fanfare up to C6 with shimmer. */
+  blackjack(delay = 0) {
+    const notes = [523.25, 659.25, 783.99, 1046.5]; // C5 E5 G5 C6
+    notes.forEach((f, i) => {
+      this.tone(f, { type: "triangle", delay: delay + i * 0.11, dur: 0.34, vol: 0.35 });
+      this.tone(f * 2, { type: "sine", delay: delay + i * 0.11 + 0.03, dur: 0.2, vol: 0.1 });
+    });
+  }
+
+  /** House wins — arcade "death" warble: a wobbling square-wave sweep
+   *  diving down the register, capped with two little blips. */
+  lose(delay = 0) {
+    const ctx = this.ensure();
+    if (!ctx || !this.master) return;
+    const t = ctx.currentTime + delay;
+    const dur = 1.0;
+
+    const osc = ctx.createOscillator();
+    osc.type = "square";
+    osc.frequency.setValueAtTime(780, t);
+    osc.frequency.exponentialRampToValueAtTime(110, t + dur);
+
+    // Pitch wobble — the siren-like warble as it falls
+    const lfo = ctx.createOscillator();
+    lfo.type = "sine";
+    lfo.frequency.setValueAtTime(13, t);
+    const lfoDepth = ctx.createGain();
+    lfoDepth.gain.setValueAtTime(70, t);
+    lfoDepth.gain.linearRampToValueAtTime(20, t + dur);
+    lfo.connect(lfoDepth).connect(osc.frequency);
+
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.12, t);
+    gain.gain.setValueAtTime(0.12, t + dur - 0.08);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+
+    osc.connect(gain).connect(this.master);
+    osc.start(t);
+    osc.stop(t + dur + 0.02);
+    lfo.start(t);
+    lfo.stop(t + dur);
+
+    // Final "bwip bwip"
+    this.tone(160, { type: "square", delay: delay + dur + 0.06, dur: 0.1, vol: 0.12, glideTo: 420 });
+    this.tone(160, { type: "square", delay: delay + dur + 0.24, dur: 0.1, vol: 0.12, glideTo: 420 });
+  }
+
+  /** Push — single neutral mid blip. */
+  push(delay = 0) {
+    this.tone(440, { type: "triangle", delay, dur: 0.14, vol: 0.22 });
+    this.tone(440, { type: "triangle", delay: delay + 0.16, dur: 0.14, vol: 0.16 });
+  }
+
+  /** Bonus chips — little coin cascade. */
+  coins(delay = 0) {
+    for (let i = 0; i < 6; i++) {
+      const f = 1900 + Math.random() * 900;
+      this.tone(f, { type: "sine", delay: delay + i * 0.06, dur: 0.09, vol: 0.2 });
+    }
+    this.win(delay + 0.4);
+  }
+}
+
+export const sounds = new Sounds();

@@ -170,18 +170,25 @@ export function insuranceCost(baseBet: number): number {
   return Math.floor(baseBet / 2);
 }
 
+export const MAX_SEATS = 2;
+
 /**
- * Start a round. `debit` = the initial bet (caller must have already
- * verified the player can afford it). Reuses `previousShoe` when it still
- * has enough penetration left, otherwise builds a fresh shoe.
+ * Start a round with `seats` simultaneous hands (same bet each).
+ * `debit` = bet × seats (caller must have already verified the player can
+ * afford it). Reuses `previousShoe` when it still has enough penetration
+ * left, otherwise builds a fresh shoe.
  */
 export function startRound(
   bet: number,
   previousShoe?: Card[] | null,
-  rng: Rng = defaultRng
+  rng: Rng = defaultRng,
+  seats = 1
 ): ActionResult {
   if (!Number.isInteger(bet) || bet <= 0) {
     throw new IllegalActionError("Bet must be a positive integer");
+  }
+  if (!Number.isInteger(seats) || seats < 1 || seats > MAX_SEATS) {
+    throw new IllegalActionError(`Seats must be between 1 and ${MAX_SEATS}`);
   }
 
   const shoe =
@@ -189,25 +196,32 @@ export function startRound(
       ? [...previousShoe]
       : createShoe(rng);
 
+  const debit = bet * seats;
   const state: RoundState = {
     shoe,
     dealer: [],
     dealerRevealed: false,
-    hands: [newHand([], bet)],
+    hands: Array.from({ length: seats }, () => newHand([], bet)),
     active: 0,
     phase: "player",
     baseBet: bet,
     insuranceBet: 0,
     splits: 0,
-    staked: bet,
+    staked: debit,
     payoutTotal: 0,
   };
 
-  // Deal order: player, dealer up, player, dealer hole
-  state.hands[0].cards.push(draw(state));
+  // Casino deal order: one card to each seat, dealer up, second card to
+  // each seat, dealer hole
+  for (const hand of state.hands) hand.cards.push(draw(state));
   state.dealer.push(draw(state));
-  state.hands[0].cards.push(draw(state));
+  for (const hand of state.hands) hand.cards.push(draw(state));
   state.dealer.push(draw(state));
+
+  // Naturals are locked in — they don't take actions
+  for (const hand of state.hands) {
+    if (isBlackjack(hand)) hand.done = true;
+  }
 
   const upcard = state.dealer[0];
 
@@ -215,19 +229,16 @@ export function startRound(
     // Insurance decision comes before the peek
     state.phase = "insurance";
     state.insuranceBet = null;
-    return { state, debit: bet };
+    return { state, debit };
   }
 
   if (cardValue(upcard) === 10 && dealerHasBlackjack(state.dealer)) {
     // Dealer peeks on ten and has it — round over immediately
-    return { state: settle(state), debit: bet };
+    return { state: settle(state), debit };
   }
 
-  if (isBlackjack(state.hands[0])) {
-    return { state: settle(state), debit: bet };
-  }
-
-  return { state, debit: bet };
+  // advance() settles right away when every hand is a natural
+  return { state: advance(state), debit };
 }
 
 /** Apply a player action. Returns the new state + any additional chips to debit. */
@@ -312,13 +323,20 @@ export function applyAction(state: RoundState, action: PlayerAction): ActionResu
   }
 }
 
+/** Insurance covers every seat: half the base bet per initial hand. */
+export function stateInsuranceCost(state: RoundState): number {
+  // Only meaningful during the insurance phase, before any split can have
+  // changed the hand count.
+  return insuranceCost(state.baseBet) * state.hands.length;
+}
+
 function resolveInsurance(state: RoundState, take: boolean): ActionResult {
   if (state.phase !== "insurance") {
     throw new IllegalActionError("Insurance is not being offered");
   }
 
   const s = cloneState(state);
-  const cost = take ? insuranceCost(s.baseBet) : 0;
+  const cost = take ? stateInsuranceCost(s) : 0;
   s.insuranceBet = cost;
   s.staked += cost;
 
@@ -327,13 +345,10 @@ function resolveInsurance(state: RoundState, take: boolean): ActionResult {
     return { state: settle(s), debit: cost };
   }
 
-  // No dealer blackjack — insurance (if taken) is lost, play continues
-  if (isBlackjack(s.hands[0])) {
-    return { state: settle(s), debit: cost };
-  }
-
+  // No dealer blackjack — insurance (if taken) is lost, play continues.
+  // Naturals were already locked at the deal; settle if nothing is left to play.
   s.phase = "player";
-  return { state: s, debit: cost };
+  return { state: advance(s), debit: cost };
 }
 
 export function canSplit(state: RoundState, handIndex: number): boolean {
@@ -482,7 +497,10 @@ export function clientView(state: RoundState): ClientView {
     phase: state.phase,
     baseBet: state.baseBet,
     insuranceBet: state.insuranceBet,
-    insuranceCost: insuranceCost(state.baseBet),
+    insuranceCost:
+      state.phase === "insurance"
+        ? stateInsuranceCost(state)
+        : insuranceCost(state.baseBet),
     active: state.active,
     dealer: {
       cards: revealed ? state.dealer : [state.dealer[0], null],

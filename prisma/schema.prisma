@@ -16,7 +16,7 @@ model User {
   image          String?
   password       String?
   role           String    @default("user")
-  chips          Int       @default(1000)
+  chips          Int       @default(10000)
   lastDailyBonus DateTime?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt

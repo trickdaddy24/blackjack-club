@@ -5,6 +5,27 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the `VERSION` fi
 
 ---
 
+## [0.2.0] — 2026-07-03
+
+### Added
+- **Sound effects** (`src/lib/sound.ts`) — synthesized with the Web Audio API, zero audio
+  assets: chip clinks, card-swish deals (staggered with the animations), hole-card flip,
+  win/blackjack fanfares, push, coin cascade for bonuses, and an arcade-style "death warble"
+  on losses (Ms. Pac-Man homage). Mute toggle in the HUD, persisted to localStorage.
+- **Two hands at once** — seat selector in the bet picker; the engine deals casino-style
+  (seat 1, seat 2, dealer up, seat 1, seat 2, hole), hands play left to right, naturals lock
+  automatically, insurance covers every seat at half the bet each. 5 new engine tests (40 total).
+- **All In button** — bets the whole stack (split evenly across seats when playing two hands).
+- **iPhone-friendly** — proper viewport (safe-area aware), compact cards/chips/buttons under
+  480px, wrap-friendly hand layout, `touch-action: manipulation` + no tap highlight.
+
+### Changed
+- Bigger bankroll: **10,000** starting chips (existing players topped up), daily bonus
+  **+2,500**, broke rescue **1,000**, table max raised so All In is a true all-in.
+- New 1000-denomination chip in the bet picker.
+
+---
+
 ## [0.1.0] — 2026-07-02
 
 ### Added

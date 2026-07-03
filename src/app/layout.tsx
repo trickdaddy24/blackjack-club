@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Cinzel, Jost } from "next/font/google";
 import { Toaster } from "sonner";
 import "./globals.css";
@@ -13,6 +13,14 @@ const jost = Jost({
   subsets: ["latin"],
   variable: "--font-jost",
 });
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  viewportFit: "cover",
+  themeColor: "#0e0b08",
+};
 
 export const metadata: Metadata = {
   title: "Blackjack Club — Play 21",

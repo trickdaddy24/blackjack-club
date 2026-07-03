@@ -312,6 +312,82 @@ describe("split", () => {
   });
 });
 
+describe("multi-seat (two hands at once)", () => {
+  // Deal order for 2 seats: seat1, seat2, dealer up, seat1, seat2, dealer hole
+  it("deals two hands casino-style and debits both bets", () => {
+    const { state, debit } = startRound(
+      10,
+      shoeFor(c("5"), c("7"), c("9"), c("6"), c("8"), c("2")),
+      undefined,
+      2
+    );
+    expect(debit).toBe(20);
+    expect(state.staked).toBe(20);
+    expect(state.hands.length).toBe(2);
+    expect(state.hands[0].cards).toEqual([c("5"), c("6")]);
+    expect(state.hands[1].cards).toEqual([c("7"), c("8")]);
+    expect(state.dealer).toEqual([c("9"), c("2")]);
+    expect(state.phase).toBe("player");
+    expect(state.active).toBe(0);
+  });
+
+  it("rejects invalid seat counts", () => {
+    expect(() => startRound(10, undefined, undefined, 0)).toThrow(IllegalActionError);
+    expect(() => startRound(10, undefined, undefined, 3)).toThrow(IllegalActionError);
+  });
+
+  it("plays seats left to right and settles each independently", () => {
+    // h0 = 11, h1 = 15, dealer 9+2=11 draws K → 21: both lose
+    const { state } = startRound(
+      10,
+      shoeFor(c("5"), c("7"), c("9"), c("6"), c("8"), c("2"), c("K")),
+      undefined,
+      2
+    );
+    const afterFirst = applyAction(state, "stand").state;
+    expect(afterFirst.active).toBe(1);
+    const settled = applyAction(afterFirst, "stand").state;
+    expect(settled.phase).toBe("settled");
+    expect(settled.hands[0].outcome).toBe("lose");
+    expect(settled.hands[1].outcome).toBe("lose");
+    expect(netResult(settled)).toBe(-20);
+  });
+
+  it("locks a natural on one seat while the other still plays", () => {
+    // h0 = A+K natural, h1 = 5+5 = 10, dealer 9+7=16 draws 4 → 20
+    const { state } = startRound(
+      10,
+      shoeFor(c("A"), c("5", "S"), c("9"), c("K"), c("5", "H"), c("7"), c("4")),
+      undefined,
+      2
+    );
+    expect(state.phase).toBe("player");
+    expect(state.hands[0].done).toBe(true);
+    expect(state.active).toBe(1); // natural is skipped
+    const settled = applyAction(state, "stand").state;
+    expect(settled.hands[0].outcome).toBe("blackjack");
+    expect(settled.hands[0].payout).toBe(25);
+    expect(settled.hands[1].outcome).toBe("lose");
+    expect(netResult(settled)).toBe(5);
+  });
+
+  it("insurance covers both seats and still nets zero on dealer blackjack", () => {
+    const { state } = startRound(
+      10,
+      shoeFor(c("9"), c("8"), c("A"), c("7"), c("6"), c("K")),
+      undefined,
+      2
+    );
+    expect(state.phase).toBe("insurance");
+    expect(clientView(state).insuranceCost).toBe(10); // 5 per seat
+    const { state: settled, debit } = applyAction(state, "insurance-yes");
+    expect(debit).toBe(10);
+    expect(settled.phase).toBe("settled");
+    expect(settled.payoutTotal).toBe(30); // insurance pays 2:1
+    expect(netResult(settled)).toBe(0);
+  });
+});
+
 describe("clientView", () => {
   it("hides the hole card and shoe until reveal", () => {
     const { state } = startRound(10, shoeFor(c("5"), c("9"), c("6"), c("7")));

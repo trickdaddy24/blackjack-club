@@ -42,7 +42,7 @@ export default async function LobbyPage() {
             href={session?.user ? "/play" : "/register"}
             className="action-btn primary mt-8 !px-12 !py-4 !text-base"
           >
-            {session?.user ? "Take Your Seat" : "Join — 1,000 Free Chips"}
+            {session?.user ? "Take Your Seat" : "Join — 10,000 Free Chips"}
           </Link>
           {!session?.user && (
             <Link
