@@ -1,0 +1,9 @@
+node_modules
+.next
+.git
+static
+data
+*.db
+.env
+.env.*
+!.env.example
