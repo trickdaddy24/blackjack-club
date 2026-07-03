@@ -1,8 +1,15 @@
 # ♠ Blackjack Club
 
+[![Version](https://img.shields.io/badge/version-0.8.0-blue)](./VERSION)
+[![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
+[![Tests](https://img.shields.io/badge/tests-99%20passing-brightgreen)](./src/lib/blackjack/engine.test.ts)
+
 A play-money blackjack site in the spirit of Zynga Poker — real casino rules, persistent
 chip balances, daily free chips, and a dim, gold-on-felt "midnight table" aesthetic.
 **No real money, no purchases, no payouts — just cards.**
+
+**Play it:** full club at [play.minus-one-labs.com](https://play.minus-one-labs.com) ·
+free demo at [blackjack.minus-one-labs.com](https://blackjack.minus-one-labs.com)
 
 ## Features
 
@@ -85,6 +92,21 @@ Built with `output: "standalone"` and a Dockerfile for the standard Saltbox patt
 | `AUTH_SECRET` | Auth.js JWT secret |
 | `AUTH_URL` | Canonical URL (`http://localhost:7600` in dev) |
 | `GOOGLE_CLIENT_ID/SECRET` | Optional — Google sign-in appears only when set |
+
+## Version History
+
+| Version | Date | Highlights |
+|---------|------|------------|
+| 0.8.0 | 2026-07-03 | **Instant side-bet payouts** — Perfect Pairs pays the moment the cards land (same transaction as the deal) with a color-cycling glow + sparkle sound, then the hand plays on. **Even money** offered on blackjack vs a dealer ace (guaranteed 1:1 or play the 3:2). Bets render as mini chip stacks on the felt (desktop). |
+| 0.7.0 | 2026-07-03 | **Leaderboard** (top 10 chip stacks with crown/medals, your rank shown even outside the top 10) and a public **How to Play** guide — every rule, side bet, and paytable, rendered live from the engine's own rules so docs can't drift. Bigger version badge. |
+| 0.6.0 | 2026-07-03 | **Perfect Pairs** side bet replaces Match the Dealer (mixed 5:1 / colored 10:1 / perfect 30:1), a $1 chip joins the main rack, and **dealer tips** land — +1/+5/+25 on the result banner with a lifetime tip count next to the dealer. |
+| 0.5.1 | 2026-07-03 | Version badge at the bottom-left of both sites, baked from the `VERSION` file at build time. |
+| 0.5.0 | 2026-07-03 | **Match the Dealer** side bet ($1 units), **Vegas-clock table minimums** ($5 mornings → $25 evenings, on Pacific time, server-enforced), and **basic-strategy hints** — a lightbulb toggle that highlights the mathematically correct play every decision. |
+| 0.4.1 | 2026-07-03 | Upgrade banner + footer link on the free static demo pointing players at the full club. |
+| 0.4.0 | 2026-07-03 | **Spanish 21** variant (48-card decks, 21 always wins, surrender, bonus 21 payouts), up to **3 bot players** consuming real shoe cards with basic strategy, a **shuffle animation + sound** on every fresh shoe, and a **Hi-Lo card counter** HUD toggle (running + true count). |
+| 0.3.0 | 2026-07-03 | Client-only **static build** (`static/`, same engine, localStorage chips) auto-deployed to GitHub Pages — later served at blackjack.minus-one-labs.com. |
+| 0.2.0 | 2026-07-03 | Synthesized **Web Audio sound effects** (mutable), **two hands at once**, All In button, bigger bankroll economy (10k start / 2.5k daily / 1k rescue), iPhone-friendly layout. |
+| 0.1.0 | 2026-07-02 | Initial release — pure server-authoritative blackjack engine (6-deck shoe, 3:2, US peek, splits/doubles/insurance), Auth.js v5 accounts, persistent chips, and the midnight-table UI. |
 
 ## License
 
