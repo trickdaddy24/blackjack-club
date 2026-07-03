@@ -52,6 +52,9 @@ export interface Rules {
   player21AlwaysWins: boolean;
   lateSurrender: boolean;
   bonus21: boolean;
+  /** Match the Dealer side bet: X-to-1 per matching card. */
+  mtdUnsuited: number;
+  mtdSuited: number;
 }
 
 export function rulesFor(variant: Variant = "classic"): Rules {
@@ -67,7 +70,18 @@ export function rulesFor(variant: Variant = "classic"): Rules {
     player21AlwaysWins: spanish,
     lateSurrender: spanish,
     bonus21: spanish,
+    // Standard 6-deck paytables: 4/11 with 52-card decks, 4/9 Spanish
+    mtdUnsuited: 4,
+    mtdSuited: spanish ? 9 : 11,
   };
+}
+
+/** Match the Dealer result attached to a hand at the deal. */
+export interface MtdResult {
+  bet: number;
+  /** 0 on a loss; stake + winnings on any match. */
+  payout: number;
+  label: string;
 }
 
 export interface HandState {
@@ -81,6 +95,8 @@ export interface HandState {
   payout: number;
   /** Spanish 21 bonus that paid on this hand (e.g. "5-Card 21"), for the UI. */
   bonus?: string;
+  /** Match the Dealer side bet, resolved at the deal. */
+  mtd?: MtdResult;
 }
 
 /** A simulated player's hand. Cosmetic bet — never touches the human's chips. */
@@ -277,6 +293,8 @@ export interface RoundOptions {
   variant?: Variant;
   /** Simulated players at the table, 0–MAX_BOTS. */
   bots?: number;
+  /** Match the Dealer side bet per seat (0 = none). */
+  matchTheDealer?: number;
 }
 
 /**
@@ -309,6 +327,7 @@ export function startRound(
   const seats = opts.seats ?? 1;
   const variant = opts.variant ?? "classic";
   const bots = opts.bots ?? 0;
+  const mtdBet = opts.matchTheDealer ?? 0;
   const rules = rulesFor(variant);
 
   if (!Number.isInteger(bet) || bet <= 0) {
@@ -320,6 +339,9 @@ export function startRound(
   if (!Number.isInteger(bots) || bots < 0 || bots > MAX_BOTS) {
     throw new IllegalActionError(`Bots must be between 0 and ${MAX_BOTS}`);
   }
+  if (!Number.isInteger(mtdBet) || mtdBet < 0) {
+    throw new IllegalActionError("Match the Dealer bet must be a non-negative integer");
+  }
 
   const { previousShoe } = opts;
   const reuseShoe =
@@ -328,7 +350,7 @@ export function startRound(
     (opts.previousVariant ?? "classic") === variant;
   const shuffled = !reuseShoe;
 
-  const debit = bet * seats;
+  const debit = (bet + mtdBet) * seats;
   const state: RoundState = {
     shoe: reuseShoe ? [...previousShoe] : createShoe(rng, rules),
     dealer: [],
@@ -371,6 +393,27 @@ export function startRound(
   }
 
   const upcard = state.dealer[0];
+
+  // Match the Dealer resolves right at the deal: each of the seat's first two
+  // cards that matches the upcard's rank pays (suited pays more, both add)
+  if (mtdBet > 0) {
+    for (const hand of state.hands) {
+      let mult = 0;
+      const parts: string[] = [];
+      for (const c of hand.cards) {
+        if (c.rank === upcard.rank) {
+          const suited = c.suit === upcard.suit;
+          mult += suited ? rules.mtdSuited : rules.mtdUnsuited;
+          parts.push(suited ? "suited" : "unsuited");
+        }
+      }
+      hand.mtd = {
+        bet: mtdBet,
+        payout: mult > 0 ? mtdBet + mtdBet * mult : 0,
+        label: mult > 0 ? `${parts.join(" + ")} match` : "no match",
+      };
+    }
+  }
 
   if (upcard.rank === "A") {
     // Insurance decision comes before the peek
@@ -695,7 +738,7 @@ function settle(state: RoundState): RoundState {
     ).outcome;
   }
 
-  s.payoutTotal = s.hands.reduce((sum, h) => sum + h.payout, 0);
+  s.payoutTotal = s.hands.reduce((sum, h) => sum + h.payout + (h.mtd?.payout ?? 0), 0);
 
   // Insurance pays 2:1 when the dealer has blackjack
   if (dealerBJ && s.insuranceBet && s.insuranceBet > 0) {
@@ -733,6 +776,8 @@ export interface ClientHand {
   payout: number;
   /** Spanish 21 bonus label when one paid (e.g. "5-Card 21"). */
   bonus?: string;
+  /** Match the Dealer side bet result (resolved at the deal). */
+  mtd?: MtdResult;
 }
 
 export interface ClientBotHand {
@@ -767,6 +812,8 @@ export interface ClientView {
   decksRemaining: number;
   /** runningCount ÷ decksRemaining, one decimal. */
   trueCount: number;
+  /** Basic-strategy recommendation for the active hand (set by the API). */
+  hint?: PlayerAction | null;
 }
 
 export function clientView(state: RoundState): ClientView {
@@ -825,6 +872,7 @@ export function clientView(state: RoundState): ClientView {
         outcome: h.outcome,
         payout: h.payout,
         ...(h.bonus ? { bonus: h.bonus } : {}),
+        ...(h.mtd ? { mtd: h.mtd } : {}),
       };
     }),
     bots: state.bots.map((b) => {

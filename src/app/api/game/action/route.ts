@@ -9,6 +9,7 @@ import {
   type PlayerAction,
 } from "@/lib/blackjack/engine";
 import { getActiveRound, parseRoundState, roundStatus } from "@/lib/game";
+import { withHint } from "@/lib/blackjack/strategy";
 
 const ACTIONS: PlayerAction[] = [
   "hit",
@@ -87,5 +88,5 @@ export async function POST(req: Request) {
     }),
   ]);
 
-  return NextResponse.json({ chips: updated.chips, round: clientView(next) });
+  return NextResponse.json({ chips: updated.chips, round: withHint(next, clientView(next)) });
 }

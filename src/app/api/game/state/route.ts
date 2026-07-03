@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { clientView } from "@/lib/blackjack/engine";
+import { withHint } from "@/lib/blackjack/strategy";
 import { getActiveRound, parseRoundState } from "@/lib/game";
+import { currentTableMinimum } from "@/lib/tableMinimum";
 
 export async function GET() {
   const session = await auth();
@@ -25,10 +27,17 @@ export async function GET() {
   const last = user.lastDailyBonus?.getTime() ?? 0;
   const bonusAvailable = now - last >= 24 * 60 * 60 * 1000;
 
+  let roundView = null;
+  if (round) {
+    const state = parseRoundState(round.stateJson);
+    roundView = withHint(state, clientView(state));
+  }
+
   return NextResponse.json({
     chips: user.chips,
     name: user.name,
     bonusAvailable,
-    round: round ? clientView(parseRoundState(round.stateJson)) : null,
+    round: roundView,
+    tableMin: currentTableMinimum(),
   });
 }

@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { DAILY_BONUS, getActiveRound, MIN_BET, RESCUE_CHIPS } from "@/lib/game";
+import { DAILY_BONUS, getActiveRound, RESCUE_CHIPS } from "@/lib/game";
+import { currentTableMinimum } from "@/lib/tableMinimum";
 
 export async function POST() {
   const session = await auth();
@@ -32,9 +33,9 @@ export async function POST() {
     });
   }
 
-  // Broke rescue: bankrupt with no round in progress gets a comeback stack
+  // Broke rescue: can't cover the current table minimum with no round going
   const activeRound = await getActiveRound(userId);
-  if (user.chips < MIN_BET && !activeRound) {
+  if (user.chips < currentTableMinimum().min && !activeRound) {
     const updated = await prisma.user.update({
       where: { id: userId },
       data: { chips: RESCUE_CHIPS },

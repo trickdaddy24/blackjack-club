@@ -2,20 +2,31 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Coins, Eye, EyeOff, Gift, Loader2, Volume2, VolumeX } from "lucide-react";
+import { Coins, Eye, EyeOff, Gift, Lightbulb, Loader2, Volume2, VolumeX } from "lucide-react";
 import type { ClientView, PlayerAction, Variant } from "@/lib/blackjack/engine";
 import { PlayingCard } from "@/components/PlayingCard";
 import { sounds } from "@/lib/sound";
 
 const CHIP_VALUES = [5, 25, 100, 500, 1000] as const;
-const MIN_BET = 5;
+const MTD_CHIP_VALUES = [1, 5, 25] as const;
 const MAX_BET = 1_000_000;
+const MAX_MTD_BET = 100;
 const MAX_BOTS = 3;
 const SHUFFLE_MS = 1200;
 
 const VARIANT_KEY = "bj-variant";
 const BOTS_KEY = "bj-bots";
 const SHOW_COUNT_KEY = "bj-show-count";
+const SHOW_HINTS_KEY = "bj-hints";
+
+const ACTION_LABELS: Record<string, string> = {
+  hit: "Hit",
+  stand: "Stand",
+  double: "Double",
+  split: "Split",
+  surrender: "Surrender",
+  "insurance-no": "decline insurance",
+};
 
 interface CountInfo {
   runningCount: number;
@@ -23,10 +34,16 @@ interface CountInfo {
   decksRemaining: number;
 }
 
+interface TableMin {
+  min: number;
+  label: string;
+}
+
 interface TableState {
   chips: number;
   bonusAvailable: boolean;
   round: ClientView | null;
+  tableMin?: TableMin;
 }
 
 async function api<T>(path: string, body?: unknown): Promise<T> {
@@ -75,7 +92,10 @@ export function GameTable() {
   const [variant, setVariant] = useState<Variant>("classic");
   const [botCount, setBotCount] = useState(0);
   const [showCount, setShowCount] = useState(false);
+  const [showHints, setShowHints] = useState(false);
   const [shuffling, setShuffling] = useState(false);
+  const [mtdBet, setMtdBet] = useState(0);
+  const [tableMin, setTableMin] = useState<TableMin>({ min: 15, label: "standard rates" });
   /** Last-seen Hi-Lo values — kept so the pill survives between rounds. */
   const [count, setCount] = useState<CountInfo | null>(null);
 
@@ -86,6 +106,7 @@ export function GameTable() {
     const b = parseInt(localStorage.getItem(BOTS_KEY) ?? "0", 10);
     if (Number.isInteger(b) && b >= 0 && b <= MAX_BOTS) setBotCount(b);
     setShowCount(localStorage.getItem(SHOW_COUNT_KEY) === "1");
+    setShowHints(localStorage.getItem(SHOW_HINTS_KEY) === "1");
   }, []);
 
   useEffect(() => {
@@ -94,6 +115,7 @@ export function GameTable() {
         setChips(s.chips);
         setBonusAvailable(s.bonusAvailable);
         setRound(s.round);
+        if (s.tableMin) setTableMin(s.tableMin);
         if (s.round) {
           setCount({
             runningCount: s.round.runningCount,
@@ -117,12 +139,12 @@ export function GameTable() {
   }, []);
 
   async function deal() {
-    if (pendingBet < MIN_BET) return;
+    if (pendingBet < tableMin.min) return;
     setBusy(true);
     try {
       const r = await api<{ chips: number; round: ClientView; shuffled?: boolean }>(
         "/api/game/bet",
-        { bet: pendingBet, hands: seats, variant, bots: botCount }
+        { bet: pendingBet, hands: seats, variant, bots: botCount, matchTheDealer: mtdBet }
       );
       if (r.shuffled) {
         // Hold the response while the shuffle plays, then deal as usual
@@ -193,7 +215,7 @@ export function GameTable() {
 
   const settled = round?.phase === "settled";
   const betting = !round || settled;
-  const broke = chips !== null && chips < MIN_BET && betting;
+  const broke = chips !== null && chips < tableMin.min && betting;
   // Mid-round the table shows the round's variant; between rounds, the picker's
   const tableVariant = round?.variant ?? variant;
 
@@ -234,6 +256,21 @@ export function GameTable() {
               <span className="text-[var(--cream)]/50">{count.decksRemaining}d</span>
             </div>
           )}
+          <button
+            onClick={() => {
+              const next = !showHints;
+              setShowHints(next);
+              localStorage.setItem(SHOW_HINTS_KEY, next ? "1" : "0");
+              sounds.chip();
+            }}
+            className={`gold-ring flex h-9 w-9 items-center justify-center rounded-full bg-black/40 transition-colors hover:text-[var(--gold-bright)] ${
+              showHints ? "text-[var(--gold-bright)]" : "text-[var(--cream)]/60"
+            }`}
+            title={showHints ? "Hide strategy hints" : "Show basic-strategy hints"}
+            aria-label={showHints ? "Hide strategy hints" : "Show strategy hints"}
+          >
+            <Lightbulb className="h-4 w-4" />
+          </button>
           <button
             onClick={() => {
               const next = !showCount;
@@ -381,6 +418,20 @@ export function GameTable() {
                                 : hand.outcome}
                           </span>
                         )}
+                        {hand.mtd && (
+                          <span
+                            className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
+                              hand.mtd.payout > 0
+                                ? "bg-[var(--gold)]/25 text-[var(--gold-bright)]"
+                                : "bg-black/40 text-[var(--cream-dim)]"
+                            }`}
+                            title={`Match the Dealer: ${hand.mtd.label}`}
+                          >
+                            {hand.mtd.payout > 0
+                              ? `MTD +${(hand.mtd.payout - hand.mtd.bet).toLocaleString()}`
+                              : "MTD ✕"}
+                          </span>
+                        )}
                       </div>
                     </div>
                   );
@@ -450,6 +501,7 @@ export function GameTable() {
                   onAnswer={(yes) => act(yes ? "insurance-yes" : "insurance-no")}
                   disabled={busy}
                   canAfford={(chips ?? 0) >= round.insuranceCost}
+                  showHint={showHints}
                 />
               ) : round && !settled ? (
                 <ActionBar
@@ -458,6 +510,7 @@ export function GameTable() {
                   handBet={round.hands[round.active]?.bet ?? 0}
                   onAction={act}
                   disabled={busy}
+                  hint={showHints ? (round.hint ?? null) : null}
                 />
               ) : betting && !settled ? (
                 <BetPicker
@@ -466,6 +519,12 @@ export function GameTable() {
                   seats={seats}
                   variant={variant}
                   botCount={botCount}
+                  tableMin={tableMin}
+                  mtd={mtdBet}
+                  onMtd={(v) => {
+                    sounds.chip();
+                    setMtdBet(v);
+                  }}
                   onVariant={(v) => {
                     sounds.chip();
                     setVariant(v);
@@ -483,12 +542,14 @@ export function GameTable() {
                   onAdd={(v) => {
                     sounds.chip();
                     setPendingBet((p) =>
-                      Math.min(p + v, MAX_BET, Math.floor((chips ?? 0) / seats))
+                      Math.min(p + v, MAX_BET, Math.floor((chips ?? 0) / seats) - mtdBet)
                     );
                   }}
                   onAllIn={() => {
                     sounds.coins();
-                    setPendingBet(Math.min(Math.floor((chips ?? 0) / seats), MAX_BET));
+                    setPendingBet(
+                      Math.min(Math.floor((chips ?? 0) / seats) - mtdBet, MAX_BET)
+                    );
                   }}
                   onClear={() => setPendingBet(0)}
                   onDeal={deal}
@@ -535,11 +596,13 @@ function InsurancePrompt({
   onAnswer,
   disabled,
   canAfford,
+  showHint,
 }: {
   cost: number;
   onAnswer: (yes: boolean) => void;
   disabled: boolean;
   canAfford: boolean;
+  showHint?: boolean;
 }) {
   return (
     <div className="fade-up mx-auto flex max-w-md flex-col items-center gap-3 rounded-2xl bg-black/35 p-4 gold-ring">
@@ -547,6 +610,11 @@ function InsurancePrompt({
       <p className="text-xs text-[var(--cream)]/60">
         The dealer is showing an ace. Insurance costs {cost} chips and pays 2 to 1 on a dealer blackjack.
       </p>
+      {showHint && (
+        <p className="flex items-center gap-1 text-xs text-[var(--gold-bright)]/80">
+          <Lightbulb className="h-3 w-3" /> Basic strategy: always decline insurance
+        </p>
+      )}
       <div className="flex gap-3">
         <button
           className="action-btn"
@@ -569,55 +637,74 @@ function ActionBar({
   handBet,
   onAction,
   disabled,
+  hint,
 }: {
   actions: PlayerAction[];
   chips: number;
   handBet: number;
   onAction: (a: PlayerAction) => void;
   disabled: boolean;
+  hint?: PlayerAction | null;
 }) {
   const canAffordExtra = chips >= handBet;
+  const hintRing =
+    "shadow-[0_0_0_2px_var(--gold-bright),0_0_16px_rgba(236,201,94,0.45)]";
   return (
-    <div className="fade-up flex flex-wrap items-center justify-center gap-3">
-      {actions.includes("hit") && (
-        <button className="action-btn primary" onClick={() => onAction("hit")} disabled={disabled}>
-          Hit
-        </button>
-      )}
-      {actions.includes("stand") && (
-        <button className="action-btn" onClick={() => onAction("stand")} disabled={disabled}>
-          Stand
-        </button>
-      )}
-      {actions.includes("double") && (
-        <button
-          className="action-btn"
-          onClick={() => onAction("double")}
-          disabled={disabled || !canAffordExtra}
-          title={canAffordExtra ? undefined : "Not enough chips to double"}
-        >
-          Double
-        </button>
-      )}
-      {actions.includes("split") && (
-        <button
-          className="action-btn"
-          onClick={() => onAction("split")}
-          disabled={disabled || !canAffordExtra}
-          title={canAffordExtra ? undefined : "Not enough chips to split"}
-        >
-          Split
-        </button>
-      )}
-      {actions.includes("surrender") && (
-        <button
-          className="action-btn"
-          onClick={() => onAction("surrender")}
-          disabled={disabled}
-          title="Give up this hand and get half your bet back"
-        >
-          Surrender
-        </button>
+    <div className="fade-up flex flex-col items-center gap-2">
+      <div className="flex flex-wrap items-center justify-center gap-3">
+        {actions.includes("hit") && (
+          <button
+            className={`action-btn primary ${hint === "hit" ? hintRing : ""}`}
+            onClick={() => onAction("hit")}
+            disabled={disabled}
+          >
+            Hit
+          </button>
+        )}
+        {actions.includes("stand") && (
+          <button
+            className={`action-btn ${hint === "stand" ? hintRing : ""}`}
+            onClick={() => onAction("stand")}
+            disabled={disabled}
+          >
+            Stand
+          </button>
+        )}
+        {actions.includes("double") && (
+          <button
+            className={`action-btn ${hint === "double" ? hintRing : ""}`}
+            onClick={() => onAction("double")}
+            disabled={disabled || !canAffordExtra}
+            title={canAffordExtra ? undefined : "Not enough chips to double"}
+          >
+            Double
+          </button>
+        )}
+        {actions.includes("split") && (
+          <button
+            className={`action-btn ${hint === "split" ? hintRing : ""}`}
+            onClick={() => onAction("split")}
+            disabled={disabled || !canAffordExtra}
+            title={canAffordExtra ? undefined : "Not enough chips to split"}
+          >
+            Split
+          </button>
+        )}
+        {actions.includes("surrender") && (
+          <button
+            className={`action-btn ${hint === "surrender" ? hintRing : ""}`}
+            onClick={() => onAction("surrender")}
+            disabled={disabled}
+            title="Give up this hand and get half your bet back"
+          >
+            Surrender
+          </button>
+        )}
+      </div>
+      {hint && (
+        <p className="flex items-center gap-1 text-xs text-[var(--gold-bright)]/80">
+          <Lightbulb className="h-3 w-3" /> Basic strategy says: {ACTION_LABELS[hint] ?? hint}
+        </p>
       )}
     </div>
   );
@@ -629,6 +716,9 @@ function BetPicker({
   seats,
   variant,
   botCount,
+  tableMin,
+  mtd,
+  onMtd,
   onSeats,
   onVariant,
   onBots,
@@ -643,6 +733,9 @@ function BetPicker({
   seats: number;
   variant: Variant;
   botCount: number;
+  tableMin: TableMin;
+  mtd: number;
+  onMtd: (v: number) => void;
   onSeats: (n: number) => void;
   onVariant: (v: Variant) => void;
   onBots: (n: number) => void;
@@ -652,23 +745,58 @@ function BetPicker({
   onDeal: () => void;
   disabled: boolean;
 }) {
-  const total = pending * seats;
-  const allInAmount = Math.floor(chips / seats);
+  const total = (pending + mtd) * seats;
+  const allInAmount = Math.floor(chips / seats) - mtd;
   const isAllIn = pending > 0 && pending === allInAmount;
   return (
     <div className="fade-up flex flex-col items-center gap-4">
+      <div className="text-[11px] uppercase tracking-[0.25em] text-[var(--cream)]/50">
+        Table minimum{" "}
+        <span className="font-semibold text-[var(--gold-bright)]">{tableMin.min}</span>
+        {" · "}
+        {tableMin.label}
+      </div>
       <div className="flex items-end gap-2 sm:gap-3">
         {CHIP_VALUES.map((v) => (
           <button
             key={v}
             className={`chip-btn chip-${v}`}
             onClick={() => onAdd(v)}
-            disabled={disabled || pending + v > MAX_BET || (pending + v) * seats > chips}
+            disabled={disabled || pending + v > MAX_BET || (pending + v + mtd) * seats > chips}
             aria-label={`Add ${v} chip`}
           >
             {v}
           </button>
         ))}
+      </div>
+
+      {/* Match the Dealer side bet */}
+      <div className="flex flex-wrap items-center justify-center gap-2 rounded-full bg-black/30 px-3 py-1.5 gold-ring">
+        <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--cream)]/50">
+          Match the Dealer
+        </span>
+        {MTD_CHIP_VALUES.map((v) => (
+          <button
+            key={v}
+            onClick={() => onMtd(Math.min(mtd + v, MAX_MTD_BET))}
+            disabled={disabled || mtd + v > MAX_MTD_BET || (pending + mtd + v) * seats > chips}
+            className="rounded-full border border-[var(--gold)]/40 px-2.5 py-0.5 text-[11px] font-mono text-[var(--gold-bright)] transition-colors hover:bg-[var(--gold)]/15 disabled:opacity-35"
+          >
+            +{v}
+          </button>
+        ))}
+        <span className="min-w-8 text-center font-mono text-sm font-bold gold-text tabular-nums">
+          {mtd}
+        </span>
+        {mtd > 0 && (
+          <button
+            onClick={() => onMtd(0)}
+            disabled={disabled}
+            className="text-[11px] text-[var(--cream)]/40 underline-offset-2 hover:underline"
+          >
+            clear
+          </button>
+        )}
       </div>
 
       {/* table selectors */}
@@ -732,10 +860,11 @@ function BetPicker({
         <div className="min-w-24 text-center sm:min-w-28">
           <div className="text-[10px] uppercase tracking-[0.3em] text-[var(--cream)]/50">
             {seats === 2 ? "Bet × 2" : "Bet"}
+            {mtd > 0 ? " + MTD" : ""}
           </div>
           <div className="font-display text-2xl font-bold gold-text tabular-nums">
             {pending.toLocaleString()}
-            {seats === 2 && (
+            {(seats === 2 || mtd > 0) && (
               <span className="ml-1 text-sm text-[var(--cream)]/50">
                 = {total.toLocaleString()}
               </span>
@@ -752,7 +881,7 @@ function BetPicker({
         <button
           className={`action-btn !border-red-400/50 !text-red-200 ${isAllIn ? "!bg-red-900/40" : ""}`}
           onClick={onAllIn}
-          disabled={disabled || allInAmount < MIN_BET || isAllIn}
+          disabled={disabled || allInAmount < tableMin.min || isAllIn}
           title={`Bet your whole stack${seats === 2 ? " (split across both hands)" : ""}`}
         >
           All In
@@ -760,12 +889,12 @@ function BetPicker({
         <button
           className="action-btn primary !px-10 !text-base"
           onClick={onDeal}
-          disabled={disabled || pending < MIN_BET || total > chips}
+          disabled={disabled || pending < tableMin.min || total > chips}
         >
           Deal
         </button>
       </div>
-      {chips < MIN_BET && (
+      {chips < tableMin.min && (
         <p className="text-xs text-[var(--cream)]/50">
           You&apos;re out of chips — claim the house stake above to keep playing.
         </p>

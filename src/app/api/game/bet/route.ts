@@ -13,9 +13,11 @@ import {
   getActiveRound,
   getPreviousCarry,
   MAX_BET,
-  MIN_BET,
+  MAX_MTD_BET,
   roundStatus,
 } from "@/lib/game";
+import { withHint } from "@/lib/blackjack/strategy";
+import { currentTableMinimum } from "@/lib/tableMinimum";
 
 const VARIANTS: Variant[] = ["classic", "spanish21"];
 
@@ -30,15 +32,32 @@ export async function POST(req: Request) {
   let hands: unknown;
   let variant: unknown;
   let bots: unknown;
+  let matchTheDealer: unknown;
   try {
-    ({ bet, hands, variant, bots } = await req.json());
+    ({ bet, hands, variant, bots, matchTheDealer } = await req.json());
   } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  if (typeof bet !== "number" || !Number.isInteger(bet) || bet < MIN_BET || bet > MAX_BET) {
+  const tableMin = currentTableMinimum();
+  if (typeof bet !== "number" || !Number.isInteger(bet) || bet < tableMin.min || bet > MAX_BET) {
     return NextResponse.json(
-      { error: `Bet must be a whole number between ${MIN_BET} and ${MAX_BET}` },
+      {
+        error: `Table minimum is ${tableMin.min} right now (${tableMin.label}) — bet must be a whole number between ${tableMin.min} and ${MAX_BET}`,
+      },
+      { status: 400 }
+    );
+  }
+
+  const mtd = matchTheDealer === undefined ? 0 : matchTheDealer;
+  if (
+    typeof mtd !== "number" ||
+    !Number.isInteger(mtd) ||
+    mtd < 0 ||
+    mtd > MAX_MTD_BET
+  ) {
+    return NextResponse.json(
+      { error: `Match the Dealer bet must be 0 to ${MAX_MTD_BET}` },
       { status: 400 }
     );
   }
@@ -81,7 +100,7 @@ export async function POST(req: Request) {
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  if (user.chips < bet * seats) {
+  if (user.chips < (bet + mtd) * seats) {
     return NextResponse.json({ error: "Not enough chips" }, { status: 400 });
   }
 
@@ -93,6 +112,7 @@ export async function POST(req: Request) {
     seats,
     variant: tableVariant as Variant,
     bots: botCount,
+    matchTheDealer: mtd,
   });
   const settled = state.phase === "settled";
   const chipDelta = -debit + (settled ? state.payoutTotal : 0);
@@ -117,7 +137,7 @@ export async function POST(req: Request) {
 
   return NextResponse.json({
     chips: updated.chips,
-    round: clientView(state),
+    round: withHint(state, clientView(state)),
     shuffled: shuffled === true,
   });
 }

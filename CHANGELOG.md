@@ -5,6 +5,25 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the `VERSION` fi
 
 ---
 
+## [0.5.0] — 2026-07-03
+
+### Added
+- **Match the Dealer side bet** ($1 units, $100 cap, per seat) — either of your first two
+  cards matching the dealer's upcard rank pays 4:1 unsuited, 11:1 suited (9:1 in
+  Spanish 21); both cards matching pays both. Resolved instantly at the deal with an
+  MTD badge on the hand. Hard Rock-style side-bet inspiration.
+- **Vegas-style table minimums** — the floor changes on the Strip's clock (Pacific):
+  $5 mornings (4am–noon), $15 afternoons (the standard table), $25 evenings
+  (6pm–2am), $10 late night. Shown in the bet picker; enforced server-side; the
+  broke-rescue threshold follows the current minimum.
+- **Basic-strategy hints** — lightbulb toggle in the HUD highlights the recommended
+  button each decision (classic 6-deck S17 table; reasonable Spanish 21 adaptation,
+  including surrender vs ace) and always advises declining insurance. Computed
+  server-side (`ClientView.hint`), guaranteed to be a legal action.
+
+### Notes
+- 94 tests (MTD payouts, strategy tables, PT minimum schedule).
+
 ## [0.4.1] — 2026-07-03
 
 ### Added
