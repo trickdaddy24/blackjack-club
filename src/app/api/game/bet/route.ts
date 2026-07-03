@@ -1,14 +1,23 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { clientView, MAX_SEATS, netResult, startRound } from "@/lib/blackjack/engine";
+import {
+  clientView,
+  MAX_BOTS,
+  MAX_SEATS,
+  netResult,
+  startRound,
+  type Variant,
+} from "@/lib/blackjack/engine";
 import {
   getActiveRound,
-  getPreviousShoe,
+  getPreviousCarry,
   MAX_BET,
   MIN_BET,
   roundStatus,
 } from "@/lib/game";
+
+const VARIANTS: Variant[] = ["classic", "spanish21"];
 
 export async function POST(req: Request) {
   const session = await auth();
@@ -19,8 +28,10 @@ export async function POST(req: Request) {
 
   let bet: unknown;
   let hands: unknown;
+  let variant: unknown;
+  let bots: unknown;
   try {
-    ({ bet, hands } = await req.json());
+    ({ bet, hands, variant, bots } = await req.json());
   } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
@@ -36,6 +47,24 @@ export async function POST(req: Request) {
   if (typeof seats !== "number" || !Number.isInteger(seats) || seats < 1 || seats > MAX_SEATS) {
     return NextResponse.json(
       { error: `You can play 1 to ${MAX_SEATS} hands` },
+      { status: 400 }
+    );
+  }
+
+  const tableVariant = variant === undefined ? "classic" : variant;
+  if (typeof tableVariant !== "string" || !VARIANTS.includes(tableVariant as Variant)) {
+    return NextResponse.json({ error: "Unknown game variant" }, { status: 400 });
+  }
+
+  const botCount = bots === undefined ? 0 : bots;
+  if (
+    typeof botCount !== "number" ||
+    !Number.isInteger(botCount) ||
+    botCount < 0 ||
+    botCount > MAX_BOTS
+  ) {
+    return NextResponse.json(
+      { error: `You can seat 0 to ${MAX_BOTS} bots` },
       { status: 400 }
     );
   }
@@ -56,8 +85,15 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Not enough chips" }, { status: 400 });
   }
 
-  const previousShoe = await getPreviousShoe(userId);
-  const { state, debit } = startRound(bet, previousShoe, undefined, seats);
+  const carry = await getPreviousCarry(userId);
+  const { state, debit, shuffled } = startRound(bet, {
+    previousShoe: carry?.shoe ?? null,
+    previousVariant: carry?.variant,
+    previousCount: carry?.runningCount,
+    seats,
+    variant: tableVariant as Variant,
+    bots: botCount,
+  });
   const settled = state.phase === "settled";
   const chipDelta = -debit + (settled ? state.payoutTotal : 0);
 
@@ -79,5 +115,9 @@ export async function POST(req: Request) {
     }),
   ]);
 
-  return NextResponse.json({ chips: updated.chips, round: clientView(state) });
+  return NextResponse.json({
+    chips: updated.chips,
+    round: clientView(state),
+    shuffled: shuffled === true,
+  });
 }

@@ -175,6 +175,20 @@ class Sounds {
     this.tone(440, { type: "triangle", delay: delay + 0.16, dur: 0.14, vol: 0.16 });
   }
 
+  /** Fresh shoe — riffle of rapid card swishes capped by a square-up tap. */
+  shuffle(delay = 0) {
+    for (let i = 0; i < 10; i++) {
+      const jitter = Math.random() * 0.03;
+      this.swish({
+        delay: delay + i * 0.09 + jitter,
+        dur: 0.07,
+        freq: 1400 + i * 120, // rising as the riffle tightens
+        vol: 0.22,
+      });
+    }
+    this.tone(900, { type: "triangle", delay: delay + 1.05, dur: 0.06, vol: 0.2 });
+  }
+
   /** Bonus chips — little coin cascade. */
   coins(delay = 0) {
     for (let i = 0; i < 6; i++) {

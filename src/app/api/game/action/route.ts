@@ -15,6 +15,7 @@ const ACTIONS: PlayerAction[] = [
   "stand",
   "double",
   "split",
+  "surrender",
   "insurance-yes",
   "insurance-no",
 ];

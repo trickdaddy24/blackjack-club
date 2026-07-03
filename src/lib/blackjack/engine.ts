@@ -1,7 +1,7 @@
 // Pure blackjack rules engine — no framework, no I/O, fully deterministic
 // given a shoe. All money amounts are integer chips.
 //
-// House rules:
+// House rules (both variants):
 //   - 6-deck shoe, reshuffled when fewer than 25% of cards remain
 //   - Blackjack pays 3:2, dealer peeks on ace/ten (US rules)
 //   - Dealer stands on soft 17
@@ -9,6 +9,24 @@
 //   - Split equal ranks, one re-split allowed (max 3 hands)
 //   - Split aces receive exactly one card each; 21 after split is not blackjack
 //   - Insurance offered on dealer ace, pays 2:1
+//
+// Spanish 21 variant additionally:
+//   - 48-card decks (all four 10s removed; J/Q/K stay)
+//   - Player 21 and player blackjack ALWAYS win, even against dealer 21/BJ
+//   - Late surrender on the first two cards (returns half the bet)
+//   - Bonus 21 payouts (void after doubling): 5-card 21 pays 3:2, 6-card 2:1,
+//     7+ card 3:1; 6-7-8 or 7-7-7 pays 3:2 mixed suits, 2:1 suited, 3:1 spades
+//
+// Up to MAX_BOTS simulated players can share the table. Bots consume real
+// cards from the shoe (so card counting stays honest) and settle against the
+// dealer for display, but never touch the human player's chips.
+//
+// Hi-Lo running count: every card dealt face-up increments `runningCount`
+// (+1 for 2-6, 0 for 7-9, -1 for 10/J/Q/K/A); the dealer hole card is counted
+// at reveal. The count carries across rounds with the shoe.
+//
+// Shoe-depth margin: the worst legal round at the reshuffle floor (Spanish,
+// 72 cards) is ~45 cards (2 seats with max splits + 3 bots + dealer) — safe.
 
 export type Suit = "S" | "H" | "D" | "C";
 export type Rank =
@@ -20,7 +38,37 @@ export interface Card {
   suit: Suit;
 }
 
-export type Outcome = "blackjack" | "win" | "push" | "lose";
+export type Outcome = "blackjack" | "win" | "push" | "lose" | "surrender";
+
+export type Variant = "classic" | "spanish21";
+
+/** Table rules derived from the variant — never persisted, always recomputed. */
+export interface Rules {
+  variant: Variant;
+  cardsPerDeck: 52 | 48;
+  shoeSize: number;
+  reshuffleAt: number;
+  removeTens: boolean;
+  player21AlwaysWins: boolean;
+  lateSurrender: boolean;
+  bonus21: boolean;
+}
+
+export function rulesFor(variant: Variant = "classic"): Rules {
+  const spanish = variant === "spanish21";
+  const cardsPerDeck = spanish ? 48 : 52;
+  const shoeSize = SHOE_DECKS * cardsPerDeck;
+  return {
+    variant,
+    cardsPerDeck,
+    shoeSize,
+    reshuffleAt: Math.floor(shoeSize * 0.25),
+    removeTens: spanish,
+    player21AlwaysWins: spanish,
+    lateSurrender: spanish,
+    bonus21: spanish,
+  };
+}
 
 export interface HandState {
   cards: Card[];
@@ -31,6 +79,18 @@ export interface HandState {
   splitAces: boolean;
   outcome: Outcome | null;
   payout: number;
+  /** Spanish 21 bonus that paid on this hand (e.g. "5-Card 21"), for the UI. */
+  bonus?: string;
+}
+
+/** A simulated player's hand. Cosmetic bet — never touches the human's chips. */
+export interface BotHand {
+  name: string;
+  cards: Card[];
+  bet: number;
+  doubled: boolean;
+  done: boolean;
+  outcome: Outcome | null;
 }
 
 export type Phase = "insurance" | "player" | "settled";
@@ -50,6 +110,12 @@ export interface RoundState {
   staked: number;
   /** Total chips returned to the player at settlement. */
   payoutTotal: number;
+  /** Game variant. Absent in pre-0.4.0 persisted rounds → classic. */
+  variant: Variant;
+  /** Hi-Lo running count of every card seen since the shuffle. */
+  runningCount: number;
+  /** Simulated players at the table. Absent in pre-0.4.0 rounds → none. */
+  bots: BotHand[];
 }
 
 export type PlayerAction =
@@ -57,6 +123,7 @@ export type PlayerAction =
   | "stand"
   | "double"
   | "split"
+  | "surrender"
   | "insurance-yes"
   | "insurance-no";
 
@@ -64,6 +131,8 @@ export type PlayerAction =
 export interface ActionResult {
   state: RoundState;
   debit: number;
+  /** True when startRound built a fresh shoe (UI plays the shuffle). */
+  shuffled?: boolean;
 }
 
 export class IllegalActionError extends Error {}
@@ -88,11 +157,12 @@ function defaultRng(): number {
   return Math.random();
 }
 
-export function createShoe(rng: Rng = defaultRng): Card[] {
+export function createShoe(rng: Rng = defaultRng, rules: Rules = rulesFor()): Card[] {
   const shoe: Card[] = [];
   for (let d = 0; d < SHOE_DECKS; d++) {
     for (const suit of SUITS) {
       for (const rank of RANKS) {
+        if (rules.removeTens && rank === "10") continue;
         shoe.push({ rank, suit });
       }
     }
@@ -103,6 +173,13 @@ export function createShoe(rng: Rng = defaultRng): Card[] {
     [shoe[i], shoe[j]] = [shoe[j], shoe[i]];
   }
   return shoe;
+}
+
+/** Hi-Lo card counting value: 2-6 → +1, 7-9 → 0, 10/J/Q/K/A → −1. */
+export function hiLo(card: Card): 1 | 0 | -1 {
+  if (card.rank === "A" || cardValue(card) === 10) return -1;
+  if (cardValue(card) <= 6) return 1;
+  return 0;
 }
 
 export function cardValue(card: Card): number {
@@ -143,10 +220,19 @@ function dealerHasBlackjack(dealer: Card[]): boolean {
   return dealer.length === 2 && handValue(dealer).total === 21;
 }
 
-function draw(state: RoundState): Card {
+function draw(state: RoundState, visible = true): Card {
   const card = state.shoe.pop();
   if (!card) throw new Error("Shoe exhausted"); // 6 decks: unreachable in a legal round
+  if (visible) state.runningCount = (state.runningCount ?? 0) + hiLo(card);
   return card;
+}
+
+/** Fill in fields absent from pre-0.4.0 persisted rounds. */
+function normalizeState(state: RoundState): RoundState {
+  state.variant ??= "classic";
+  state.runningCount ??= 0;
+  state.bots ??= [];
+  return state;
 }
 
 function newHand(cards: Card[], bet: number, fromSplit = false, splitAces = false): HandState {
@@ -171,34 +257,80 @@ export function insuranceCost(baseBet: number): number {
 }
 
 export const MAX_SEATS = 2;
+export const MAX_BOTS = 3;
+
+/** Fixed bot personas — bot i always gets persona i so names are stable. */
+const BOT_SEATS: { name: string; bet: number }[] = [
+  { name: "Vinny", bet: 100 },
+  { name: "Ruth", bet: 25 },
+  { name: "Doc", bet: 50 },
+];
+
+export interface RoundOptions {
+  previousShoe?: Card[] | null;
+  /** Variant the previousShoe was built for — mismatch forces a reshuffle. */
+  previousVariant?: Variant;
+  /** Hi-Lo running count carried with the shoe. */
+  previousCount?: number;
+  rng?: Rng;
+  seats?: number;
+  variant?: Variant;
+  /** Simulated players at the table, 0–MAX_BOTS. */
+  bots?: number;
+}
 
 /**
  * Start a round with `seats` simultaneous hands (same bet each).
  * `debit` = bet × seats (caller must have already verified the player can
- * afford it). Reuses `previousShoe` when it still has enough penetration
- * left, otherwise builds a fresh shoe.
+ * afford it). Reuses the previous shoe when it still has enough penetration
+ * left and was built for the same variant, otherwise builds a fresh shoe
+ * (`shuffled: true` on the result).
  */
+export function startRound(bet: number, options?: RoundOptions): ActionResult;
+/** @deprecated positional form kept for the static build. */
 export function startRound(
   bet: number,
   previousShoe?: Card[] | null,
-  rng: Rng = defaultRng,
-  seats = 1
+  rng?: Rng,
+  seats?: number
+): ActionResult;
+export function startRound(
+  bet: number,
+  arg2?: RoundOptions | Card[] | null,
+  rngArg?: Rng,
+  seatsArg?: number
 ): ActionResult {
+  const opts: RoundOptions =
+    arg2 && !Array.isArray(arg2)
+      ? arg2
+      : { previousShoe: arg2 as Card[] | null | undefined, rng: rngArg, seats: seatsArg };
+
+  const rng = opts.rng ?? defaultRng;
+  const seats = opts.seats ?? 1;
+  const variant = opts.variant ?? "classic";
+  const bots = opts.bots ?? 0;
+  const rules = rulesFor(variant);
+
   if (!Number.isInteger(bet) || bet <= 0) {
     throw new IllegalActionError("Bet must be a positive integer");
   }
   if (!Number.isInteger(seats) || seats < 1 || seats > MAX_SEATS) {
     throw new IllegalActionError(`Seats must be between 1 and ${MAX_SEATS}`);
   }
+  if (!Number.isInteger(bots) || bots < 0 || bots > MAX_BOTS) {
+    throw new IllegalActionError(`Bots must be between 0 and ${MAX_BOTS}`);
+  }
 
-  const shoe =
-    previousShoe && previousShoe.length >= RESHUFFLE_AT
-      ? [...previousShoe]
-      : createShoe(rng);
+  const { previousShoe } = opts;
+  const reuseShoe =
+    !!previousShoe &&
+    previousShoe.length >= rules.reshuffleAt &&
+    (opts.previousVariant ?? "classic") === variant;
+  const shuffled = !reuseShoe;
 
   const debit = bet * seats;
   const state: RoundState = {
-    shoe,
+    shoe: reuseShoe ? [...previousShoe] : createShoe(rng, rules),
     dealer: [],
     dealerRevealed: false,
     hands: Array.from({ length: seats }, () => newHand([], bet)),
@@ -209,18 +341,33 @@ export function startRound(
     splits: 0,
     staked: debit,
     payoutTotal: 0,
+    variant,
+    runningCount: reuseShoe ? (opts.previousCount ?? 0) : 0,
+    bots: BOT_SEATS.slice(0, bots).map((seat) => ({
+      name: seat.name,
+      cards: [],
+      bet: seat.bet,
+      doubled: false,
+      done: false,
+      outcome: null,
+    })),
   };
 
-  // Casino deal order: one card to each seat, dealer up, second card to
-  // each seat, dealer hole
+  // Casino deal order: one card to each seat (player then bots), dealer up,
+  // second card around the table, dealer hole (the only invisible card)
   for (const hand of state.hands) hand.cards.push(draw(state));
+  for (const b of state.bots) b.cards.push(draw(state));
   state.dealer.push(draw(state));
   for (const hand of state.hands) hand.cards.push(draw(state));
-  state.dealer.push(draw(state));
+  for (const b of state.bots) b.cards.push(draw(state));
+  state.dealer.push(draw(state, false));
 
   // Naturals are locked in — they don't take actions
   for (const hand of state.hands) {
     if (isBlackjack(hand)) hand.done = true;
+  }
+  for (const b of state.bots) {
+    if (handValue(b.cards).total === 21) b.done = true;
   }
 
   const upcard = state.dealer[0];
@@ -229,20 +376,21 @@ export function startRound(
     // Insurance decision comes before the peek
     state.phase = "insurance";
     state.insuranceBet = null;
-    return { state, debit };
+    return { state, debit, shuffled };
   }
 
   if (cardValue(upcard) === 10 && dealerHasBlackjack(state.dealer)) {
     // Dealer peeks on ten and has it — round over immediately
-    return { state: settle(state), debit };
+    return { state: settle(state), debit, shuffled };
   }
 
   // advance() settles right away when every hand is a natural
-  return { state: advance(state), debit };
+  return { state: advance(state), debit, shuffled };
 }
 
 /** Apply a player action. Returns the new state + any additional chips to debit. */
 export function applyAction(state: RoundState, action: PlayerAction): ActionResult {
+  normalizeState(state);
   if (state.phase === "settled") {
     throw new IllegalActionError("Round is already settled");
   }
@@ -318,9 +466,31 @@ export function applyAction(state: RoundState, action: PlayerAction): ActionResu
       return { state: advance(s), debit: extra };
     }
 
+    case "surrender": {
+      if (hand.done) throw new IllegalActionError("Hand is already finished");
+      if (!canSurrender(s, s.active)) {
+        throw new IllegalActionError("Surrender is not allowed");
+      }
+      hand.done = true;
+      hand.outcome = "surrender"; // pre-marked; settle() pays half the bet
+      return { state: advance(s), debit: 0 };
+    }
+
     default:
       throw new IllegalActionError(`Unknown action: ${action satisfies never}`);
   }
+}
+
+/** Late surrender: Spanish 21 only, first two cards, not split or doubled. */
+export function canSurrender(state: RoundState, handIndex: number): boolean {
+  const hand = state.hands[handIndex];
+  return (
+    rulesFor(state.variant ?? "classic").lateSurrender &&
+    hand.cards.length === 2 &&
+    !hand.fromSplit &&
+    !hand.doubled &&
+    !hand.done
+  );
 }
 
 /** Insurance covers every seat: half the base bet per initial hand. */
@@ -376,17 +546,125 @@ function advance(state: RoundState): RoundState {
   return settle(state);
 }
 
+/**
+ * Spanish 21 bonus for an undoubled 21: returns the payout multiplier and a
+ * label for the UI, or null when no bonus applies.
+ */
+function spanish21Bonus(cards: Card[]): { mult: number; label: string } | null {
+  const ranks = cards.map((c) => c.rank);
+  const suits = new Set(cards.map((c) => c.suit));
+  const suited = suits.size === 1;
+  const spades = suited && cards[0].suit === "S";
+
+  if (cards.length === 3) {
+    const sorted = [...ranks].sort().join(",");
+    const is678 = sorted === "6,7,8";
+    const is777 = sorted === "7,7,7";
+    if (is678 || is777) {
+      const combo = is777 ? "7-7-7" : "6-7-8";
+      if (spades) return { mult: 3, label: `${combo} Spades` };
+      if (suited) return { mult: 2, label: `${combo} Suited` };
+      return { mult: 1.5, label: combo };
+    }
+  }
+  if (cards.length >= 7) return { mult: 3, label: `${cards.length}-Card 21` };
+  if (cards.length === 6) return { mult: 2, label: "6-Card 21" };
+  if (cards.length === 5) return { mult: 1.5, label: "5-Card 21" };
+  return null;
+}
+
+/**
+ * Deterministic basic strategy for the simulated players — hit/stand/double
+ * only. Runs before the dealer draws; consumes real shoe cards.
+ */
+function playBots(state: RoundState): void {
+  const up = cardValue(state.dealer[0]);
+  for (const bot of state.bots) {
+    if (bot.done) continue; // natural 21 at the deal
+    for (;;) {
+      const { total, soft } = handValue(bot.cards);
+      if (total >= 21) break;
+      if (soft) {
+        if (total >= 18) break;
+        bot.cards.push(draw(state));
+        continue;
+      }
+      if (total >= 17) break;
+      if (total >= 13 && up >= 2 && up <= 6) break;
+      if (total === 12 && up >= 4 && up <= 6) break;
+      if ((total === 10 || total === 11) && bot.cards.length === 2 && up <= 9) {
+        bot.cards.push(draw(state));
+        bot.doubled = true;
+        bot.bet *= 2; // cosmetic
+        break;
+      }
+      bot.cards.push(draw(state));
+    }
+    bot.done = true;
+  }
+}
+
+/** Settle one hand (player or bot) against the dealer under the table rules. */
+function settleHand(
+  hand: { cards: Card[]; bet: number; doubled: boolean; fromSplit?: boolean },
+  dealerBJ: boolean,
+  dealerTotal: number,
+  rules: Rules
+): { outcome: Outcome; payout: number; bonus?: string } {
+  const { total } = handValue(hand.cards);
+  const natural = isBlackjack({ cards: hand.cards, fromSplit: hand.fromSplit ?? false });
+
+  if (total > 21) return { outcome: "lose", payout: 0 };
+
+  if (natural) {
+    if (dealerBJ && !rules.player21AlwaysWins) {
+      return { outcome: "push", payout: hand.bet };
+    }
+    return { outcome: "blackjack", payout: blackjackPayout(hand.bet) };
+  }
+
+  // Spanish 21: any player 21 always wins, with bonus payouts when undoubled
+  if (rules.player21AlwaysWins && total === 21) {
+    const bonus = rules.bonus21 && !hand.doubled ? spanish21Bonus(hand.cards) : null;
+    const mult = bonus?.mult ?? 1;
+    return {
+      outcome: "win",
+      payout: hand.bet + Math.floor(hand.bet * mult),
+      ...(bonus ? { bonus: bonus.label } : {}),
+    };
+  }
+
+  if (dealerBJ) return { outcome: "lose", payout: 0 };
+  if (dealerTotal > 21 || total > dealerTotal) return { outcome: "win", payout: hand.bet * 2 };
+  if (total === dealerTotal) return { outcome: "push", payout: hand.bet };
+  return { outcome: "lose", payout: 0 };
+}
+
 /** Reveal the hole card, draw out the dealer if needed, and pay every hand. */
 function settle(state: RoundState): RoundState {
-  const s = state;
-  s.dealerRevealed = true;
+  const s = normalizeState(state);
+  const rules = rulesFor(s.variant);
+
+  if (!s.dealerRevealed) {
+    s.dealerRevealed = true;
+    // The hole card enters the count exactly once, at reveal
+    s.runningCount += hiLo(s.dealer[1]);
+  }
 
   const dealerBJ = dealerHasBlackjack(s.dealer);
-  const allBusted = s.hands.every((h) => isBust(h.cards));
-  const allNaturals = s.hands.every((h) => isBlackjack(h));
 
-  // Dealer only draws when there is something left to beat
-  if (!dealerBJ && !allBusted && !allNaturals) {
+  // Bots act after the player, before the dealer (skipped when the peek
+  // already ended the round)
+  if (!dealerBJ) playBots(s);
+
+  const live = (cards: Card[], surrendered: boolean, natural: boolean) =>
+    !surrendered && !natural && !isBust(cards);
+  const anyLive =
+    s.hands.some((h) => live(h.cards, h.outcome === "surrender", isBlackjack(h))) ||
+    s.bots.some((b) => live(b.cards, false, handValue(b.cards).total === 21 && b.cards.length === 2));
+
+  // Dealer only draws when someone at the table is still standing
+  if (!dealerBJ && anyLive) {
     for (;;) {
       const { total } = handValue(s.dealer);
       if (total >= 17) break; // stands on soft 17
@@ -395,35 +673,26 @@ function settle(state: RoundState): RoundState {
   }
 
   const dealerTotal = handValue(s.dealer).total;
-  const dealerBust = dealerTotal > 21;
 
   for (const hand of s.hands) {
-    const { total } = handValue(hand.cards);
-
-    if (isBust(hand.cards)) {
-      hand.outcome = "lose";
-      hand.payout = 0;
-    } else if (isBlackjack(hand)) {
-      if (dealerBJ) {
-        hand.outcome = "push";
-        hand.payout = hand.bet;
-      } else {
-        hand.outcome = "blackjack";
-        hand.payout = blackjackPayout(hand.bet);
-      }
-    } else if (dealerBJ) {
-      hand.outcome = "lose";
-      hand.payout = 0;
-    } else if (dealerBust || total > dealerTotal) {
-      hand.outcome = "win";
-      hand.payout = hand.bet * 2;
-    } else if (total === dealerTotal) {
-      hand.outcome = "push";
-      hand.payout = hand.bet;
-    } else {
-      hand.outcome = "lose";
-      hand.payout = 0;
+    if (hand.outcome === "surrender") {
+      hand.payout = Math.floor(hand.bet / 2);
+      continue;
     }
+    const r = settleHand(hand, dealerBJ, dealerTotal, rules);
+    hand.outcome = r.outcome;
+    hand.payout = r.payout;
+    if (r.bonus) hand.bonus = r.bonus;
+  }
+
+  // Bot outcomes are display-only — no chips move
+  for (const bot of s.bots) {
+    bot.outcome = settleHand(
+      { cards: bot.cards, bet: bot.bet, doubled: bot.doubled },
+      dealerBJ,
+      dealerTotal,
+      rules
+    ).outcome;
   }
 
   s.payoutTotal = s.hands.reduce((sum, h) => sum + h.payout, 0);
@@ -462,25 +731,48 @@ export interface ClientHand {
   soft: boolean;
   outcome: Outcome | null;
   payout: number;
+  /** Spanish 21 bonus label when one paid (e.g. "5-Card 21"). */
+  bonus?: string;
+}
+
+export interface ClientBotHand {
+  name: string;
+  cards: Card[];
+  bet: number;
+  doubled: boolean;
+  done: boolean;
+  total: number;
+  soft: boolean;
+  outcome: Outcome | null;
 }
 
 export interface ClientView {
   phase: Phase;
+  variant: Variant;
   baseBet: number;
   insuranceBet: number | null;
   insuranceCost: number;
   active: number;
   dealer: { cards: (Card | null)[]; total: number | null; revealed: boolean };
   hands: ClientHand[];
+  bots: ClientBotHand[];
   /** Legal actions for the active hand (affordability is checked API-side). */
   actions: PlayerAction[];
   staked: number;
   payoutTotal: number;
   netResult: number | null;
+  /** Hi-Lo running count of every card seen since the shuffle. */
+  runningCount: number;
+  /** Cards left in the shoe, in decks (half-deck resolution, min 0.5). */
+  decksRemaining: number;
+  /** runningCount ÷ decksRemaining, one decimal. */
+  trueCount: number;
 }
 
 export function clientView(state: RoundState): ClientView {
+  normalizeState(state);
   const revealed = state.dealerRevealed;
+  const rules = rulesFor(state.variant);
 
   const actions: PlayerAction[] = [];
   if (state.phase === "insurance") {
@@ -491,10 +783,19 @@ export function clientView(state: RoundState): ClientView {
     actions.push("stand");
     if (canDouble(state, state.active)) actions.push("double");
     if (canSplit(state, state.active)) actions.push("split");
+    if (canSurrender(state, state.active)) actions.push("surrender");
   }
+
+  const runningCount = state.runningCount;
+  const decksRemaining = Math.max(
+    0.5,
+    Math.round((state.shoe.length / rules.cardsPerDeck) * 2) / 2
+  );
+  const trueCount = Math.round((runningCount / decksRemaining) * 10) / 10;
 
   return {
     phase: state.phase,
+    variant: state.variant,
     baseBet: state.baseBet,
     insuranceBet: state.insuranceBet,
     insuranceCost:
@@ -523,11 +824,28 @@ export function clientView(state: RoundState): ClientView {
         soft,
         outcome: h.outcome,
         payout: h.payout,
+        ...(h.bonus ? { bonus: h.bonus } : {}),
+      };
+    }),
+    bots: state.bots.map((b) => {
+      const { total, soft } = handValue(b.cards);
+      return {
+        name: b.name,
+        cards: b.cards,
+        bet: b.bet,
+        doubled: b.doubled,
+        done: b.done,
+        total,
+        soft,
+        outcome: b.outcome,
       };
     }),
     actions,
     staked: state.staked,
     payoutTotal: state.payoutTotal,
     netResult: state.phase === "settled" ? netResult(state) : null,
+    runningCount,
+    decksRemaining,
+    trueCount,
   };
 }

@@ -7,12 +7,15 @@ import {
   clientView,
   createShoe,
   handValue,
+  hiLo,
   IllegalActionError,
   insuranceCost,
   netResult,
   RESHUFFLE_AT,
+  rulesFor,
   SHOE_SIZE,
   startRound,
+  stateInsuranceCost,
   type Card,
   type Rank,
   type RoundState,
@@ -433,5 +436,375 @@ describe("shoe", () => {
     expect(blackjackPayout(10)).toBe(25);
     expect(blackjackPayout(5)).toBe(12); // 5 + floor(7.5)
     expect(insuranceCost(25)).toBe(12);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// v0.4.0 — Spanish 21, Hi-Lo count, bots, shuffled flag, compat
+// ---------------------------------------------------------------------------
+
+/** Options-form startRound on a rigged Spanish shoe. */
+function spanish(bet: number, shoe: Card[], extra: Partial<Parameters<typeof startRound>[1] & object> = {}) {
+  return startRound(bet, {
+    previousShoe: shoe,
+    previousVariant: "spanish21",
+    variant: "spanish21",
+    ...extra,
+  });
+}
+
+describe("spanish 21 shoe", () => {
+  it("builds 288-card shoes with no 10s but all faces", () => {
+    const shoe = createShoe(undefined, rulesFor("spanish21"));
+    expect(shoe.length).toBe(288);
+    expect(shoe.filter((card) => card.rank === "10")).toHaveLength(0);
+    expect(shoe.filter((card) => card.rank === "J")).toHaveLength(24);
+    expect(shoe.filter((card) => card.rank === "A")).toHaveLength(24);
+  });
+
+  it("reshuffles at 72 cards (25% of 288), not 78", () => {
+    const low = Array.from({ length: 71 }, () => c("2", "D"));
+    const ok = Array.from({ length: 72 }, () => c("2", "D"));
+    expect(spanish(10, low).shuffled).toBe(true);
+    expect(spanish(10, ok).shuffled).toBe(false);
+  });
+
+  it("variant mismatch forces a reshuffle", () => {
+    const classicShoe = shoeFor(c("5"), c("9"), c("6"), c("7"));
+    const r = startRound(10, {
+      previousShoe: classicShoe,
+      previousVariant: "classic",
+      variant: "spanish21",
+    });
+    expect(r.shuffled).toBe(true);
+    // Fresh spanish shoe: 288 minus the 4 dealt cards
+    expect(r.state.shoe.length).toBe(284);
+  });
+});
+
+describe("spanish 21 payouts", () => {
+  it("pays 5-card 21 at 3:2", () => {
+    let r = spanish(10, shoeFor(c("2"), c("9"), c("3"), c("7"), c("4"), c("5"), c("7")));
+    r = applyAction(r.state, "hit"); // 9
+    r = applyAction(r.state, "hit"); // 14
+    r = applyAction(r.state, "hit"); // 21 → auto-done → settles
+    expect(r.state.phase).toBe("settled");
+    expect(r.state.hands[0].outcome).toBe("win");
+    expect(r.state.hands[0].payout).toBe(25);
+    expect(r.state.hands[0].bonus).toBe("5-Card 21");
+  });
+
+  it("pays 6-card 21 at 2:1 and 7-card 21 at 3:1", () => {
+    let r = spanish(10, shoeFor(c("2"), c("9"), c("2"), c("8"), c("3"), c("4"), c("4"), c("6")));
+    for (let i = 0; i < 4; i++) r = applyAction(r.state, "hit"); // 2+2+3+4+4+6 = 21
+    expect(r.state.hands[0].payout).toBe(30);
+    expect(r.state.hands[0].bonus).toBe("6-Card 21");
+
+    let r7 = spanish(10, shoeFor(c("2"), c("9"), c("2"), c("8"), c("2"), c("3"), c("3"), c("4"), c("5")));
+    for (let i = 0; i < 5; i++) r7 = applyAction(r7.state, "hit"); // 2+2+2+3+3+4+5 = 21
+    expect(r7.state.hands[0].payout).toBe(40);
+    expect(r7.state.hands[0].bonus).toBe("7-Card 21");
+  });
+
+  it("pays 6-7-8 by suit tier", () => {
+    const run = (suits: [Suit, Suit, Suit]) => {
+      let r = spanish(10, shoeFor(c("6", suits[0]), c("9"), c("7", suits[1]), c("8", "H"), c("8", suits[2])));
+      r = applyAction(r.state, "hit"); // 6+7+8 = 21
+      return r.state.hands[0];
+    };
+    expect(run(["H", "C", "D"])).toMatchObject({ payout: 25, bonus: "6-7-8" });
+    expect(run(["H", "H", "H"])).toMatchObject({ payout: 30, bonus: "6-7-8 Suited" });
+    expect(run(["S", "S", "S"])).toMatchObject({ payout: 40, bonus: "6-7-8 Spades" });
+  });
+
+  it("pays 7-7-7 spades at 3:1", () => {
+    let r = spanish(10, shoeFor(c("7", "S"), c("9"), c("7", "S"), c("8", "H"), c("7", "S")));
+    r = applyAction(r.state, "hit");
+    expect(r.state.hands[0].payout).toBe(40);
+    expect(r.state.hands[0].bonus).toBe("7-7-7 Spades");
+  });
+
+  it("voids the bonus on a doubled 21", () => {
+    let r = spanish(10, shoeFor(c("5"), c("9"), c("6"), c("K"), c("K")));
+    r = applyAction(r.state, "double"); // 5+6+K = 21 doubled
+    expect(r.state.phase).toBe("settled");
+    expect(r.state.hands[0].bonus).toBeUndefined();
+    expect(r.state.hands[0].payout).toBe(40); // even money on the doubled 20 bet
+  });
+
+  it("player multi-card 21 beats dealer 21", () => {
+    let r = spanish(10, shoeFor(c("9"), c("7"), c("8"), c("7"), c("4"), c("7")));
+    r = applyAction(r.state, "hit"); // 9+8+4 = 21; dealer 7+7 draws 7 → 21
+    expect(handValue(r.state.dealer).total).toBe(21);
+    expect(r.state.hands[0].outcome).toBe("win");
+    expect(r.state.hands[0].payout).toBe(20);
+  });
+
+  it("player blackjack beats dealer blackjack (classic pushes)", () => {
+    const shoe = () => shoeFor(c("A"), c("K"), c("K", "H"), c("A", "H"));
+    const sp = spanish(10, shoe());
+    expect(sp.state.hands[0].outcome).toBe("blackjack");
+    expect(netResult(sp.state)).toBe(15);
+
+    const cl = startRound(10, { previousShoe: shoe(), variant: "classic" });
+    expect(cl.state.hands[0].outcome).toBe("push");
+    expect(netResult(cl.state)).toBe(0);
+  });
+});
+
+describe("spanish 21 surrender", () => {
+  it("returns half the bet and settles", () => {
+    const r0 = spanish(10, shoeFor(c("9"), c("9"), c("7"), c("K")));
+    const r = applyAction(r0.state, "surrender");
+    expect(r.state.phase).toBe("settled");
+    expect(r.state.hands[0].outcome).toBe("surrender");
+    expect(r.state.hands[0].payout).toBe(5);
+    expect(netResult(r.state)).toBe(-5);
+    expect(r.state.dealerRevealed).toBe(true);
+    expect(r.state.dealer).toHaveLength(2); // nobody live — dealer doesn't draw
+  });
+
+  it("is illegal after a hit and in classic", () => {
+    const sp = spanish(10, shoeFor(c("2"), c("9"), c("3"), c("K"), c("4")));
+    const hit = applyAction(sp.state, "hit");
+    expect(() => applyAction(hit.state, "surrender")).toThrow(IllegalActionError);
+
+    const cl = startRound(10, shoeFor(c("9"), c("9"), c("7"), c("K")));
+    expect(() => applyAction(cl.state, "surrender")).toThrow(IllegalActionError);
+  });
+
+  it("appears in clientView actions only for spanish", () => {
+    const sp = spanish(10, shoeFor(c("9"), c("9"), c("7"), c("K")));
+    expect(clientView(sp.state).actions).toContain("surrender");
+    const cl = startRound(10, shoeFor(c("9"), c("9"), c("7"), c("K")));
+    expect(clientView(cl.state).actions).not.toContain("surrender");
+  });
+});
+
+describe("hi-lo count", () => {
+  it("values cards correctly", () => {
+    expect(hiLo(c("2"))).toBe(1);
+    expect(hiLo(c("6"))).toBe(1);
+    expect(hiLo(c("7"))).toBe(0);
+    expect(hiLo(c("9"))).toBe(0);
+    expect(hiLo(c("10"))).toBe(-1);
+    expect(hiLo(c("K"))).toBe(-1);
+    expect(hiLo(c("A"))).toBe(-1);
+  });
+
+  it("counts the opening deal without the hole card", () => {
+    const { state } = startRound(10, { previousShoe: shoeFor(c("2"), c("9"), c("5"), c("K")) });
+    // 2 (+1), 9 (0), 5 (+1); hole K uncounted
+    expect(state.runningCount).toBe(2);
+  });
+
+  it("counts the hole card once at reveal plus dealer draws", () => {
+    const r0 = startRound(10, { previousShoe: shoeFor(c("2"), c("9"), c("5"), c("2", "H")) });
+    const r = applyAction(r0.state, "stand");
+    // deal +2, hole 2 (+1), dealer 11 → draws three filler 2s (+3) to 17
+    expect(handValue(r.state.dealer).total).toBe(17);
+    expect(r.state.runningCount).toBe(6);
+  });
+
+  it("does not count the hole card on an insurance peek without blackjack", () => {
+    const r0 = startRound(10, { previousShoe: shoeFor(c("5"), c("A"), c("6"), c("5", "H")) });
+    expect(r0.state.phase).toBe("insurance");
+    const r = applyAction(r0.state, "insurance-no");
+    // 5 (+1), A (−1), 6 (+1); hole 5 still hidden
+    expect(r.state.runningCount).toBe(1);
+    expect(r.state.dealerRevealed).toBe(false);
+  });
+
+  it("carries previousCount with the shoe and resets on a fresh shoe", () => {
+    const carried = startRound(10, {
+      previousShoe: shoeFor(c("2"), c("9"), c("5"), c("K")),
+      previousCount: 5,
+    });
+    expect(carried.state.runningCount).toBe(7); // 5 + 2 from the deal
+
+    const fresh = startRound(10, { previousCount: 5 });
+    expect(fresh.shuffled).toBe(true);
+    // fresh shoe resets to 0 before the deal; deal is random so just bound it
+    expect(Math.abs(fresh.state.runningCount)).toBeLessThanOrEqual(3);
+  });
+
+  it("computes decksRemaining and trueCount in clientView", () => {
+    const state: RoundState = {
+      shoe: Array.from({ length: 208 }, () => c("2", "D")),
+      dealer: [c("9"), c("K")],
+      dealerRevealed: false,
+      hands: [
+        { cards: [c("5"), c("6")], bet: 10, doubled: false, done: false, fromSplit: false, splitAces: false, outcome: null, payout: 0 },
+      ],
+      active: 0,
+      phase: "player",
+      baseBet: 10,
+      insuranceBet: 0,
+      splits: 0,
+      staked: 10,
+      payoutTotal: 0,
+      variant: "classic",
+      runningCount: 8,
+      bots: [],
+    };
+    const view = clientView(state);
+    expect(view.decksRemaining).toBe(4);
+    expect(view.trueCount).toBe(2);
+    expect(view.runningCount).toBe(8);
+  });
+
+  it("includes bot cards in the count", () => {
+    const { state } = startRound(10, {
+      previousShoe: shoeFor(c("2"), c("3"), c("9"), c("4"), c("5"), c("K")),
+      bots: 1,
+    });
+    // P 2 (+1), bot 3 (+1), up 9 (0), P 4 (+1), bot 5 (+1); hole K uncounted
+    expect(state.runningCount).toBe(4);
+  });
+});
+
+describe("bots", () => {
+  it("deals in casino order: player, bots, dealer up, second round, hole", () => {
+    const { state } = startRound(10, {
+      previousShoe: shoeFor(c("2"), c("3"), c("9"), c("4"), c("5"), c("K")),
+      bots: 1,
+    });
+    expect(state.hands[0].cards).toEqual([c("2"), c("4")]);
+    expect(state.bots[0].cards).toEqual([c("3"), c("5")]);
+    expect(state.dealer).toEqual([c("9"), c("K")]);
+    expect(state.bots[0].name).toBe("Vinny");
+  });
+
+  it("stands on hard 12 vs dealer 5, hits vs 7", () => {
+    const vs5 = startRound(10, {
+      previousShoe: shoeFor(c("K"), c("8"), c("5"), c("K", "H"), c("4"), c("K", "D")),
+      bots: 1,
+    });
+    const settled5 = applyAction(vs5.state, "stand").state;
+    expect(settled5.bots[0].cards).toHaveLength(2); // 12 vs 5 stands
+
+    const vs7 = startRound(10, {
+      previousShoe: shoeFor(c("K"), c("8"), c("7"), c("K", "H"), c("4"), c("K", "D")),
+      bots: 1,
+    });
+    const settled7 = applyAction(vs7.state, "stand").state;
+    // 12 → 14 → 16 → 18 on filler 2s
+    expect(settled7.bots[0].cards).toHaveLength(5);
+    expect(handValue(settled7.bots[0].cards).total).toBe(18);
+  });
+
+  it("doubles hard 11 vs dealer 9: one card, doubled bet", () => {
+    const r0 = startRound(10, {
+      previousShoe: shoeFor(c("K"), c("6"), c("9"), c("9", "H"), c("5"), c("K", "D")),
+      bots: 1,
+    });
+    const s = applyAction(r0.state, "stand").state;
+    expect(s.bots[0].cards).toHaveLength(3);
+    expect(s.bots[0].doubled).toBe(true);
+    expect(s.bots[0].bet).toBe(200); // Vinny's cosmetic 100 × 2
+  });
+
+  it("never touches the player's chips", () => {
+    const r0 = startRound(10, {
+      previousShoe: shoeFor(c("K"), c("6"), c("9"), c("9", "H"), c("5"), c("K", "D")),
+      bots: 1,
+    });
+    const s = applyAction(r0.state, "stand").state;
+    expect(s.staked).toBe(10);
+    expect(s.payoutTotal).toBe(s.hands[0].payout);
+    // player 19 vs dealer 19 pushes regardless of the bot's fate
+    expect(netResult(s)).toBe(0);
+  });
+
+  it("dealer still draws for a live bot when the player busts", () => {
+    const r0 = startRound(10, {
+      previousShoe: shoeFor(c("K"), c("K", "H"), c("2"), c("5"), c("9"), c("2", "H"), c("K", "D")),
+      bots: 1,
+    });
+    const s = applyAction(r0.state, "hit").state; // player K+5+K busts
+    expect(handValue(s.hands[0].cards).total).toBeGreaterThan(21);
+    expect(s.phase).toBe("settled");
+    expect(handValue(s.dealer).total).toBeGreaterThanOrEqual(17); // drew for the bot
+    expect(s.bots[0].outcome).not.toBeNull();
+  });
+
+  it("dealer does not draw when player and all bots bust", () => {
+    const r0 = startRound(10, {
+      previousShoe: shoeFor(c("K"), c("K", "H"), c("K", "D"), c("5"), c("6"), c("5", "H"), c("K", "S"), c("K", "C")),
+      bots: 1,
+    });
+    const s = applyAction(r0.state, "hit").state; // player busts; bot 16 vs 10 hits K → busts
+    expect(handValue(s.bots[0].cards).total).toBeGreaterThan(21);
+    expect(s.dealer).toHaveLength(2);
+  });
+
+  it("leaves bots at two cards on a dealer peek blackjack; bot naturals push", () => {
+    const { state } = startRound(10, {
+      previousShoe: shoeFor(c("K"), c("A"), c("9"), c("K", "H"), c("9", "H"), c("K", "D"), c("9", "D"), c("A", "H")),
+      bots: 2,
+    });
+    expect(state.phase).toBe("settled"); // dealer K+A peeked blackjack
+    expect(state.bots[0].cards).toHaveLength(2);
+    expect(state.bots[1].cards).toHaveLength(2);
+    expect(state.bots[0].outcome).toBe("push"); // bot natural A+K vs dealer BJ
+    expect(state.bots[1].outcome).toBe("lose");
+  });
+
+  it("does not change the insurance cost", () => {
+    const { state } = startRound(10, {
+      previousShoe: shoeFor(c("5"), c("5", "H"), c("A"), c("6"), c("6", "H"), c("9", "H")),
+      bots: 1,
+    });
+    expect(state.phase).toBe("insurance");
+    expect(stateInsuranceCost(state)).toBe(5); // half of 10 × 1 player hand
+  });
+
+  it("rejects invalid bot counts", () => {
+    expect(() => startRound(10, { bots: 4 })).toThrow(IllegalActionError);
+    expect(() => startRound(10, { bots: -1 })).toThrow(IllegalActionError);
+    expect(() => startRound(10, { bots: 1.5 })).toThrow(IllegalActionError);
+  });
+});
+
+describe("v0.4.0 compat", () => {
+  it("sets shuffled true on a fresh shoe, false on a carried one", () => {
+    const fresh = startRound(10);
+    expect(fresh.shuffled).toBe(true);
+    const carried = startRound(10, { previousShoe: shoeFor(c("5"), c("9"), c("6"), c("7")) });
+    expect(carried.shuffled).toBe(false);
+  });
+
+  it("still supports the legacy positional signature", () => {
+    const { state } = startRound(10, shoeFor(c("5"), c("9"), c("6"), c("7"), c("5", "H"), c("8")), undefined, 2);
+    expect(state.hands).toHaveLength(2);
+    expect(state.variant).toBe("classic");
+    expect(state.bots).toEqual([]);
+  });
+
+  it("plays a v0.3.0-shaped persisted round to settlement", () => {
+    // Hand-written pre-0.4.0 stateJson: no variant, runningCount, or bots
+    const legacy = JSON.parse(JSON.stringify({
+      shoe: Array.from({ length: 100 }, () => c("2", "D")),
+      dealer: [c("9"), c("K")],
+      hands: [
+        { cards: [c("K", "H"), c("9", "H")], bet: 10, doubled: false, done: false, fromSplit: false, splitAces: false, outcome: null, payout: 0 },
+      ],
+      dealerRevealed: false,
+      active: 0,
+      phase: "player",
+      baseBet: 10,
+      insuranceBet: 0,
+      splits: 0,
+      staked: 10,
+      payoutTotal: 0,
+    })) as RoundState;
+
+    const r = applyAction(legacy, "stand");
+    expect(r.state.phase).toBe("settled");
+    expect(r.state.hands[0].outcome).toBe("push"); // 19 vs 19
+    expect(netResult(r.state)).toBe(0);
+    const view = clientView(r.state);
+    expect(view.bots).toEqual([]);
+    expect(view.variant).toBe("classic");
   });
 });

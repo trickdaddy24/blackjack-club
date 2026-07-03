@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import type { RoundState } from "@/lib/blackjack/engine";
+import type { RoundState, Variant } from "@/lib/blackjack/engine";
 
 export const MIN_BET = 5;
 // Generous table max so "All In" is a real all-in even on a big stack
@@ -15,8 +15,17 @@ export async function getActiveRound(userId: string) {
   });
 }
 
-/** Remaining shoe from the player's most recent round, for shoe continuity. */
-export async function getPreviousShoe(userId: string): Promise<RoundState["shoe"] | null> {
+export interface PreviousCarry {
+  shoe: RoundState["shoe"];
+  variant: Variant;
+  runningCount: number;
+}
+
+/**
+ * Shoe, variant, and Hi-Lo count carried from the player's most recent round.
+ * Pre-0.4.0 rounds have no variant/count → classic, 0 (documented in CHANGELOG).
+ */
+export async function getPreviousCarry(userId: string): Promise<PreviousCarry | null> {
   const last = await prisma.round.findFirst({
     where: { userId },
     orderBy: { createdAt: "desc" },
@@ -25,7 +34,12 @@ export async function getPreviousShoe(userId: string): Promise<RoundState["shoe"
   if (!last) return null;
   try {
     const state = JSON.parse(last.stateJson) as RoundState;
-    return state.shoe ?? null;
+    if (!state.shoe) return null;
+    return {
+      shoe: state.shoe,
+      variant: state.variant ?? "classic",
+      runningCount: state.runningCount ?? 0,
+    };
   } catch {
     return null;
   }

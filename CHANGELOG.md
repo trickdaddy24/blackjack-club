@@ -5,6 +5,27 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the `VERSION` fi
 
 ---
 
+## [0.4.0] — 2026-07-03
+
+### Added
+- **Spanish 21 variant** — selectable at the bet screen: 48-card decks (no 10s), player 21
+  and blackjack always win (even vs dealer 21/BJ), late surrender (half bet back), and
+  bonus 21 payouts (5-card 3:2, 6-card 2:1, 7+ card 3:1; 6-7-8 / 7-7-7 mixed 3:2,
+  suited 2:1, spades 3:1 — void after doubling). Table arc text reflects the variant.
+- **Simulated players ("multiplayer")** — seat up to 3 bots (Vinny, Ruth, Doc) who are
+  dealt real cards from the shoe, play deterministic basic strategy after you, and settle
+  against the dealer for display. They never touch your chips — but their cards count.
+- **Shuffle simulation** — a riffle overlay + synthesized shuffle sound plays whenever a
+  fresh shoe is built (start of play, penetration reshuffle, variant switch).
+- **Hi-Lo card counter** — eye toggle in the HUD shows running count, true count, and
+  decks remaining, updated on every visible card (bots included; hole card at reveal).
+  Count carries across rounds with the shoe. Great for counting practice.
+- **Custom domain** — the static build is served at blackjack.minus-one-labs.com.
+
+### Notes
+- The static GitHub Pages build intentionally stays classic-only (shared engine, old UI).
+- Shoes carried over from v0.3.0 rounds start their count at 0 (one-shoe inaccuracy).
+
 ## [0.3.0] — 2026-07-03
 
 ### Added

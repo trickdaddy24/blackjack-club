@@ -2,14 +2,26 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Coins, Gift, Loader2, Volume2, VolumeX } from "lucide-react";
-import type { ClientView, PlayerAction } from "@/lib/blackjack/engine";
+import { Coins, Eye, EyeOff, Gift, Loader2, Volume2, VolumeX } from "lucide-react";
+import type { ClientView, PlayerAction, Variant } from "@/lib/blackjack/engine";
 import { PlayingCard } from "@/components/PlayingCard";
 import { sounds } from "@/lib/sound";
 
 const CHIP_VALUES = [5, 25, 100, 500, 1000] as const;
 const MIN_BET = 5;
 const MAX_BET = 1_000_000;
+const MAX_BOTS = 3;
+const SHUFFLE_MS = 1200;
+
+const VARIANT_KEY = "bj-variant";
+const BOTS_KEY = "bj-bots";
+const SHOW_COUNT_KEY = "bj-show-count";
+
+interface CountInfo {
+  runningCount: number;
+  trueCount: number;
+  decksRemaining: number;
+}
 
 interface TableState {
   chips: number;
@@ -32,7 +44,9 @@ async function api<T>(path: string, body?: unknown): Promise<T> {
 function visibleCards(view: ClientView | null): number {
   if (!view) return 0;
   return (
-    view.hands.reduce((sum, h) => sum + h.cards.length, 0) + view.dealer.cards.length
+    view.hands.reduce((sum, h) => sum + h.cards.length, 0) +
+    (view.bots?.reduce((sum, b) => sum + b.cards.length, 0) ?? 0) +
+    view.dealer.cards.length
   );
 }
 
@@ -58,9 +72,20 @@ export function GameTable() {
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [muted, setMuted] = useState(false);
+  const [variant, setVariant] = useState<Variant>("classic");
+  const [botCount, setBotCount] = useState(0);
+  const [showCount, setShowCount] = useState(false);
+  const [shuffling, setShuffling] = useState(false);
+  /** Last-seen Hi-Lo values — kept so the pill survives between rounds. */
+  const [count, setCount] = useState<CountInfo | null>(null);
 
   useEffect(() => {
     setMuted(sounds.muted);
+    const v = localStorage.getItem(VARIANT_KEY);
+    if (v === "spanish21") setVariant(v);
+    const b = parseInt(localStorage.getItem(BOTS_KEY) ?? "0", 10);
+    if (Number.isInteger(b) && b >= 0 && b <= MAX_BOTS) setBotCount(b);
+    setShowCount(localStorage.getItem(SHOW_COUNT_KEY) === "1");
   }, []);
 
   useEffect(() => {
@@ -69,6 +94,13 @@ export function GameTable() {
         setChips(s.chips);
         setBonusAvailable(s.bonusAvailable);
         setRound(s.round);
+        if (s.round) {
+          setCount({
+            runningCount: s.round.runningCount,
+            trueCount: s.round.trueCount,
+            decksRemaining: s.round.decksRemaining,
+          });
+        }
       })
       .catch((e: Error) => toast.error(e.message))
       .finally(() => setLoading(false));
@@ -77,19 +109,31 @@ export function GameTable() {
   const applyResponse = useCallback((r: { chips: number; round: ClientView }) => {
     setChips(r.chips);
     setRound(r.round);
+    setCount({
+      runningCount: r.round.runningCount,
+      trueCount: r.round.trueCount,
+      decksRemaining: r.round.decksRemaining,
+    });
   }, []);
 
   async function deal() {
     if (pendingBet < MIN_BET) return;
     setBusy(true);
     try {
-      const r = await api<{ chips: number; round: ClientView }>("/api/game/bet", {
-        bet: pendingBet,
-        hands: seats,
-      });
+      const r = await api<{ chips: number; round: ClientView; shuffled?: boolean }>(
+        "/api/game/bet",
+        { bet: pendingBet, hands: seats, variant, bots: botCount }
+      );
+      if (r.shuffled) {
+        // Hold the response while the shuffle plays, then deal as usual
+        setShuffling(true);
+        sounds.shuffle();
+        await new Promise((resolve) => setTimeout(resolve, SHUFFLE_MS));
+        setShuffling(false);
+      }
       applyResponse(r);
-      // Opening deal: two cards per seat plus the dealer's two
-      const dealt = seats * 2 + 2;
+      // Opening deal: two cards per seat and bot, plus the dealer's two
+      const dealt = (seats + (r.round.bots?.length ?? 0)) * 2 + 2;
       for (let i = 0; i < dealt; i++) sounds.deal(i * 0.13);
       if (r.round.phase === "settled") playResult(r.round, dealt * 0.13 + 0.3);
     } catch (e) {
@@ -150,6 +194,8 @@ export function GameTable() {
   const settled = round?.phase === "settled";
   const betting = !round || settled;
   const broke = chips !== null && chips < MIN_BET && betting;
+  // Mid-round the table shows the round's variant; between rounds, the picker's
+  const tableVariant = round?.variant ?? variant;
 
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col px-3 pb-6">
@@ -174,6 +220,33 @@ export function GameTable() {
               {bonusAvailable ? "Daily Bonus" : "House Stake"}
             </button>
           )}
+          {showCount && count && (
+            <div
+              className="gold-ring flex items-center gap-1 rounded-full bg-black/40 px-3 py-1.5 font-mono text-xs text-[var(--cream)]/80 tabular-nums"
+              title="Hi-Lo running count · true count · decks remaining"
+            >
+              <span className="text-[var(--gold-bright)]">
+                RC {count.runningCount > 0 ? "+" : ""}{count.runningCount}
+              </span>
+              <span className="text-[var(--cream)]/40">·</span>
+              <span>TC {count.trueCount > 0 ? "+" : ""}{count.trueCount}</span>
+              <span className="text-[var(--cream)]/40">·</span>
+              <span className="text-[var(--cream)]/50">{count.decksRemaining}d</span>
+            </div>
+          )}
+          <button
+            onClick={() => {
+              const next = !showCount;
+              setShowCount(next);
+              localStorage.setItem(SHOW_COUNT_KEY, next ? "1" : "0");
+              sounds.chip();
+            }}
+            className="gold-ring flex h-9 w-9 items-center justify-center rounded-full bg-black/40 text-[var(--cream)]/60 transition-colors hover:text-[var(--gold-bright)]"
+            title={showCount ? "Hide card count" : "Show card count (Hi-Lo)"}
+            aria-label={showCount ? "Hide card count" : "Show card count"}
+          >
+            {showCount ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+          </button>
           <button
             onClick={() => {
               const next = !muted;
@@ -191,7 +264,19 @@ export function GameTable() {
       </div>
 
       {/* the felt */}
-      <div className="felt-table flex flex-1 flex-col rounded-[46%_46%_38px_38px/90px_90px_38px_38px] px-2 pb-5 pt-6 sm:px-10 sm:pb-6 sm:pt-8">
+      <div className="felt-table relative flex flex-1 flex-col rounded-[46%_46%_38px_38px/90px_90px_38px_38px] px-2 pb-5 pt-6 sm:px-10 sm:pb-6 sm:pt-8">
+        {shuffling && (
+          <div className="shuffle-overlay">
+            <div className="shuffle-stack">
+              {Array.from({ length: 6 }, (_, i) => (
+                <div key={i} className="shuffle-card pcard-back" />
+              ))}
+            </div>
+            <p className="text-xs uppercase tracking-[0.4em] text-[var(--cream)]/70">
+              Shuffling
+            </p>
+          </div>
+        )}
         {loading ? (
           <div className="flex flex-1 items-center justify-center">
             <Loader2 className="h-8 w-8 animate-spin text-[var(--gold)]" />
@@ -227,12 +312,16 @@ export function GameTable() {
                 </defs>
                 <text className="font-display" fontSize="30" fontWeight="700" fill="var(--gold)" letterSpacing="6">
                   <textPath href="#arc1" startOffset="50%" textAnchor="middle">
-                    BLACKJACK PAYS 3 TO 2
+                    {tableVariant === "spanish21"
+                      ? "SPANISH 21 · PAYS 3 TO 2"
+                      : "BLACKJACK PAYS 3 TO 2"}
                   </textPath>
                 </text>
                 <text fontSize="12" fill="rgba(246,238,218,0.55)" letterSpacing="2">
                   <textPath href="#arc2" startOffset="50%" textAnchor="middle">
-                    SIX DECKS · DEALER STANDS ON ALL 17s · INSURANCE 2:1
+                    {tableVariant === "spanish21"
+                      ? "48-CARD DECKS · 21 ALWAYS WINS · SURRENDER · BONUS 21s"
+                      : "SIX DECKS · DEALER STANDS ON ALL 17s · INSURANCE 2:1"}
                   </textPath>
                 </text>
               </svg>
@@ -280,12 +369,16 @@ export function GameTable() {
                             className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
                               hand.outcome === "lose"
                                 ? "bg-red-900/60 text-red-200"
-                                : hand.outcome === "push"
+                                : hand.outcome === "push" || hand.outcome === "surrender"
                                   ? "bg-black/40 text-[var(--cream-dim)]"
                                   : "bg-[var(--gold)]/25 text-[var(--gold-bright)]"
                             }`}
                           >
-                            {hand.outcome === "blackjack" ? "Blackjack!" : hand.outcome}
+                            {hand.bonus
+                              ? `${hand.bonus}!`
+                              : hand.outcome === "blackjack"
+                                ? "Blackjack!"
+                                : hand.outcome}
                           </span>
                         )}
                       </div>
@@ -297,6 +390,51 @@ export function GameTable() {
                   Place your bet
                 </p>
               )}
+
+              {/* simulated players */}
+              {round?.bots?.map((bot) => (
+                <div
+                  key={bot.name}
+                  className="flex scale-[0.85] flex-col items-center gap-2 rounded-2xl p-3 opacity-90"
+                >
+                  <div className="flex gap-2">
+                    {bot.cards.map((card, ci) => (
+                      <PlayingCard
+                        key={`b-${bot.name}-${ci}-${card.rank}${card.suit}`}
+                        card={card}
+                        dealDelay={ci * 150}
+                      />
+                    ))}
+                  </div>
+                  <div className="flex items-center gap-2 text-sm">
+                    <span className="rounded-full bg-black/40 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-[var(--cream)]/60">
+                      {bot.name}
+                    </span>
+                    <span className="font-semibold text-[var(--cream)]/70 tabular-nums">
+                      {bot.total}
+                    </span>
+                    <span className="text-[var(--cream)]/40 tabular-nums">bet {bot.bet}</span>
+                    {bot.doubled && (
+                      <span className="rounded bg-[var(--gold)]/20 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-[var(--gold-bright)]">
+                        2×
+                      </span>
+                    )}
+                    {bot.outcome && (
+                      <span
+                        className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
+                          bot.outcome === "lose"
+                            ? "bg-red-900/60 text-red-200"
+                            : bot.outcome === "push" || bot.outcome === "surrender"
+                              ? "bg-black/40 text-[var(--cream-dim)]"
+                              : "bg-[var(--gold)]/25 text-[var(--gold-bright)]"
+                        }`}
+                      >
+                        {bot.outcome === "blackjack" ? "Blackjack!" : bot.outcome}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
             </div>
 
             {/* result banner */}
@@ -326,6 +464,18 @@ export function GameTable() {
                   chips={chips ?? 0}
                   pending={pendingBet}
                   seats={seats}
+                  variant={variant}
+                  botCount={botCount}
+                  onVariant={(v) => {
+                    sounds.chip();
+                    setVariant(v);
+                    localStorage.setItem(VARIANT_KEY, v);
+                  }}
+                  onBots={(n) => {
+                    sounds.chip();
+                    setBotCount(n);
+                    localStorage.setItem(BOTS_KEY, String(n));
+                  }}
                   onSeats={(n) => {
                     sounds.chip();
                     setSeats(n);
@@ -459,6 +609,16 @@ function ActionBar({
           Split
         </button>
       )}
+      {actions.includes("surrender") && (
+        <button
+          className="action-btn"
+          onClick={() => onAction("surrender")}
+          disabled={disabled}
+          title="Give up this hand and get half your bet back"
+        >
+          Surrender
+        </button>
+      )}
     </div>
   );
 }
@@ -467,7 +627,11 @@ function BetPicker({
   chips,
   pending,
   seats,
+  variant,
+  botCount,
   onSeats,
+  onVariant,
+  onBots,
   onAdd,
   onAllIn,
   onClear,
@@ -477,7 +641,11 @@ function BetPicker({
   chips: number;
   pending: number;
   seats: number;
+  variant: Variant;
+  botCount: number;
   onSeats: (n: number) => void;
+  onVariant: (v: Variant) => void;
+  onBots: (n: number) => void;
   onAdd: (v: number) => void;
   onAllIn: () => void;
   onClear: () => void;
@@ -503,22 +671,61 @@ function BetPicker({
         ))}
       </div>
 
-      {/* seat selector */}
-      <div className="flex items-center gap-1 rounded-full bg-black/30 p-1 gold-ring">
-        {[1, 2].map((n) => (
-          <button
-            key={n}
-            onClick={() => onSeats(n)}
-            disabled={disabled || (n === 2 && pending * 2 > chips && pending > 0)}
-            className={`rounded-full px-4 py-1 text-[11px] font-semibold uppercase tracking-wider transition-colors disabled:opacity-35 ${
-              seats === n
-                ? "bg-[var(--gold)]/25 text-[var(--gold-bright)]"
-                : "text-[var(--cream)]/50 hover:text-[var(--cream)]/80"
-            }`}
-          >
-            {n === 1 ? "1 Hand" : "2 Hands"}
-          </button>
-        ))}
+      {/* table selectors */}
+      <div className="flex flex-wrap items-center justify-center gap-2">
+        <div className="flex items-center gap-1 rounded-full bg-black/30 p-1 gold-ring">
+          {(["classic", "spanish21"] as const).map((v) => (
+            <button
+              key={v}
+              onClick={() => onVariant(v)}
+              disabled={disabled}
+              className={`rounded-full px-4 py-1 text-[11px] font-semibold uppercase tracking-wider transition-colors disabled:opacity-35 ${
+                variant === v
+                  ? "bg-[var(--gold)]/25 text-[var(--gold-bright)]"
+                  : "text-[var(--cream)]/50 hover:text-[var(--cream)]/80"
+              }`}
+            >
+              {v === "classic" ? "Classic" : "Spanish 21"}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex items-center gap-1 rounded-full bg-black/30 p-1 gold-ring">
+          {[1, 2].map((n) => (
+            <button
+              key={n}
+              onClick={() => onSeats(n)}
+              disabled={disabled || (n === 2 && pending * 2 > chips && pending > 0)}
+              className={`rounded-full px-4 py-1 text-[11px] font-semibold uppercase tracking-wider transition-colors disabled:opacity-35 ${
+                seats === n
+                  ? "bg-[var(--gold)]/25 text-[var(--gold-bright)]"
+                  : "text-[var(--cream)]/50 hover:text-[var(--cream)]/80"
+              }`}
+            >
+              {n === 1 ? "1 Hand" : "2 Hands"}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex items-center gap-1 rounded-full bg-black/30 p-1 gold-ring">
+          <span className="pl-3 pr-1 text-[11px] font-semibold uppercase tracking-wider text-[var(--cream)]/50">
+            Bots
+          </span>
+          {[0, 1, 2, 3].map((n) => (
+            <button
+              key={n}
+              onClick={() => onBots(n)}
+              disabled={disabled}
+              className={`rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-wider transition-colors disabled:opacity-35 ${
+                botCount === n
+                  ? "bg-[var(--gold)]/25 text-[var(--gold-bright)]"
+                  : "text-[var(--cream)]/50 hover:text-[var(--cream)]/80"
+              }`}
+            >
+              {n}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4">
