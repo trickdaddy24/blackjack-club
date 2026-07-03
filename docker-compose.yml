@@ -1,0 +1,30 @@
+services:
+  blackjack:
+    build: .
+    container_name: blackjack
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - ./data:/data
+    labels:
+      - "com.github.saltbox.saltbox_managed=true"
+      - "traefik.enable=true"
+      # HTTP → HTTPS redirect
+      - "traefik.http.routers.blackjack-http.entrypoints=web"
+      - "traefik.http.routers.blackjack-http.rule=Host(`play.minus-one-labs.com`)"
+      - "traefik.http.routers.blackjack-http.middlewares=globalHeaders@file,redirect-to-https,gzip"
+      - "traefik.http.routers.blackjack-http.service=blackjack"
+      # HTTPS router
+      - "traefik.http.routers.blackjack.entrypoints=websecure"
+      - "traefik.http.routers.blackjack.rule=Host(`play.minus-one-labs.com`)"
+      - "traefik.http.routers.blackjack.middlewares=globalHeaders@file,secureHeaders@file"
+      - "traefik.http.routers.blackjack.tls.certresolver=cfdns"
+      - "traefik.http.routers.blackjack.tls.options=securetls@file"
+      - "traefik.http.routers.blackjack.service=blackjack"
+      - "traefik.http.services.blackjack.loadbalancer.server.port=7600"
+    networks:
+      - saltbox
+
+networks:
+  saltbox:
+    external: true
