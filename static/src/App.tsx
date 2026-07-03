@@ -3,6 +3,8 @@ import { GameTable } from "./GameTable";
 import { STARTING_CHIPS } from "./localGame";
 import { UpgradeBanner, FULL_SITE_URL } from "./UpgradeBanner";
 
+declare const __APP_VERSION__: string;
+
 export function App() {
   return (
     <div className="flex min-h-screen flex-col">
@@ -43,6 +45,9 @@ export function App() {
           Reset bankroll
         </button>
       </footer>
+      <span className="pointer-events-none fixed bottom-2 left-3 z-50 font-mono text-[10px] text-[var(--cream)]/30 select-none">
+        v{__APP_VERSION__}
+      </span>
     </div>
   );
 }

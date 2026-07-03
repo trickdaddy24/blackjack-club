@@ -35,6 +35,9 @@ export default function RootLayout({
     <html lang="en">
       <body className={`${cinzel.variable} ${jost.variable} antialiased`}>
         {children}
+        <span className="pointer-events-none fixed bottom-2 left-3 z-50 font-mono text-[10px] text-[var(--cream)]/30 select-none">
+          v{process.env.NEXT_PUBLIC_APP_VERSION}
+        </span>
         <Toaster
           position="top-center"
           theme="dark"

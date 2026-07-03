@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the `VERSION` fi
 
 ---
 
+## [0.5.1] — 2026-07-03
+
+### Added
+- Version badge at the bottom-left of the screen on both sites, baked from the
+  `VERSION` file at build time (Next `env` / Vite `define`).
+
 ## [0.5.0] — 2026-07-03
 
 ### Added
