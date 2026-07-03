@@ -1,0 +1,9 @@
+/* Reuse the real app stylesheet — single source of truth. */
+@import "../../src/app/globals.css";
+
+/* next/font isn't available in the static build; map the font variables to
+   the Google Fonts loaded from index.html instead. */
+:root {
+  --font-cinzel: "Cinzel", serif;
+  --font-jost: "Jost", sans-serif;
+}

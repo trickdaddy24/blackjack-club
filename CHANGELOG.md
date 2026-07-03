@@ -5,6 +5,21 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the `VERSION` fi
 
 ---
 
+## [0.3.0] — 2026-07-03
+
+### Added
+- **Static GitHub Pages build** (`static/`) — a Vite + React client-only version of the game
+  that imports the exact same `engine.ts` and `sound.ts` (single source of truth). Chips,
+  daily bonus, and the active round live in localStorage (mid-hand refresh still resumes);
+  no accounts/leaderboard in this build. Deployed automatically by
+  `.github/workflows/pages.yml` on every push to `main`. Reset-bankroll control in the footer.
+
+### Notes
+- The full server app is unchanged and remains the primary target (accounts, anti-cheat,
+  shared leaderboard); the static build is the free public playground.
+
+---
+
 ## [0.2.0] — 2026-07-03
 
 ### Added

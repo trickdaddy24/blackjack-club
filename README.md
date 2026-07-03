@@ -62,7 +62,17 @@ The engine is deterministic given a shoe: `startRound()` and `applyAction()` ret
 `{ state, debit }` so the API layer owns all money movement. `clientView()` is the only
 serializer allowed to leave the server.
 
-## Deployment
+## Play it free (GitHub Pages)
+
+`static/` contains a client-only Vite build of the same game — identical engine and
+sounds, chips saved in your browser (localStorage) instead of an account. It deploys
+automatically to GitHub Pages via `.github/workflows/pages.yml` on every push to `main`.
+
+```bash
+cd static && npm install && npm run dev   # http://localhost:7601
+```
+
+## Deployment (full server app)
 
 Built with `output: "standalone"` and a Dockerfile for the standard Saltbox pattern
 (`docker compose up --build -d`). Persist `./prisma` as a volume for the SQLite DB.
