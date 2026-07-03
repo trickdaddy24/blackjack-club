@@ -5,6 +5,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the `VERSION` fi
 
 ---
 
+## [0.7.0] — 2026-07-03
+
+### Added
+- **Leaderboard** (`/leaderboard`, members only) — top 10 chip stacks with crown/medal
+  ranks, "you" highlight, and your own rank shown even outside the top 10.
+- **How to Play** (`/how-to-play`, public) — full rules guide: hand actions, classic
+  payouts, Spanish 21 differences + Bonus 21 paytable, Perfect Pairs paytable (rendered
+  live from the engine's `rulesFor()`), Vegas-clock minimum schedule (shared
+  `MINIMUM_SCHEDULE` constant), and table extras (bots, counter, tips, bonuses).
+- TopBar links (Leaders + Rules) and a "rules & payouts →" link in the bet picker.
+
+### Changed
+- Version badge enlarged for readability (10px/30% → 14px/60%), both sites.
+- `tableMinimum.ts` refactored around an exported `MINIMUM_SCHEDULE` so enforcement
+  and the rules page can't drift apart.
+
 ## [0.6.0] — 2026-07-03
 
 ### Changed

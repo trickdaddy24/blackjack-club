@@ -806,6 +806,13 @@ function BetPicker({
         <span className="font-semibold text-[var(--gold-bright)]">{tableMin.min}</span>
         {" · "}
         {tableMin.label}
+        {" · "}
+        <a
+          href="/how-to-play"
+          className="normal-case tracking-normal text-[var(--cream)]/40 underline-offset-2 hover:text-[var(--gold-bright)] hover:underline"
+        >
+          rules &amp; payouts →
+        </a>
       </div>
       <div className="flex items-end gap-2 sm:gap-3">
         {CHIP_VALUES.map((v) => (

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Spade, LogOut, User } from "lucide-react";
+import { HelpCircle, Spade, LogOut, Trophy, User } from "lucide-react";
 import { auth } from "@/auth";
 import { logout } from "@/lib/actions";
 
@@ -25,6 +25,22 @@ export async function TopBar() {
               Table
             </Link>
             <Link
+              href="/leaderboard"
+              className="flex items-center gap-1.5 uppercase tracking-widest text-[var(--cream)]/70 hover:text-[var(--gold-bright)] transition-colors"
+              title="Top chip stacks"
+            >
+              <Trophy className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Leaders</span>
+            </Link>
+            <Link
+              href="/how-to-play"
+              className="flex items-center gap-1.5 uppercase tracking-widest text-[var(--cream)]/70 hover:text-[var(--gold-bright)] transition-colors"
+              title="Rules, side bets & payouts"
+            >
+              <HelpCircle className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Rules</span>
+            </Link>
+            <Link
               href="/profile"
               className="flex items-center gap-1.5 uppercase tracking-widest text-[var(--cream)]/70 hover:text-[var(--gold-bright)] transition-colors"
             >
@@ -43,6 +59,12 @@ export async function TopBar() {
           </>
         ) : (
           <>
+            <Link
+              href="/how-to-play"
+              className="uppercase tracking-widest text-[var(--cream)]/70 hover:text-[var(--gold-bright)] transition-colors"
+            >
+              Rules
+            </Link>
             <Link
               href="/login"
               className="uppercase tracking-widest text-[var(--cream)]/70 hover:text-[var(--gold-bright)] transition-colors"

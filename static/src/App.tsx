@@ -45,7 +45,7 @@ export function App() {
           Reset bankroll
         </button>
       </footer>
-      <span className="pointer-events-none fixed bottom-2 left-3 z-50 font-mono text-[10px] text-[var(--cream)]/30 select-none">
+      <span className="pointer-events-none fixed bottom-2 left-3 z-50 font-mono text-sm text-[var(--cream)]/60 select-none">
         v{__APP_VERSION__}
       </span>
     </div>
