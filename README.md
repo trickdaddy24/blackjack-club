@@ -93,6 +93,11 @@ Built with `output: "standalone"` and a Dockerfile for the standard Saltbox patt
 | `AUTH_URL` | Canonical URL (`http://localhost:7600` in dev) |
 | `GOOGLE_CLIENT_ID/SECRET` | Optional — Google sign-in appears only when set |
 
+## Roadmap
+
+See [ROADMAP.md](./ROADMAP.md) — prioritized ideas for side bets, social features,
+tournaments, themes, and retention mechanics.
+
 ## Version History
 
 | Version | Date | Highlights |
