@@ -95,6 +95,22 @@ export default async function LobbyPage() {
             </div>
           ))}
         </section>
+
+        {/* Another game at the Club — Spades */}
+        <section className="fade-up mt-14 w-full max-w-md" style={{ animationDelay: "450ms" }}>
+          <Link
+            href="/spades"
+            className="gold-ring block rounded-2xl bg-black/25 px-6 py-5 text-center transition hover:bg-black/40"
+          >
+            <div className="flex items-center justify-center gap-2 font-display text-lg font-bold gold-text">
+              <Spade className="h-5 w-5" fill="currentColor" /> New — Spades
+            </div>
+            <p className="mt-1 text-sm text-[var(--cream)]/60">
+              Partnership Spades vs the house. Nil, Blind Nil, bags, to 500. No sign-up —{" "}
+              <span className="text-[var(--gold-bright)]">deal me in →</span>
+            </p>
+          </Link>
+        </section>
       </main>
 
       <footer className="pb-6 text-center text-xs text-[var(--cream)]/30">

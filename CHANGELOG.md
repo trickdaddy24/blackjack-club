@@ -5,6 +5,21 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the `VERSION` fi
 
 ---
 
+## [0.9.0] — 2026-07-10
+
+### Added
+- **Spades — a second game at the Club.** Blackjack Club is now a games hub: a new
+  `/spades` route hosts full partnership Spades (You + North vs West + East, first to
+  500), and the lobby advertises it with a "New — Spades" card.
+  - Nil (+100) and Blind Nil (+200) bids; scoring with bags (−100 at 10) and sets.
+  - Three heuristic bots (no LLM, no API cost) — they cover their partner, protect a
+    nil, set the opponents, and don't waste trumps.
+  - Framework-free engine ported from the standalone build; all Spades styles are
+    scoped under `.spades-app` so they can't touch Blackjack's Tailwind.
+  - Self-contained and client-only — no accounts or DB needed to play a hand.
+
+---
+
 ## [0.8.0] — 2026-07-03
 
 ### Added

@@ -1,0 +1,148 @@
+/* Spades game styles, fully scoped under .spades-app so nothing leaks into the
+ * Blackjack app's Tailwind. All original selectors are prefixed; the global
+ * html/body/#root rules from the standalone build are intentionally dropped. */
+
+.spades-app {
+  --bg: #0b1020;
+  --felt: #123b2b;
+  --felt-2: #0d2c20;
+  --rail: #4a2f1a;
+  --ink: #e8ecf4;
+  --muted: #93a0b8;
+  --sp-gold: #f2c14e;
+  --t0: #4fc3f7;
+  --t1: #ef7d7d;
+  --card-bg: #fbfbfd;
+  --card-red: #d13a3a;
+  --card-black: #1c2230;
+  --line: rgba(255, 255, 255, 0.1);
+
+  color: var(--ink);
+  font: 15px/1.4 ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif;
+  background: var(--bg);
+  min-height: 100vh;
+}
+.spades-app *, .spades-app *::before, .spades-app *::after { box-sizing: border-box; }
+
+.spades-app .app { display: flex; flex-direction: column; min-height: 100vh; max-width: 1000px; margin: 0 auto; }
+
+/* Top bar */
+.spades-app .topbar { display: flex; align-items: center; gap: 16px; padding: 10px 16px; border-bottom: 1px solid var(--line); }
+.spades-app .brand { font-weight: 800; font-size: 20px; letter-spacing: -0.02em; }
+.spades-app .brand span { color: var(--sp-gold); }
+.spades-app .brand .ver { color: var(--muted); font-size: 11px; font-weight: 500; font-style: normal; margin-left: 6px; }
+.spades-app .topbar__new { margin-left: auto; background: transparent; color: var(--muted); border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px; cursor: pointer; }
+.spades-app .topbar__new:hover { color: var(--ink); border-color: var(--sp-gold); }
+
+/* Scoreboard */
+.spades-app .scoreboard { display: flex; align-items: center; gap: 14px; margin: 0 auto; }
+.spades-app .score { text-align: center; min-width: 96px; }
+.spades-app .score__team { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+.spades-app .score__pts { font-size: 24px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.spades-app .score--t0 .score__pts { color: var(--t0); }
+.spades-app .score--t1 .score__pts { color: var(--t1); }
+.spades-app .score__bags { font-size: 11px; color: var(--muted); }
+.spades-app .score__target { color: var(--muted); font-size: 12px; }
+
+/* Table */
+.spades-app .table { position: relative; flex: 1; margin: 14px; border-radius: 200px / 130px; background: radial-gradient(120% 120% at 50% 40%, var(--felt) 0%, var(--felt-2) 100%); border: 10px solid var(--rail); box-shadow: inset 0 0 60px rgba(0, 0, 0, 0.5), 0 20px 50px rgba(0, 0, 0, 0.4); min-height: 440px; }
+.spades-app .table__n, .spades-app .table__s, .spades-app .table__w, .spades-app .table__e { position: absolute; }
+.spades-app .table__n { top: 10px; left: 50%; transform: translateX(-50%); }
+.spades-app .table__s { bottom: 10px; left: 50%; transform: translateX(-50%); }
+.spades-app .table__w { left: 12px; top: 50%; transform: translateY(-50%); }
+.spades-app .table__e { right: 12px; top: 50%; transform: translateY(-50%); }
+
+.spades-app .seat { background: rgba(0, 0, 0, 0.35); border: 1px solid var(--line); border-radius: 10px; padding: 6px 10px; min-width: 92px; text-align: center; transition: border-color 0.2s, box-shadow 0.2s; }
+.spades-app .seat--active { border-color: var(--sp-gold); box-shadow: 0 0 0 2px rgba(242, 193, 78, 0.25); }
+.spades-app .seat__name { font-weight: 700; }
+.spades-app .seat--t0 .seat__name { color: var(--t0); }
+.spades-app .seat--t1 .seat__name { color: var(--t1); }
+.spades-app .seat__stat { display: flex; gap: 8px; justify-content: center; font-size: 11px; color: var(--muted); }
+.spades-app .seat__won { color: var(--ink); }
+
+.spades-app .oppcards { position: absolute; }
+.spades-app .oppcards--n { top: 54px; left: 50%; transform: translateX(-50%); }
+.spades-app .oppcards--w { left: 40px; top: 50%; transform: translateY(-50%); }
+.spades-app .oppcards--e { right: 40px; top: 50%; transform: translateY(-50%); }
+.spades-app .backs { display: flex; }
+.spades-app .backs .card { margin-left: -22px; }
+.spades-app .backs .card:first-child { margin-left: 0; }
+.spades-app .backs--side { flex-direction: column; }
+.spades-app .backs--side .card { margin-left: 0; margin-top: -40px; }
+.spades-app .backs--side .card:first-child { margin-top: 0; }
+
+/* Trick */
+.spades-app .trick { position: absolute; inset: 0; display: grid; place-items: center; }
+.spades-app .trick__slot { position: absolute; transition: transform 0.15s; }
+.spades-app .trick__n { transform: translateY(-46px); }
+.spades-app .trick__s { transform: translateY(46px); }
+.spades-app .trick__w { transform: translateX(-52px); }
+.spades-app .trick__e { transform: translateX(52px); }
+.spades-app .trick__slot--win { filter: drop-shadow(0 0 10px var(--sp-gold)); }
+.spades-app .trick__slot--win.trick__n { transform: scale(1.08) translateY(-46px); }
+.spades-app .trick__slot--win.trick__s { transform: scale(1.08) translateY(46px); }
+.spades-app .trick__slot--win.trick__w { transform: scale(1.08) translateX(-52px); }
+.spades-app .trick__slot--win.trick__e { transform: scale(1.08) translateX(52px); }
+.spades-app .trick__msg { position: absolute; bottom: 40px; color: var(--sp-gold); font-weight: 600; font-size: 13px; }
+.spades-app .trick__hint { position: absolute; top: 46%; color: var(--muted); font-size: 11px; letter-spacing: 0.05em; }
+
+/* Cards */
+.spades-app .card { width: 58px; height: 82px; border-radius: 8px; background: var(--card-bg); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font-weight: 800; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4); border: 1px solid rgba(0, 0, 0, 0.15); user-select: none; }
+.spades-app .card--sm { width: 44px; height: 62px; }
+.spades-app .card__rank { font-size: 20px; line-height: 1; }
+.spades-app .card--sm .card__rank { font-size: 15px; }
+.spades-app .card__suit { font-size: 20px; line-height: 1; }
+.spades-app .card--sm .card__suit { font-size: 15px; }
+.spades-app .card--red { color: var(--card-red); }
+.spades-app .card--black { color: var(--card-black); }
+.spades-app .card--back { background: repeating-linear-gradient(45deg, #2b3a67, #2b3a67 6px, #24325a 6px, #24325a 12px); border: 1px solid #3b4b7a; }
+.spades-app .card--btn { cursor: pointer; padding: 0; transition: transform 0.12s, box-shadow 0.12s; }
+.spades-app .card--playable { outline: 2px solid var(--sp-gold); }
+.spades-app .card--btn:hover:not(:disabled) { transform: translateY(-10px); box-shadow: 0 8px 16px rgba(0, 0, 0, 0.5); }
+.spades-app .card--dim { opacity: 0.5; }
+.spades-app .card:disabled { cursor: default; }
+
+.spades-app .myhand { display: flex; justify-content: center; flex-wrap: wrap; gap: 4px; padding: 12px 14px 6px; min-height: 96px; }
+
+/* Bid panel */
+.spades-app .bidpanel { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); background: #131a30; border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6); z-index: 30; max-width: 460px; width: calc(100% - 28px); }
+.spades-app .bidpanel__title { font-weight: 700; margin-bottom: 10px; text-align: center; }
+.spades-app .bidpanel__row { display: flex; gap: 8px; justify-content: center; margin-bottom: 8px; }
+.spades-app .bidpanel__grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+.spades-app .bidbtn { background: #1e2947; color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 8px 0; font-weight: 700; cursor: pointer; }
+.spades-app .bidbtn:hover { border-color: var(--sp-gold); background: #26335a; }
+.spades-app .bidbtn--nil { background: #2a1e47; }
+.spades-app .bidbtn--blind { background: #3a1e2a; }
+.spades-app .bidpanel__hint { color: var(--muted); font-size: 11px; text-align: center; margin: 10px 0 0; }
+
+/* Modal */
+.spades-app .modal { position: fixed; inset: 0; background: rgba(4, 8, 18, 0.72); display: grid; place-items: center; z-index: 40; padding: 16px; }
+.spades-app .modal__card { background: #131a30; border: 1px solid var(--line); border-radius: 16px; padding: 22px; max-width: 520px; width: 100%; box-shadow: 0 30px 70px rgba(0, 0, 0, 0.7); }
+.spades-app .modal__title { margin: 0 0 16px; text-align: center; font-size: 22px; }
+.spades-app .resultgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 18px; }
+.spades-app .resultcol { background: rgba(0, 0, 0, 0.3); border-radius: 12px; padding: 12px; text-align: center; }
+.spades-app .resultcol--t0 { border: 1px solid rgba(79, 195, 247, 0.4); }
+.spades-app .resultcol--t1 { border: 1px solid rgba(239, 125, 125, 0.4); }
+.spades-app .resultcol__team { font-weight: 700; margin-bottom: 6px; }
+.spades-app .resultcol__line { color: var(--muted); font-size: 13px; }
+.spades-app .resultcol__nil { font-size: 12px; margin-top: 4px; }
+.spades-app .resultcol__nil.ok, .spades-app .resultcol__pts.ok, .spades-app .resultcol__nil.bad, .spades-app .resultcol__pts.bad { font-weight: 700; }
+.spades-app .ok { color: #6ee7a8; }
+.spades-app .bad { color: var(--t1); }
+.spades-app .resultcol__bag { font-size: 12px; color: var(--sp-gold); margin-top: 4px; }
+.spades-app .resultcol__pts { font-size: 22px; margin-top: 8px; }
+.spades-app .resultcol__total { color: var(--muted); font-size: 12px; margin-top: 2px; }
+.spades-app .bigbtn { display: block; width: 100%; background: var(--sp-gold); color: #1a1300; border: none; border-radius: 10px; padding: 12px; font-weight: 800; font-size: 15px; cursor: pointer; }
+.spades-app .bigbtn:hover { filter: brightness(1.05); }
+
+.spades-app .foot { text-align: center; color: var(--muted); font-size: 12px; padding: 10px; }
+.spades-app .foot a { color: var(--sp-gold); }
+
+@media (max-width: 560px) {
+  .spades-app .card { width: 46px; height: 66px; }
+  .spades-app .card__rank, .spades-app .card__suit { font-size: 16px; }
+  .spades-app .table { min-height: 380px; }
+  .spades-app .scoreboard { gap: 8px; }
+  .spades-app .score { min-width: 72px; }
+  .spades-app .score__pts { font-size: 20px; }
+}
