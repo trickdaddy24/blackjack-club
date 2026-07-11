@@ -17,13 +17,18 @@ const SPADES_VERSION = process.env.NEXT_PUBLIC_APP_VERSION ?? "0.9.0";
 const TRICK_POS: Record<Seat, string> = { 0: "trick__s", 1: "trick__w", 2: "trick__n", 3: "trick__e" };
 
 export default function SpadesPage() {
-  const { state, humansTurn, holding, displayTrick, trickWinnerSeat, bid, play, nextHand, restart } =
-    useSpades();
+  const {
+    state, humansTurn, holding, displayTrick, trickWinnerSeat,
+    bid, play, nextHand, restart, setDeucesHigh,
+  } = useSpades();
+
+  const deucesHigh = state.rules.deucesHigh;
+  const isPromotedDeuce = (c: Card) => deucesHigh && c.rank === 2 && c.suit !== "S";
 
   const myHand = handSorted(state, HUMAN_SEAT);
   const canPlay = (c: Card) =>
     humansTurn && state.phase === "playing"
-    && isLegalPlay(c, state.hands[HUMAN_SEAT], state.currentTrick, state.spadesBroken);
+    && isLegalPlay(c, state.hands[HUMAN_SEAT], state.currentTrick, state.spadesBroken, state.rules);
 
   const phaseMsg = () => {
     if (state.phase === "bidding") return humansTurn ? "Your bid" : "Bidding…";
@@ -42,8 +47,16 @@ export default function SpadesPage() {
         <header className="topbar">
           <div className="brand">Spades<span>Club</span><i className="ver">v{SPADES_VERSION}</i></div>
           <Scoreboard state={state} />
-          <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
-            <button className="topbar__new" onClick={restart}>New game</button>
+          <div className="topbar__actions">
+            <label className="ruletoggle" title="All four 2s become the highest trumps: 2♠ ▸ 2♥ ▸ 2♣ ▸ 2♦, above the A♠. Changing this starts a new game.">
+              <input
+                type="checkbox"
+                checked={deucesHigh}
+                onChange={(e) => setDeucesHigh(e.target.checked)}
+              />
+              <span>Deuces high</span>
+            </label>
+            <button className="topbar__new" onClick={() => restart()}>New game</button>
             <Link className="topbar__new" href="/" style={{ textDecoration: "none" }}>♠ Club</Link>
           </div>
         </header>
@@ -56,7 +69,7 @@ export default function SpadesPage() {
           <div className={`trick ${holding ? "trick--held" : ""}`}>
             {displayTrick.map((p) => (
               <div key={p.seat} className={`trick__slot ${TRICK_POS[p.seat as Seat]} ${trickWinnerSeat === p.seat ? "trick__slot--win" : ""}`}>
-                <CardView card={p.card} small />
+                <CardView card={p.card} small trump={isPromotedDeuce(p.card)} />
               </div>
             ))}
             {displayTrick.length === 0 && state.phase === "playing" && (
@@ -79,6 +92,7 @@ export default function SpadesPage() {
               card={c}
               playable={canPlay(c)}
               disabled={state.phase === "playing" && !canPlay(c)}
+              trump={isPromotedDeuce(c)}
               onClick={state.phase === "playing" ? () => play(c) : undefined}
             />
           ))}
@@ -93,7 +107,8 @@ export default function SpadesPage() {
         )}
 
         <footer className="foot">
-          Partnership Spades · Nil · Blind Nil · to {state.targetScore} ·{" "}
+          Partnership Spades · Nil · Blind Nil · to {state.targetScore}
+          {deucesHigh && " · Deuces high (2♠ 2♥ 2♣ 2♦ are top trumps)"} ·{" "}
           <Link href="/play">Blackjack ♠♥♦♣</Link>
         </footer>
       </div>

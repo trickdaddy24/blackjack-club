@@ -8,13 +8,15 @@ const RANK_LABEL: Record<number, string> = {
 const SUIT_LABEL: Record<string, string> = { C: "♣", D: "♦", H: "♥", S: "♠" };
 
 export function CardView({
-  card, onClick, disabled, playable, small,
+  card, onClick, disabled, playable, small, trump,
 }: {
   card: Card;
   onClick?: () => void;
   disabled?: boolean;
   playable?: boolean;
   small?: boolean;
+  /** Mark a card that is trump despite its printed suit (a promoted deuce). */
+  trump?: boolean;
 }) {
   const red = isRed(card);
   const cls = [
@@ -24,10 +26,12 @@ export function CardView({
     onClick && !disabled ? "card--btn" : "",
     playable ? "card--playable" : "",
     disabled ? "card--dim" : "",
+    trump ? "card--trump" : "",
   ].filter(Boolean).join(" ");
 
   const inner = (
     <>
+      {trump && <span className="card__trump" aria-hidden>♠</span>}
       <span className="card__rank">{RANK_LABEL[card.rank]}</span>
       <span className="card__suit">{SUIT_LABEL[card.suit]}</span>
     </>

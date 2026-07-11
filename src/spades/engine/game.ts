@@ -1,5 +1,5 @@
-import type { Card } from "./cards";
-import { cardId, deal, sortHand } from "./cards";
+import type { Card, SpadesRules } from "./cards";
+import { cardId, deal, sortHand, STANDARD_RULES } from "./cards";
 import {
   isLegalPlay, leadSuit, playBreaksSpades, trickWinner,
 } from "./rules";
@@ -14,10 +14,15 @@ function nextSeat(s: Seat): Seat {
 }
 
 /** Start a fresh game. `rng` is injectable for deterministic tests. */
-export function newGame(rng: () => number = Math.random, targetScore = DEFAULT_TARGET): GameState {
+export function newGame(
+  rng: () => number = Math.random,
+  targetScore = DEFAULT_TARGET,
+  rules: SpadesRules = STANDARD_RULES,
+): GameState {
   const dealer: Seat = 0;
   return startHand({
     phase: "bidding",
+    rules,
     hands: [[], [], [], []],
     bids: [null, null, null, null],
     tricksWon: [0, 0, 0, 0],
@@ -83,13 +88,13 @@ export function playCard(state: GameState, seat: Seat, card: Card): GameState {
 
   const hand = state.hands[seat];
   if (!hand.some((c) => cardId(c) === cardId(card))) throw new Error("card not in hand");
-  if (!isLegalPlay(card, hand, state.currentTrick, state.spadesBroken)) {
+  if (!isLegalPlay(card, hand, state.currentTrick, state.spadesBroken, state.rules)) {
     throw new Error("illegal play");
   }
 
   const hands = state.hands.map((h, i) =>
     i === seat ? h.filter((c) => cardId(c) !== cardId(card)) : h);
-  const spadesBroken = state.spadesBroken || playBreaksSpades(card, state.currentTrick);
+  const spadesBroken = state.spadesBroken || playBreaksSpades(card, state.currentTrick, state.rules);
   const currentTrick = [...state.currentTrick, { seat, card }];
 
   // Trick still in progress.
@@ -98,7 +103,7 @@ export function playCard(state: GameState, seat: Seat, card: Card): GameState {
   }
 
   // Trick complete → award, then either lead next trick or finish the hand.
-  const winner = trickWinner(currentTrick);
+  const winner = trickWinner(currentTrick, state.rules);
   const tricksWon = state.tricksWon.slice();
   tricksWon[winner] += 1;
   const completedTricks = [...state.completedTricks, currentTrick];
@@ -148,9 +153,9 @@ export function dealNextHand(state: GameState, rng: () => number = Math.random):
 // ── convenience selectors for the UI ────────────────────────────────────────
 
 export function currentLeadSuit(state: GameState) {
-  return leadSuit(state.currentTrick);
+  return leadSuit(state.currentTrick, state.rules);
 }
 
 export function handSorted(state: GameState, seat: Seat): Card[] {
-  return sortHand(state.hands[seat]);
+  return sortHand(state.hands[seat], state.rules);
 }

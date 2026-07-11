@@ -31,8 +31,12 @@
 .spades-app .brand { font-weight: 800; font-size: 20px; letter-spacing: -0.02em; }
 .spades-app .brand span { color: var(--sp-gold); }
 .spades-app .brand .ver { color: var(--muted); font-size: 11px; font-weight: 500; font-style: normal; margin-left: 6px; }
-.spades-app .topbar__new { margin-left: auto; background: transparent; color: var(--muted); border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px; cursor: pointer; }
+.spades-app .topbar__actions { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+.spades-app .topbar__new { background: transparent; color: var(--muted); border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px; cursor: pointer; }
 .spades-app .topbar__new:hover { color: var(--ink); border-color: var(--sp-gold); }
+.spades-app .ruletoggle { display: flex; align-items: center; gap: 6px; cursor: pointer; color: var(--muted); font-size: 13px; user-select: none; white-space: nowrap; }
+.spades-app .ruletoggle:hover { color: var(--ink); }
+.spades-app .ruletoggle input { accent-color: var(--sp-gold); cursor: pointer; width: 15px; height: 15px; }
 
 /* Scoreboard */
 .spades-app .scoreboard { display: flex; align-items: center; gap: 14px; margin: 0 auto; }
@@ -98,6 +102,9 @@
 .spades-app .card--back { background: repeating-linear-gradient(45deg, #2b3a67, #2b3a67 6px, #24325a 6px, #24325a 12px); border: 1px solid #3b4b7a; }
 .spades-app .card--btn { cursor: pointer; padding: 0; transition: transform 0.12s, box-shadow 0.12s; }
 .spades-app .card--playable { outline: 2px solid var(--sp-gold); }
+.spades-app .card--trump { box-shadow: 0 0 0 2px var(--sp-gold), 0 2px 6px rgba(0, 0, 0, 0.4); position: relative; }
+.spades-app .card__trump { position: absolute; top: 3px; right: 4px; font-size: 11px; line-height: 1; color: var(--card-black); }
+.spades-app .card--sm .card__trump { font-size: 9px; top: 2px; right: 3px; }
 .spades-app .card--btn:hover:not(:disabled) { transform: translateY(-10px); box-shadow: 0 8px 16px rgba(0, 0, 0, 0.5); }
 .spades-app .card--dim { opacity: 0.5; }
 .spades-app .card:disabled { cursor: default; }

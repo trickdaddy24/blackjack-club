@@ -1,45 +1,56 @@
-import type { Card, Suit } from "./cards";
+import type { Card, Suit, SpadesRules } from "./cards";
+import { effSuit, isTrump, trumpRank, STANDARD_RULES } from "./cards";
 import { leadSuit, legalPlays } from "./rules";
 import type { Bid, GameState, PlayedCard, Seat } from "./types";
 import { teamOf } from "./types";
 
 // Heuristic bot — no LLM. Bids from expected winners, then plays with a handful
 // of durable Spades principles: win cheap, cover your partner, set the enemy,
-// dump losers, and hunt a bidder who's set themselves a Nil.
+// dump losers, and hunt a bidder who's set themselves a Nil. All suit/rank logic
+// is trump-aware, so it adapts when "deuces high" promotes the 2s to top trumps.
 
 // ── Bidding ──────────────────────────────────────────────────────────────────
 
 /** Estimate tricks a hand will win, and decide whether to try Nil. */
-export function botBid(hand: Card[]): Bid {
-  const nil = shouldBidNil(hand);
+export function botBid(hand: Card[], rules: SpadesRules = STANDARD_RULES): Bid {
+  const nil = shouldBidNil(hand, rules);
   if (nil) return { tricks: 0, blind: false };
 
-  const est = estimateTricks(hand);
+  const est = estimateTricks(hand, rules);
   // Bots bid a touch conservatively (bags hurt); floor at 1 (Nil is separate).
   const tricks = Math.max(1, Math.min(13, Math.round(est)));
   return { tricks, blind: false };
 }
 
-function bySuit(hand: Card[]): Record<Suit, Card[]> {
+/** Group a hand by *effective* suit, so promoted deuces sit with the spades. */
+function bySuit(hand: Card[], rules: SpadesRules): Record<Suit, Card[]> {
   const m: Record<Suit, Card[]> = { C: [], D: [], H: [], S: [] };
-  for (const c of hand) m[c.suit].push(c);
-  for (const s of ["C", "D", "H", "S"] as Suit[]) m[s].sort((a, b) => b.rank - a.rank);
+  for (const c of hand) m[effSuit(c, rules)].push(c);
+  for (const s of ["C", "D", "H", "S"] as Suit[]) {
+    m[s].sort((a, b) => s === "S"
+      ? trumpRank(b, rules) - trumpRank(a, rules)
+      : b.rank - a.rank);
+  }
   return m;
 }
 
+const isHotDeuce = (c: Card, rules: SpadesRules) => rules.deucesHigh && c.rank === 2;
+
 /** Expected trick count: high spades + spade length, plus side aces/kings. */
-export function estimateTricks(hand: Card[]): number {
-  const suits = bySuit(hand);
+export function estimateTricks(hand: Card[], rules: SpadesRules = STANDARD_RULES): number {
+  const suits = bySuit(hand, rules);
   let est = 0;
 
-  // Spades: aces/kings almost always win; extra length wins low spades late.
+  // Trumps: promoted deuces are near-locks; aces/kings almost always win; extra
+  // length wins low spades late.
   const spades = suits.S;
   for (const c of spades) {
-    if (c.rank === 14) est += 1;         // A♠
-    else if (c.rank === 13) est += 0.9;  // K♠
-    else if (c.rank === 12) est += 0.7;  // Q♠
+    if (isHotDeuce(c, rules)) est += 1;   // promoted deuce = a top trump
+    else if (c.rank === 14) est += 1;     // A♠
+    else if (c.rank === 13) est += 0.9;   // K♠
+    else if (c.rank === 12) est += 0.7;   // Q♠
   }
-  const lowSpades = spades.filter((c) => c.rank < 12).length;
+  const lowSpades = spades.filter((c) => c.rank < 12 && !isHotDeuce(c, rules)).length;
   if (spades.length > 3) est += (spades.length - 3) * 0.5; // length tricks
   else est += lowSpades * 0.15;
 
@@ -55,10 +66,12 @@ export function estimateTricks(hand: Card[]): number {
 }
 
 /** Try Nil only with a genuinely weak, duckable hand. */
-export function shouldBidNil(hand: Card[]): boolean {
-  const suits = bySuit(hand);
+export function shouldBidNil(hand: Card[], rules: SpadesRules = STANDARD_RULES): boolean {
+  const suits = bySuit(hand, rules);
   const spades = suits.S;
 
+  // A promoted deuce is a guaranteed top trump → Nil is hopeless.
+  if (spades.some((c) => isHotDeuce(c, rules))) return false;
   // Any high spade, or too many spades, makes a Nil hard to duck.
   if (spades.some((c) => c.rank >= 12)) return false;
   if (spades.length >= 4) return false;
@@ -83,10 +96,12 @@ interface PlayCtx {
   spadesBroken: boolean;
   bids: (Bid | null)[];
   partner: Seat;
+  rules: SpadesRules;
 }
 
 export function botPlay(state: GameState, seat: Seat): Card {
-  const legal = legalPlays(state.hands[seat], state.currentTrick, state.spadesBroken);
+  const rules = state.rules;
+  const legal = legalPlays(state.hands[seat], state.currentTrick, state.spadesBroken, rules);
   if (legal.length === 1) return legal[0];
 
   const ctx: PlayCtx = {
@@ -96,110 +111,133 @@ export function botPlay(state: GameState, seat: Seat): Card {
     spadesBroken: state.spadesBroken,
     bids: state.bids,
     partner: ((seat + 2) % 4) as Seat,
+    rules,
   };
 
   return state.currentTrick.length === 0 ? chooseLead(ctx, legal) : chooseFollow(ctx, legal);
 }
 
-const lowest = (cs: Card[]) => cs.reduce((a, b) => (b.rank < a.rank ? b : a));
-const highest = (cs: Card[]) => cs.reduce((a, b) => (b.rank > a.rank ? b : a));
+// Selectors keyed by an arbitrary strength function (rank, or trump strength).
+const lowestBy = (cs: Card[], k: (c: Card) => number) =>
+  cs.reduce((a, b) => (k(b) < k(a) ? b : a));
+const highestBy = (cs: Card[], k: (c: Card) => number) =>
+  cs.reduce((a, b) => (k(b) > k(a) ? b : a));
+const byRank = (c: Card) => c.rank;
+const lowest = (cs: Card[]) => lowestBy(cs, byRank);
+const highest = (cs: Card[]) => highestBy(cs, byRank);
 
 function isNilBidder(bids: (Bid | null)[], seat: Seat): boolean {
   return bids[seat]?.tricks === 0;
 }
 
 function chooseLead(ctx: PlayCtx, legal: Card[]): Card {
-  const { bids, seat, partner } = ctx;
+  const { bids, seat, partner, rules } = ctx;
+  const trumpStr = (c: Card) => trumpRank(c, rules);
+  const nonTrump = legal.filter((c) => !isTrump(c, rules));
 
   // If I bid Nil, lead my lowest card to shed winners safely.
-  if (isNilBidder(bids, seat)) return lowest(legal);
+  if (isNilBidder(bids, seat)) {
+    return nonTrump.length ? lowest(nonTrump) : lowestBy(legal, trumpStr);
+  }
 
   // If my PARTNER bid Nil, lead high to grab the trick and cover them.
   if (isNilBidder(bids, partner)) {
-    const nonSpade = legal.filter((c) => c.suit !== "S");
-    return highest(nonSpade.length ? nonSpade : legal);
+    return nonTrump.length ? highest(nonTrump) : highestBy(legal, trumpStr);
   }
 
   // If an OPPONENT bid Nil, lead a low card in a suit to try to force them to win.
   const oppNil = ([0, 1, 2, 3] as Seat[]).find(
     (s) => teamOf(s) !== teamOf(seat) && isNilBidder(bids, s));
-  if (oppNil !== undefined) {
-    const nonSpade = legal.filter((c) => c.suit !== "S");
-    if (nonSpade.length) return lowest(nonSpade);
-  }
+  if (oppNil !== undefined && nonTrump.length) return lowest(nonTrump);
 
   // Default: lead a high card from my strongest side suit to cash a winner,
-  // keeping spades for later control. Avoid leading a spade if I have options.
-  const nonSpade = legal.filter((c) => c.suit !== "S");
-  const pool = nonSpade.length ? nonSpade : legal;
-  const aces = pool.filter((c) => c.rank === 14);
+  // keeping trumps for later control. Avoid leading trump if I have options.
+  const pool = nonTrump.length ? nonTrump : legal;
+  const aces = pool.filter((c) => c.rank === 14 && !isTrump(c, rules));
   if (aces.length) return aces[0];
-  return highest(pool);
+  return nonTrump.length ? highest(pool) : highestBy(pool, trumpStr);
 }
 
 function chooseFollow(ctx: PlayCtx, legal: Card[]): Card {
-  const { trick, seat, partner, bids } = ctx;
-  const lead = leadSuit(trick)!;
-  const partnerWinning = currentWinner(trick) === partner;
+  const { trick, seat, partner, bids, rules } = ctx;
+  const lead = leadSuit(trick, rules)!;
+  const partnerWinning = currentWinner(trick, rules) === partner;
   const iMustWinForNil = isNilBidder(bids, partner); // cover partner's nil
 
-  const following = legal.filter((c) => c.suit === lead);
+  // Strength within the lead suit: trump strength if trumps were led, else rank.
+  const leadStr = (c: Card) => (lead === "S" ? trumpRank(c, rules) : c.rank);
+  const following = legal.filter((c) => effSuit(c, rules) === lead);
 
   if (following.length) {
     // I can follow suit.
     if (isNilBidder(bids, seat)) {
       // I'm Nil: duck under the current high if possible, else play my lowest.
-      const highSoFar = maxRankOfSuit(trick, lead);
-      const safe = following.filter((c) => c.rank < highSoFar);
-      return safe.length ? highest(safe) : lowest(following);
+      const highSoFar = maxLeadStrength(trick, lead, rules);
+      const safe = following.filter((c) => leadStr(c) < highSoFar);
+      return safe.length ? highestBy(safe, leadStr) : lowestBy(following, leadStr);
     }
     if (partnerWinning && !iMustWinForNil) {
       // Partner has it → throw my lowest, don't overtake.
-      return lowest(following);
+      return lowestBy(following, leadStr);
     }
     // Try to win cheaply: lowest card that beats the current best of the lead suit.
-    const toBeat = maxRankOfSuit(trick, lead);
-    const winners = following.filter((c) => c.rank > toBeat);
-    // Only worth winning if no spade has trumped in yet.
-    if (winners.length && !trickHasSpade(trick, lead)) return lowest(winners);
-    return lowest(following); // can't or shouldn't win → dump lowest
+    const toBeat = maxLeadStrength(trick, lead, rules);
+    const winners = following.filter((c) => leadStr(c) > toBeat);
+    // Only worth winning if no trump has cut in on a non-trump lead.
+    if (winners.length && !trumpedIn(trick, lead, rules)) return lowestBy(winners, leadStr);
+    return lowestBy(following, leadStr); // can't or shouldn't win → dump lowest
   }
 
   // Void in lead suit → trump or discard.
-  const spades = legal.filter((c) => c.suit === "S");
+  const trumps = legal.filter((c) => isTrump(c, rules));
+  const trumpStr = (c: Card) => trumpRank(c, rules);
   if (isNilBidder(bids, seat)) {
-    // Never trump on a nil; discard the highest dangerous non-spade.
-    const nonSpade = legal.filter((c) => c.suit !== "S");
-    return highest(nonSpade.length ? nonSpade : legal);
+    // Never trump on a nil; discard the highest dangerous non-trump.
+    const nonTrump = legal.filter((c) => !isTrump(c, rules));
+    return highest(nonTrump.length ? nonTrump : legal);
   }
   if (partnerWinning && !iMustWinForNil) {
     // Partner winning → don't waste a trump, discard my lowest loser.
-    const nonSpade = legal.filter((c) => c.suit !== "S");
-    return lowest(nonSpade.length ? nonSpade : legal);
+    const nonTrump = legal.filter((c) => !isTrump(c, rules));
+    return lowest(nonTrump.length ? nonTrump : legal);
   }
-  if (spades.length) {
-    // Trump to win — lowest spade that beats any spade already in the trick.
-    const topSpade = maxRankOfSuit(trick, "S");
-    const beats = spades.filter((c) => c.rank > topSpade);
-    return (beats.length ? lowest(beats) : lowest(spades));
+  if (trumps.length) {
+    // Trump to win — lowest trump that beats any trump already in the trick.
+    const topTrump = maxTrumpStrength(trick, rules);
+    const beats = trumps.filter((c) => trumpRank(c, rules) > topTrump);
+    return (beats.length ? lowestBy(beats, trumpStr) : lowestBy(trumps, trumpStr));
   }
-  // No spades → discard lowest.
+  // No trumps → discard lowest.
   return lowest(legal);
 }
 
-function currentWinner(trick: PlayedCard[]): Seat | null {
+function currentWinner(trick: PlayedCard[], rules: SpadesRules): Seat | null {
   if (!trick.length) return null;
-  const lead = trick[0].card.suit;
-  const spades = trick.filter((p) => p.card.suit === "S");
-  const pool = spades.length ? spades : trick.filter((p) => p.card.suit === lead);
+  const lead = effSuit(trick[0].card, rules);
+  const trumps = trick.filter((p) => isTrump(p.card, rules));
+  if (trumps.length) {
+    return trumps.reduce((a, b) =>
+      (trumpRank(b.card, rules) > trumpRank(a.card, rules) ? b : a)).seat;
+  }
+  const pool = trick.filter((p) => effSuit(p.card, rules) === lead);
   return pool.reduce((a, b) => (b.card.rank > a.card.rank ? b : a)).seat;
 }
 
-function maxRankOfSuit(trick: PlayedCard[], suit: Suit): number {
-  const cs = trick.filter((p) => p.card.suit === suit).map((p) => p.card.rank);
-  return cs.length ? Math.max(...cs) : 0;
+/** Best strength among cards of the (effective) lead suit already in the trick. */
+function maxLeadStrength(trick: PlayedCard[], lead: Suit, rules: SpadesRules): number {
+  const xs = trick
+    .filter((p) => effSuit(p.card, rules) === lead)
+    .map((p) => (lead === "S" ? trumpRank(p.card, rules) : p.card.rank));
+  return xs.length ? Math.max(...xs) : 0;
 }
 
-function trickHasSpade(trick: PlayedCard[], lead: Suit): boolean {
-  return lead !== "S" && trick.some((p) => p.card.suit === "S");
+/** Best trump strength already in the trick (0 if none). */
+function maxTrumpStrength(trick: PlayedCard[], rules: SpadesRules): number {
+  const xs = trick.filter((p) => isTrump(p.card, rules)).map((p) => trumpRank(p.card, rules));
+  return xs.length ? Math.max(...xs) : 0;
+}
+
+/** Has a trump cut in on a non-trump lead? */
+function trumpedIn(trick: PlayedCard[], lead: Suit, rules: SpadesRules): boolean {
+  return lead !== "S" && trick.some((p) => isTrump(p.card, rules));
 }

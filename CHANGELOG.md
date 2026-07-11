@@ -5,6 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the `VERSION` fi
 
 ---
 
+## [0.10.0] — 2026-07-10
+
+### Added
+- **Spades "Deuces high" variant** (toggle in the Spades top bar). All four 2s
+  become the highest trumps, ranked **2♠ ▸ 2♥ ▸ 2♣ ▸ 2♦** above the A♠. The
+  three off-suit deuces follow as spades (a 2♥ no longer follows a heart lead),
+  show a ♠ badge + gold ring, and sort to the front of the hand. Bots play
+  trump-aware. Toggling starts a new game.
+
+---
+
 ## [0.9.1] — 2026-07-10
 
 ### Fixed

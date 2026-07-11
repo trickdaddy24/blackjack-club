@@ -1,4 +1,4 @@
-import type { Card } from "./cards";
+import type { Card, SpadesRules } from "./cards";
 
 // Seats 0..3 sit clockwise. Partnerships are seats {0,2} (South+North) and
 // {1,3} (West+East). The human is always seat 0 (South).
@@ -29,6 +29,7 @@ export interface TeamScore {
 
 export interface GameState {
   phase: Phase;
+  rules: SpadesRules;       // active house-rule variants (e.g. deuces high)
   hands: Card[][];          // per seat, cards still held
   bids: (Bid | null)[];     // per seat
   tricksWon: number[];      // per seat, this hand

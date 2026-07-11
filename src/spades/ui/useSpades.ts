@@ -1,10 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { Card } from "../engine/cards";
+import type { Card, SpadesRules } from "../engine/cards";
+import { STANDARD_RULES } from "../engine/cards";
 import { botBid, botPlay } from "../engine/bots";
 import { HUMAN_SEAT, dealNextHand, newGame, placeBid, playCard } from "../engine/game";
 import type { Bid, GameState, PlayedCard, Seat } from "../engine/types";
+
+const DEFAULT_TARGET = 500;
 
 const BOT_DELAY_MS = 600;   // pause before each bot acts, so play is followable
 const TRICK_HOLD_MS = 1100; // hold a completed 4-card trick on screen before clearing
@@ -17,7 +20,7 @@ const TRICK_HOLD_MS = 1100; // hold a completed 4-card trick on screen before cl
  * vanish faster than the eye can follow.
  */
 export function useSpades() {
-  const [state, setState] = useState<GameState>(() => newGame());
+  const [state, setState] = useState<GameState>(() => newGame(Math.random, DEFAULT_TARGET, STANDARD_RULES));
   // The trick most recently completed, shown during the hold. null when idle.
   const [heldTrick, setHeldTrick] = useState<{ cards: PlayedCard[]; winner: Seat } | null>(null);
   const holding = heldTrick !== null;
@@ -58,7 +61,7 @@ export function useSpades() {
       const seat = state.turn as Seat;
       botTimer.current = setTimeout(() => {
         setState((s) => (s.turn === seat && s.phase === "bidding" && !heldTrick
-          ? placeBid(s, seat, botBid(s.hands[seat])) : s));
+          ? placeBid(s, seat, botBid(s.hands[seat], s.rules)) : s));
       }, BOT_DELAY_MS);
     } else if (state.phase === "playing") {
       const seat = state.turn as Seat;
@@ -84,15 +87,26 @@ export function useSpades() {
     setState((s) => (s.phase === "handComplete" ? dealNextHand(s) : s));
   }, []);
 
-  const restart = useCallback(() => {
+  // Start a fresh game. Pass rules to change the variant (e.g. deuces high);
+  // omit to keep the current rules.
+  const restart = useCallback((rules?: SpadesRules) => {
     setHeldTrick(null);
     prevCompleted.current = 0;
-    setState(newGame());
+    setState((s) => newGame(Math.random, DEFAULT_TARGET, rules ?? s.rules));
   }, []);
+
+  // Toggle "deuces high" — starts a new game since it changes the whole deck's
+  // trump structure mid-stream.
+  const setDeucesHigh = useCallback((on: boolean) => {
+    restart({ deucesHigh: on });
+  }, [restart]);
 
   // What to render in the trick area: the held trick during a hold, else live.
   const displayTrick = heldTrick ? heldTrick.cards : state.currentTrick;
   const trickWinnerSeat = heldTrick?.winner ?? null;
 
-  return { state, humansTurn, holding, displayTrick, trickWinnerSeat, bid, play, nextHand, restart };
+  return {
+    state, humansTurn, holding, displayTrick, trickWinnerSeat,
+    bid, play, nextHand, restart, setDeucesHigh,
+  };
 }
