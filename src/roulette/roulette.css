@@ -1,0 +1,180 @@
+/* Roulette styles, fully scoped under .roulette-app so they never collide with
+   the Blackjack hub's Tailwind. Palette + layout mirror the standalone. */
+.roulette-app {
+  --bg: #0b1020;
+  --felt: #0f5132;
+  --felt-2: #0b3a25;
+  --rail: #3a2a16;
+  --ink: #e8ecf4;
+  --muted: #93a0b8;
+  --gold: #caa24a;
+  --line: rgba(255, 255, 255, 0.14);
+  --red: #c1272d;
+  --black: #1b1f2a;
+  --green: #0f8a3c;
+  --win: #f2c14e;
+
+  color: var(--ink);
+  font: 15px/1.4 ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  background: radial-gradient(1200px 700px at 50% -10%, #182642, transparent), var(--bg);
+  min-height: 100vh;
+}
+.roulette-app *, .roulette-app *::before, .roulette-app *::after { box-sizing: border-box; }
+.roulette-app button { font: inherit; }
+
+.roulette-app .app { display: flex; flex-direction: column; min-height: 100vh; max-width: 1120px; margin: 0 auto; }
+
+/* ── Top bar ─────────────────────────────────────────────────────────────── */
+.roulette-app .topbar {
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  padding: 10px 16px; border-bottom: 1px solid var(--line);
+}
+.roulette-app .brand { font-weight: 800; font-size: 20px; letter-spacing: -0.02em; }
+.roulette-app .brand span { color: var(--gold); }
+.roulette-app .brand .ver { color: var(--muted); font-size: 11px; font-weight: 500; font-style: normal; margin-left: 6px; }
+
+.roulette-app .wheelpick { display: flex; gap: 6px; }
+.roulette-app .wheelpick__btn {
+  background: transparent; color: var(--muted); border: 1px solid var(--line);
+  border-radius: 8px; padding: 6px 12px; cursor: pointer;
+}
+.roulette-app .wheelpick__btn:hover:not(:disabled) { color: var(--ink); border-color: var(--gold); }
+.roulette-app .wheelpick__btn.is-on { color: #1a1300; background: var(--gold); border-color: var(--gold); font-weight: 700; }
+.roulette-app .wheelpick__btn:disabled { opacity: 0.5; cursor: default; }
+
+.roulette-app .bankroll { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+.roulette-app .bankroll__label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; }
+.roulette-app .bankroll__amt { font-weight: 800; font-size: 20px; font-variant-numeric: tabular-nums; color: var(--win); }
+.roulette-app .bankroll__reset {
+  background: transparent; color: var(--muted); border: 1px solid var(--line);
+  border-radius: 8px; width: 30px; height: 30px; cursor: pointer;
+}
+.roulette-app .bankroll__reset:hover:not(:disabled) { color: var(--ink); border-color: var(--gold); }
+
+/* ── Felt layout ─────────────────────────────────────────────────────────── */
+.roulette-app .felt {
+  flex: 1; display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-start;
+  padding: 18px 16px;
+  background: radial-gradient(120% 90% at 50% 0%, var(--felt) 0%, var(--felt-2) 100%);
+  margin: 14px; border-radius: 18px; border: 8px solid var(--rail);
+  box-shadow: inset 0 0 60px rgba(0, 0, 0, 0.45), 0 20px 50px rgba(0, 0, 0, 0.4);
+}
+.roulette-app .wheelcol { display: flex; flex-direction: column; align-items: center; gap: 12px; min-width: 300px; }
+.roulette-app .tablecol { flex: 1; min-width: 320px; display: flex; flex-direction: column; gap: 14px; overflow-x: auto; }
+
+.roulette-app .wheel { display: block; filter: drop-shadow(0 10px 24px rgba(0, 0, 0, 0.5)); }
+
+.roulette-app .result {
+  display: flex; align-items: center; gap: 10px; min-height: 44px;
+  padding: 6px 14px; border-radius: 12px; font-weight: 700;
+  border: 1px solid var(--line); background: rgba(0, 0, 0, 0.28); min-width: 220px; justify-content: center;
+}
+.roulette-app .result--idle { color: var(--muted); font-weight: 500; }
+.roulette-app .result--win { border-color: var(--win); color: var(--win); box-shadow: 0 0 0 2px rgba(242, 193, 78, 0.2); }
+.roulette-app .result--lose { border-color: rgba(193, 39, 45, 0.7); color: #ef8f92; }
+.roulette-app .result__pocket {
+  display: inline-grid; place-items: center; width: 34px; height: 34px; border-radius: 50%;
+  color: #fff; font-weight: 800; font-variant-numeric: tabular-nums;
+}
+
+.roulette-app .history { display: flex; flex-wrap: wrap; gap: 5px; justify-content: center; max-width: 300px; }
+.roulette-app .history__empty { color: var(--muted); font-size: 13px; }
+.roulette-app .hist {
+  display: inline-grid; place-items: center; min-width: 26px; height: 26px; padding: 0 4px;
+  border-radius: 6px; font-size: 12px; font-weight: 700; color: #fff; font-variant-numeric: tabular-nums;
+}
+.roulette-app .hist--red { background: var(--red); }
+.roulette-app .hist--black { background: var(--black); border: 1px solid var(--line); }
+.roulette-app .hist--green { background: var(--green); }
+
+/* ── Betting board ───────────────────────────────────────────────────────── */
+.roulette-app .board {
+  position: relative; display: grid;
+  grid-template-columns: 46px repeat(12, minmax(34px, 1fr)) 52px;
+  grid-template-rows: repeat(3, 46px) 34px 34px;
+  gap: 3px; min-width: 620px;
+}
+.roulette-app .board__zeros { grid-column: 1; display: flex; flex-direction: column; gap: 3px; }
+.roulette-app .board__zeros .cell { flex: 1; }
+
+.roulette-app .cell {
+  position: relative; display: grid; place-items: center;
+  border: 1px solid var(--line); border-radius: 5px; cursor: pointer;
+  color: #fff; font-weight: 700; font-variant-numeric: tabular-nums;
+  padding: 0; transition: filter 0.1s, box-shadow 0.1s;
+}
+.roulette-app .cell:hover { filter: brightness(1.18); box-shadow: 0 0 0 1px var(--gold) inset; }
+.roulette-app .cell--num { font-size: 16px; }
+.roulette-app .cell--red { background: var(--red); }
+.roulette-app .cell--black { background: var(--black); }
+.roulette-app .cell--green { background: var(--green); }
+.roulette-app .cell--zero { writing-mode: vertical-rl; text-orientation: mixed; }
+.roulette-app .cell--outside { background: rgba(0, 0, 0, 0.25); font-size: 13px; color: var(--ink); letter-spacing: 0.04em; }
+.roulette-app .cell--outside.cell--red, .roulette-app .cell--outside.cell--black { color: #fff; }
+.roulette-app .cell--col { font-weight: 700; }
+.roulette-app .cell__n { pointer-events: none; }
+
+.roulette-app .cell--win { box-shadow: 0 0 0 2px var(--win), 0 0 14px rgba(242, 193, 78, 0.6); z-index: 3; }
+.roulette-app .cell--result { animation: roul-pop 0.6s ease; box-shadow: 0 0 0 3px var(--win), 0 0 18px rgba(242, 193, 78, 0.8); z-index: 4; }
+@keyframes roul-pop { 0% { transform: scale(1); } 40% { transform: scale(1.12); } 100% { transform: scale(1); } }
+
+.roulette-app .board__overlay { position: relative; pointer-events: none; z-index: 5; }
+.roulette-app .hotspot {
+  position: absolute; transform: translate(-50%, -50%);
+  width: 20px; height: 20px; border-radius: 50%;
+  background: transparent; border: none; cursor: pointer; pointer-events: auto;
+  display: grid; place-items: center;
+}
+.roulette-app .hotspot::after {
+  content: ""; position: absolute; inset: 4px; border-radius: 50%;
+  background: transparent; transition: background 0.1s, box-shadow 0.1s;
+}
+.roulette-app .hotspot:hover::after { background: rgba(242, 193, 78, 0.55); box-shadow: 0 0 0 2px var(--gold); }
+.roulette-app .hotspot--set { width: 26px; height: 26px; }
+.roulette-app .hotspot--win { z-index: 6; }
+
+.roulette-app .chip {
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  display: inline-grid; place-items: center; min-width: 24px; height: 24px; padding: 0 3px;
+  border-radius: 50%; font-size: 11px; font-weight: 800; z-index: 7;
+  border: 2px dashed rgba(255, 255, 255, 0.85); box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5);
+  font-variant-numeric: tabular-nums; pointer-events: none;
+}
+.roulette-app .chip--white { background: #f5f5f5; color: #14181f; }
+.roulette-app .chip--red { background: var(--red); color: #fff; }
+.roulette-app .chip--green { background: var(--green); color: #fff; }
+.roulette-app .chip--blue { background: #2b6cb0; color: #fff; }
+.roulette-app .chip--gold { background: var(--gold); color: #14181f; }
+.roulette-app .chip--win { box-shadow: 0 0 0 2px var(--win), 0 0 12px rgba(242, 193, 78, 0.8); }
+
+/* ── Chip rack + actions ─────────────────────────────────────────────────── */
+.roulette-app .rack { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.roulette-app .rackchip {
+  width: 46px; height: 46px; border-radius: 50%; cursor: pointer;
+  border: 2px dashed rgba(255, 255, 255, 0.7); font-weight: 800; font-variant-numeric: tabular-nums;
+  transition: transform 0.1s, box-shadow 0.1s;
+}
+.roulette-app .rackchip:hover:not(:disabled) { transform: translateY(-3px); }
+.roulette-app .rackchip.is-on { box-shadow: 0 0 0 3px var(--gold); transform: translateY(-3px); }
+.roulette-app .rackchip:disabled { opacity: 0.5; cursor: default; }
+.roulette-app .rack__staked { margin-left: auto; color: var(--muted); font-size: 14px; }
+.roulette-app .rack__staked b { color: var(--ink); }
+
+.roulette-app .actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.roulette-app .btn {
+  background: #16203a; color: var(--ink);
+  border: 1px solid var(--line); border-radius: 10px; padding: 10px 18px; cursor: pointer; font-weight: 700;
+}
+.roulette-app .btn:hover:not(:disabled) { border-color: var(--gold); }
+.roulette-app .btn:disabled { opacity: 0.45; cursor: default; }
+.roulette-app .btn--spin { margin-left: auto; background: var(--gold); color: #1a1300; border-color: var(--gold); min-width: 120px; }
+.roulette-app .btn--spin:hover:not(:disabled) { filter: brightness(1.06); }
+
+.roulette-app .foot { text-align: center; color: var(--muted); font-size: 12px; padding: 10px 16px 18px; }
+.roulette-app .foot a { color: var(--gold); text-decoration: none; }
+
+@media (max-width: 720px) {
+  .roulette-app .felt { flex-direction: column; align-items: center; }
+  .roulette-app .tablecol { width: 100%; }
+}

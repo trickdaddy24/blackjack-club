@@ -5,6 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the `VERSION` fi
 
 ---
 
+## [0.11.0] — 2026-07-11
+
+### Added
+- **Roulette** joins the Club at `/roulette` — play-money European single-zero
+  or American double-zero, a full betting table (all inside bets via line
+  hotspots plus every outside bet), an animated canvas wheel, chips with
+  undo/clear/rebet, and a browser-saved bankroll. No LLM. Advertised on the
+  lobby. Engine ported from the standalone Roulette Club (20 vitest tests).
+
+---
+
 ## [0.10.0] — 2026-07-10
 
 ### Added
