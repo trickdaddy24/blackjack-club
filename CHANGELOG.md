@@ -5,6 +5,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the `VERSION` fi
 
 ---
 
+## [0.12.0] — 2026-07-11
+
+### Added
+- **Wild Card joins the Club at `/wildcard`** — the classic 108-card
+  color-shedding game vs three heuristic bots: skips, reverses, draw-twos,
+  wilds, a "Last card!" declaration (2-card penalty if you forget), and scoring
+  to 500 with per-hand breakdowns. Original name/art (no trademarked branding).
+  Advertised on the lobby. Engine ported from the standalone Wild Card Club
+  (22 vitest tests). No LLM.
+
+---
+
 ## [0.11.0] — 2026-07-11
 
 ### Added

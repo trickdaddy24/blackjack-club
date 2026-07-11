@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Crown, Spade, Heart, Diamond, Club, CircleDot } from "lucide-react";
+import { Crown, Spade, Heart, Diamond, Club, CircleDot, Layers } from "lucide-react";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { TopBar } from "@/components/TopBar";
@@ -124,6 +124,22 @@ export default async function LobbyPage() {
             <p className="mt-1 text-sm text-[var(--cream)]/60">
               European or American wheel, full betting table, play-money chips. No sign-up —{" "}
               <span className="text-[var(--gold-bright)]">spin the wheel →</span>
+            </p>
+          </Link>
+        </section>
+
+        {/* Another game at the Club — Wild Card */}
+        <section className="fade-up mt-6 w-full max-w-md" style={{ animationDelay: "650ms" }}>
+          <Link
+            href="/wildcard"
+            className="gold-ring block rounded-2xl bg-black/25 px-6 py-5 text-center transition hover:bg-black/40"
+          >
+            <div className="flex items-center justify-center gap-2 font-display text-lg font-bold gold-text">
+              <Layers className="h-5 w-5" /> New — Wild Card
+            </div>
+            <p className="mt-1 text-sm text-[var(--cream)]/60">
+              The classic color-matching shedding game vs three bots. Skips, reverses, wilds —{" "}
+              <span className="text-[var(--gold-bright)]">deal the chaos →</span>
             </p>
           </Link>
         </section>
