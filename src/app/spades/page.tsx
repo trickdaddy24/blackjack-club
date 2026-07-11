@@ -11,7 +11,9 @@ import { BidPanel, HandResultPanel, Scoreboard, SeatBadge } from "@/spades/ui/pa
 import { useSpades } from "@/spades/ui/useSpades";
 import "@/spades/spades.css";
 
-const SPADES_VERSION = "0.1.0";
+// Show the real app version (baked from the VERSION file at build) so it's
+// always on screen at the top — not a stale hardcoded standalone number.
+const SPADES_VERSION = process.env.NEXT_PUBLIC_APP_VERSION ?? "0.9.0";
 const TRICK_POS: Record<Seat, string> = { 0: "trick__s", 1: "trick__w", 2: "trick__n", 3: "trick__e" };
 
 export default function SpadesPage() {

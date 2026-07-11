@@ -102,6 +102,7 @@ tournaments, themes, and retention mechanics.
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 0.9.1 | 2026-07-10 | Spades polish: draggable bid panel (no longer hides your hand) and the on-screen version now reflects the real app build. |
 | 0.9.0 | 2026-07-10 | **Spades joins the Club.** New `/spades` route with full partnership Spades (Nil, Blind Nil, bags, to 500) vs heuristic bots — no LLM, no accounts needed. Lobby now advertises it. Blackjack Club is a games hub. |
 | 0.8.0 | 2026-07-03 | **Instant side-bet payouts** — Perfect Pairs pays the moment the cards land (same transaction as the deal) with a color-cycling glow + sparkle sound, then the hand plays on. **Even money** offered on blackjack vs a dealer ace (guaranteed 1:1 or play the 3:2). Bets render as mini chip stacks on the felt (desktop). |
 | 0.7.0 | 2026-07-03 | **Leaderboard** (top 10 chip stacks with crown/medals, your rank shown even outside the top 10) and a public **How to Play** guide — every rule, side bet, and paytable, rendered live from the engine's own rules so docs can't drift. Bigger version badge. |

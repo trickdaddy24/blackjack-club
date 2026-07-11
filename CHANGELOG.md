@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the `VERSION` fi
 
 ---
 
+## [0.9.1] — 2026-07-10
+
+### Fixed
+- **Spades bid panel covered your hand.** It's now draggable by its header — pull
+  it aside to read your cards while choosing a bid.
+- **Spades version now shows the real app version** at the top of the page
+  (was a stale hardcoded number), sourced from the build so it can't drift.
+
+---
+
 ## [0.9.0] — 2026-07-10
 
 ### Added

@@ -1,4 +1,6 @@
-import { useState } from "react";
+"use client";
+
+import { useRef, useState } from "react";
 import type { Bid, GameState, HandResult, Seat } from "../engine/types";
 import { teamOf } from "../engine/types";
 
@@ -11,11 +13,43 @@ function bidLabel(b: Bid | null): string {
   return String(b.tricks);
 }
 
-/** The bidding control for the human. Nil, Blind Nil, and 1–13. */
+/** The bidding control. Draggable by its header so it can be pulled off your
+ * cards while you decide the bid. Starts docked at the bottom (translateX(-50%)
+ * from CSS); dragging adds a pixel offset on top of that. */
 export function BidPanel({ onBid, canBlindNil }: { onBid: (b: Bid) => void; canBlindNil: boolean }) {
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
+  const drag = useRef<{ sx: number; sy: number; ox: number; oy: number } | null>(null);
+
+  const onDown = (e: React.PointerEvent) => {
+    const base = pos ?? { x: 0, y: 0 };
+    drag.current = { sx: e.clientX, sy: e.clientY, ox: base.x, oy: base.y };
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+  };
+  const onMove = (e: React.PointerEvent) => {
+    if (!drag.current) return;
+    setPos({
+      x: drag.current.ox + (e.clientX - drag.current.sx),
+      y: drag.current.oy + (e.clientY - drag.current.sy),
+    });
+  };
+  const onUp = () => { drag.current = null; };
+
+  // Default docked position uses translateX(-50%); a drag adds an offset.
+  const style = pos
+    ? { transform: `translate(calc(-50% + ${pos.x}px), ${pos.y}px)` }
+    : undefined;
+
   return (
-    <div className="bidpanel">
-      <div className="bidpanel__title">Your bid</div>
+    <div className="bidpanel" style={style}>
+      <div
+        className="bidpanel__drag"
+        onPointerDown={onDown}
+        onPointerMove={onMove}
+        onPointerUp={onUp}
+        onPointerCancel={onUp}
+      >
+        <span className="bidpanel__grip">⠿</span> Your bid <span className="bidpanel__draghint">drag to move</span>
+      </div>
       <div className="bidpanel__row">
         <button className="bidbtn bidbtn--nil" onClick={() => onBid({ tricks: 0, blind: false })}>
           Nil
