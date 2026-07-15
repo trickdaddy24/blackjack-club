@@ -8,7 +8,12 @@ import {
   netResult,
   type PlayerAction,
 } from "@/lib/blackjack/engine";
-import { getActiveRound, parseRoundState, roundStatus } from "@/lib/game";
+import {
+  getActiveRound,
+  parseRoundState,
+  roundStatus,
+  settleLuckyLadiesPot,
+} from "@/lib/game";
 import { withHint } from "@/lib/blackjack/strategy";
 
 const ACTIONS: PlayerAction[] = [
@@ -71,7 +76,16 @@ export async function POST(req: Request) {
   }
 
   const settled = next.phase === "settled";
-  const chipDelta = -debit + (settled ? next.payoutTotal : 0);
+
+  // Lucky Ladies progressive can land here too: the round was dealt with a
+  // QoH pair, the dealer showed an ace, and the post-insurance peek reveals
+  // blackjack. (Stakes were already fed to the pot at the deal.)
+  let jackpotWon = 0;
+  if (settled && next.hands.some((h) => h.llJackpot)) {
+    ({ won: jackpotWon } = await settleLuckyLadiesPot(0, true));
+  }
+
+  const chipDelta = -debit + jackpotWon + (settled ? next.payoutTotal : 0);
 
   const [updated] = await prisma.$transaction([
     prisma.user.update({
@@ -90,5 +104,9 @@ export async function POST(req: Request) {
     }),
   ]);
 
-  return NextResponse.json({ chips: updated.chips, round: withHint(next, clientView(next)) });
+  return NextResponse.json({
+    chips: updated.chips,
+    round: withHint(next, clientView(next)),
+    ...(jackpotWon > 0 ? { jackpotWon } : {}),
+  });
 }

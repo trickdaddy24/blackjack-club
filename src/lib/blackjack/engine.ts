@@ -24,6 +24,13 @@
 // as a three-card poker hand — flush 5:1, straight 10:1, three of a kind
 // 30:1, straight flush 40:1, suited trips 100:1 — resolved at the deal.
 //
+// Lucky Ladies side bet (per seat): the seat's first two cards totaling 20 —
+// any 20 pays 4:1, suited 20 9:1, matched 20 (identical cards) 19:1, and a
+// Queen of Hearts pair 125:1, all resolved at the deal. A Queen of Hearts
+// pair TOGETHER WITH a dealer blackjack additionally hits the progressive
+// jackpot: the engine flags `llJackpot` on the first eligible hand at settle
+// (when the dealer blackjack becomes public); the API pays the pot.
+//
 // Up to MAX_BOTS simulated players can share the table. Bots consume real
 // cards from the shoe (so card counting stays honest) and settle against the
 // dealer for display, but never touch the human player's chips.
@@ -72,6 +79,11 @@ export interface Rules {
   tpTrips: number;
   tpStraightFlush: number;
   tpSuitedTrips: number;
+  /** Lucky Ladies side bet: X-to-1 by kind of 20. */
+  llAny20: number;
+  llSuited20: number;
+  llMatched20: number;
+  llQueenOfHearts: number;
 }
 
 export function rulesFor(variant: Variant = "classic"): Rules {
@@ -97,6 +109,12 @@ export function rulesFor(variant: Variant = "classic"): Rules {
     tpTrips: 30,
     tpStraightFlush: 40,
     tpSuitedTrips: 100,
+    // Lucky Ladies (progressive variant paytable; the QoH-pair + dealer-BJ
+    // jackpot itself is a site-wide pot handled by the API)
+    llAny20: 4,
+    llSuited20: 9,
+    llMatched20: 19,
+    llQueenOfHearts: 125,
   };
 }
 
@@ -123,6 +141,12 @@ export interface HandState {
   pp?: SideBetResult;
   /** 21+3 side bet, resolved at the deal. */
   tp?: SideBetResult;
+  /** Lucky Ladies side bet, resolved at the deal. */
+  ll?: SideBetResult;
+  /** Queen of Hearts pair — eligible for the jackpot if the dealer has blackjack. */
+  llQueens?: boolean;
+  /** Set at settle: this hand hit the Lucky Ladies progressive (API pays the pot). */
+  llJackpot?: boolean;
   /** Legacy Match the Dealer field — only read at settle for in-flight rounds. */
   mtd?: SideBetResult;
 }
@@ -329,6 +353,8 @@ export interface RoundOptions {
   perfectPairs?: number;
   /** 21+3 side bet per seat (0 = none). */
   twentyOnePlusThree?: number;
+  /** Lucky Ladies side bet per seat (0 = none). */
+  luckyLadies?: number;
 }
 
 /**
@@ -363,6 +389,7 @@ export function startRound(
   const bots = opts.bots ?? 0;
   const ppBet = opts.perfectPairs ?? 0;
   const tpBet = opts.twentyOnePlusThree ?? 0;
+  const llBet = opts.luckyLadies ?? 0;
   const rules = rulesFor(variant);
 
   if (!Number.isInteger(bet) || bet <= 0) {
@@ -380,6 +407,9 @@ export function startRound(
   if (!Number.isInteger(tpBet) || tpBet < 0) {
     throw new IllegalActionError("21+3 bet must be a non-negative integer");
   }
+  if (!Number.isInteger(llBet) || llBet < 0) {
+    throw new IllegalActionError("Lucky Ladies bet must be a non-negative integer");
+  }
 
   const { previousShoe } = opts;
   const reuseShoe =
@@ -390,7 +420,7 @@ export function startRound(
 
   // Side bets are debited with the deal but paid on the spot, so the main
   // game's staked/payout accounting (and the result banner) excludes them.
-  const debit = (bet + ppBet + tpBet) * seats;
+  const debit = (bet + ppBet + tpBet + llBet) * seats;
   const state: RoundState = {
     shoe: reuseShoe ? [...previousShoe] : createShoe(rng, rules),
     dealer: [],
@@ -478,8 +508,26 @@ export function startRound(
     }
   }
 
+  // Lucky Ladies also resolves at the deal: first two cards totaling 20.
+  // The QoH-pair jackpot tier waits for settle (dealer blackjack is not
+  // public yet during an insurance phase).
+  if (llBet > 0) {
+    for (const hand of state.hands) {
+      const { mult, label, queens } = evaluateLuckyLadies(
+        [hand.cards[0], hand.cards[1]],
+        rules
+      );
+      hand.ll = {
+        bet: llBet,
+        payout: mult > 0 ? llBet + llBet * mult : 0,
+        label,
+      };
+      if (queens) hand.llQueens = true;
+    }
+  }
+
   const sideBetPayout = state.hands.reduce(
-    (sum, h) => sum + (h.pp?.payout ?? 0) + (h.tp?.payout ?? 0),
+    (sum, h) => sum + (h.pp?.payout ?? 0) + (h.tp?.payout ?? 0) + (h.ll?.payout ?? 0),
     0
   );
 
@@ -521,6 +569,26 @@ export function evaluate21Plus3(
   if (straight) return { mult: rules.tpStraight, label: "straight" };
   if (suited) return { mult: rules.tpFlush, label: "flush" };
   return { mult: 0, label: "no hand" };
+}
+
+/**
+ * Lucky Ladies evaluation: the seat's first two cards totaling 20.
+ * Precedence: Queen of Hearts pair > matched 20 (identical cards) >
+ * suited 20 > any 20. Returns `queens` so the caller can flag jackpot
+ * eligibility (QoH pair + dealer blackjack).
+ */
+export function evaluateLuckyLadies(
+  cards: [Card, Card],
+  rules: Rules
+): { mult: number; label: string; queens: boolean } {
+  const [c1, c2] = cards;
+  if (handValue([c1, c2]).total !== 20) return { mult: 0, label: "no 20", queens: false };
+  const queens = c1.rank === "Q" && c2.rank === "Q" && c1.suit === "H" && c2.suit === "H";
+  if (queens) return { mult: rules.llQueenOfHearts, label: "queen of hearts pair", queens };
+  if (c1.rank === c2.rank && c1.suit === c2.suit)
+    return { mult: rules.llMatched20, label: "matched 20", queens };
+  if (c1.suit === c2.suit) return { mult: rules.llSuited20, label: "suited 20", queens };
+  return { mult: rules.llAny20, label: "any 20", queens };
 }
 
 /** Even money is offered when every hand is a natural and the dealer shows an ace. */
@@ -813,6 +881,13 @@ function settle(state: RoundState): RoundState {
 
   const dealerBJ = dealerHasBlackjack(s.dealer);
 
+  // Lucky Ladies progressive: Queen of Hearts pair + dealer blackjack.
+  // Flagged on the FIRST eligible hand only (one pot, paid once by the API).
+  if (dealerBJ) {
+    const eligible = s.hands.find((h) => h.llQueens && h.ll);
+    if (eligible && !s.hands.some((h) => h.llJackpot)) eligible.llJackpot = true;
+  }
+
   // Bots act after the player, before the dealer (skipped when the peek
   // already ended the round)
   if (!dealerBJ) playBots(s);
@@ -906,6 +981,10 @@ export interface ClientHand {
   pp?: SideBetResult;
   /** 21+3 side bet result (resolved at the deal). */
   tp?: SideBetResult;
+  /** Lucky Ladies side bet result (resolved at the deal). */
+  ll?: SideBetResult;
+  /** This hand hit the Lucky Ladies progressive jackpot at settle. */
+  llJackpot?: boolean;
 }
 
 export interface ClientBotHand {
@@ -1008,6 +1087,8 @@ export function clientView(state: RoundState): ClientView {
         ...(h.bonus ? { bonus: h.bonus } : {}),
         ...(h.pp ? { pp: h.pp } : {}),
         ...(h.tp ? { tp: h.tp } : {}),
+        ...(h.ll ? { ll: h.ll } : {}),
+        ...(h.llJackpot ? { llJackpot: true } : {}),
       };
     }),
     bots: state.bots.map((b) => {

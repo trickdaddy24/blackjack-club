@@ -5,6 +5,40 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the `VERSION` fi
 
 ---
 
+## [0.15.0] — 2026-07-15
+
+### Added
+- **Lucky Ladies side bet with a PROGRESSIVE JACKPOT** — first two cards
+  totaling 20: any 20 4:1, suited 20 9:1, matched 20 (identical cards) 19:1,
+  Queen of Hearts pair 125:1, all paid instantly at the deal. Every Lucky
+  Ladies stake feeds a **site-wide progressive pot** (new `Jackpot` table,
+  seeded at 25,000, auto-created by boot-time `prisma db push`); a Q♥ pair
+  while the dealer has blackjack wins the ENTIRE pot, which then reseeds.
+  One pot, one winner: with multiple qualifying seats the first takes it.
+  The jackpot tier resolves at settle (dealer blackjack isn't public during
+  an insurance phase), paid by the API in the same transaction pattern.
+- **Casino table sign, on screen at all times** — a Galaxy-Gaming-style
+  neon-rimmed vertical sign beside the felt (compact expandable jackpot
+  banner on mobile) showing the live progressive pot, the full Lucky
+  Ladies / 21+3 / Perfect Pairs paytables (rendered from `rulesFor()` so
+  the sign can't drift), the live Vegas-clock minimum, and the house rules
+  line. Crown toggle in the HUD hides it if you want the felt to yourself.
+- **Per-hand strategy guide** — the on-screen book (dealer stands on all
+  17s) can now be flipped on/off for each hand independently: a small bulb
+  on every hand box, remembered per seat. The master lightbulb still rules
+  them all.
+- **Card counter, visualized** — the count pill grew into a proper panel:
+  color-coded running/true count (green hot, red cold), a hot–cold meter
+  positioning the true count on a −5…+5 gradient, a shoe-depletion bar,
+  and plain-English bet advice in the tooltip ("the book says bet bigger").
+- 8 new engine tests (full Lucky Ladies paytable incl. soft 20, jackpot
+  flag with/without dealer BJ, first-hand-only rule for two Q♥ pairs,
+  triple side-bet stacking) — 127 total.
+- E2E verified: pot fed by exactly the stake every deal, a live "any 20"
+  paid +20 on the spot with exact chip math incl. the pot; Playwright
+  confirmed the sign (desktop + mobile banner), bet row, badge, count
+  panel, and the per-hand bulb hiding/restoring the guide.
+
 ## [0.14.0] — 2026-07-15
 
 ### Added

@@ -12,6 +12,50 @@ export const STARTING_CHIPS = 10000;
 export const DAILY_BONUS = 2500;
 export const RESCUE_CHIPS = 1000;
 
+// Lucky Ladies progressive: seeded pot, fed by every LL stake, paid in full
+// on a Queen of Hearts pair + dealer blackjack, then reseeded.
+export const LL_JACKPOT_NAME = "lucky-ladies";
+export const LL_JACKPOT_SEED = 25_000;
+
+/** Current Lucky Ladies pot, creating it at the seed on first use. */
+export async function getLuckyLadiesJackpot(): Promise<number> {
+  const pot = await prisma.jackpot.upsert({
+    where: { name: LL_JACKPOT_NAME },
+    create: { name: LL_JACKPOT_NAME, amount: LL_JACKPOT_SEED },
+    update: {},
+    select: { amount: true },
+  });
+  return pot.amount;
+}
+
+/**
+ * Feed the pot with this deal's Lucky Ladies stakes and, if a hand hit the
+ * progressive, pay the ENTIRE pot to the player and reseed. Returns the
+ * jackpot amount won (0 = no hit) and the pot after this round, so callers
+ * can credit the player and report the fresh pot in one place.
+ */
+export async function settleLuckyLadiesPot(
+  contribution: number,
+  jackpotHit: boolean
+): Promise<{ won: number; pot: number }> {
+  return prisma.$transaction(async (tx) => {
+    const current = await tx.jackpot.upsert({
+      where: { name: LL_JACKPOT_NAME },
+      create: { name: LL_JACKPOT_NAME, amount: LL_JACKPOT_SEED },
+      update: {},
+      select: { amount: true },
+    });
+    const fed = current.amount + contribution;
+    const won = jackpotHit ? fed : 0;
+    const next = jackpotHit ? LL_JACKPOT_SEED : fed;
+    await tx.jackpot.update({
+      where: { name: LL_JACKPOT_NAME },
+      data: { amount: next },
+    });
+    return { won, pot: next };
+  });
+}
+
 export async function getActiveRound(userId: string) {
   return prisma.round.findFirst({
     where: { userId, status: { not: "settled" } },

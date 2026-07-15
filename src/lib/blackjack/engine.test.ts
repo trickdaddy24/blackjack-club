@@ -990,6 +990,98 @@ describe("21+3", () => {
   });
 });
 
+describe("lucky ladies", () => {
+  // Deal order: player c1, dealer up, player c2, hole
+  const llRound = (c1: Card, c2: Card, up = c("9", "D"), hole = c("5", "H")) =>
+    startRound(10, {
+      previousShoe: shoeFor(c1, up, c2, hole),
+      luckyLadies: 5,
+    });
+
+  it("pays 4:1 on any 20, credited immediately at the deal", () => {
+    const { state, debit, sideBetPayout } = llRound(c("K", "H"), c("Q", "S"));
+    expect(debit).toBe(15);
+    expect(sideBetPayout).toBe(25); // 5 stake + 5 × 4
+    expect(state.staked).toBe(10);
+    expect(state.hands[0].ll).toEqual({ bet: 5, payout: 25, label: "any 20" });
+  });
+
+  it("counts a soft 20 (A+9) as any 20", () => {
+    const { state } = llRound(c("A", "H"), c("9", "S"));
+    expect(state.hands[0].ll?.label).toBe("any 20");
+  });
+
+  it("pays 9:1 suited, 19:1 matched, 125:1 Queen of Hearts pair", () => {
+    expect(llRound(c("K", "H"), c("Q", "H")).state.hands[0].ll).toEqual({
+      bet: 5, payout: 50, label: "suited 20",
+    });
+    expect(llRound(c("J", "S"), c("J", "S")).state.hands[0].ll).toEqual({
+      bet: 5, payout: 100, label: "matched 20",
+    });
+    expect(llRound(c("Q", "H"), c("Q", "H")).state.hands[0].ll).toEqual({
+      bet: 5, payout: 630, label: "queen of hearts pair",
+    });
+  });
+
+  it("loses the stake on anything that isn't 20", () => {
+    const { state, sideBetPayout } = llRound(c("K", "H"), c("9", "S"));
+    expect(sideBetPayout).toBe(0);
+    expect(state.hands[0].ll).toEqual({ bet: 5, payout: 0, label: "no 20" });
+  });
+
+  it("flags the progressive on a QoH pair + dealer blackjack (paid by the API)", () => {
+    // Dealer K up + A hole = blackjack found at the peek; round settles at the deal
+    const { state } = llRound(c("Q", "H"), c("Q", "H"), c("K", "S"), c("A", "S"));
+    expect(state.phase).toBe("settled");
+    expect(state.hands[0].llQueens).toBe(true);
+    expect(state.hands[0].llJackpot).toBe(true);
+    expect(clientView(state).hands[0].llJackpot).toBe(true);
+    // The 125:1 tier still paid instantly on top of the pot
+    expect(state.hands[0].ll?.payout).toBe(630);
+  });
+
+  it("does NOT flag the progressive without dealer blackjack, or without the queens", () => {
+    const noBJ = llRound(c("Q", "H"), c("Q", "H"));
+    const settled = applyAction(noBJ.state, "stand").state;
+    expect(settled.hands.some((h) => h.llJackpot)).toBe(false);
+
+    const noQueens = llRound(c("K", "H"), c("Q", "S"), c("K", "S"), c("A", "S"));
+    expect(noQueens.state.phase).toBe("settled"); // dealer BJ at the peek
+    expect(noQueens.state.hands.some((h) => h.llJackpot)).toBe(false);
+  });
+
+  it("flags only the FIRST eligible hand when two seats both hold Q♥ Q♥", () => {
+    // Seat order: s1c1, s2c1, up, s1c2, s2c2, hole — both seats get Q♥ Q♥
+    const { state } = startRound(10, {
+      previousShoe: shoeFor(
+        c("Q", "H"), c("Q", "H"), c("K", "S"), c("Q", "H"), c("Q", "H"), c("A", "S")
+      ),
+      seats: 2,
+      luckyLadies: 5,
+    });
+    expect(state.phase).toBe("settled");
+    expect(state.hands[0].llJackpot).toBe(true);
+    expect(state.hands[1].llJackpot).toBeUndefined();
+    expect(state.hands[1].ll?.label).toBe("queen of hearts pair"); // still paid 125:1
+  });
+
+  it("rejects invalid bets and stacks with the other side bets", () => {
+    expect(() => startRound(10, { luckyLadies: -1 })).toThrow(IllegalActionError);
+    expect(() => startRound(10, { luckyLadies: 2.5 })).toThrow(IllegalActionError);
+    const { debit, sideBetPayout, state } = startRound(10, {
+      previousShoe: shoeFor(c("Q", "H"), c("Q", "D"), c("Q", "H"), c("5", "H")),
+      perfectPairs: 5,
+      twentyOnePlusThree: 5,
+      luckyLadies: 5,
+    });
+    expect(debit).toBe(25); // 10 + 5 + 5 + 5
+    expect(state.hands[0].pp?.label).toBe("perfect pair"); // Q♥ Q♥
+    expect(state.hands[0].tp?.label).toBe("three of a kind"); // Q♥ Q♥ + Q♦ up
+    expect(state.hands[0].ll?.label).toBe("queen of hearts pair");
+    expect(sideBetPayout).toBe(155 + 155 + 630);
+  });
+});
+
 describe("even money", () => {
   // Player blackjack vs dealer ace: A♣, up A♥, K♣, hole = ?
   const bjVsAce = (hole: Card) =>

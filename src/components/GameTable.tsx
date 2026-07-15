@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Coins, Eye, EyeOff, Gift, GraduationCap, HandCoins, Lightbulb, Loader2, RotateCcw, Volume2, VolumeX } from "lucide-react";
-import type { ClientView, PlayerAction, Variant } from "@/lib/blackjack/engine";
+import { Coins, Crown, Eye, EyeOff, Gift, GraduationCap, HandCoins, Lightbulb, LightbulbOff, Loader2, RotateCcw, Volume2, VolumeX } from "lucide-react";
+import { rulesFor, type ClientView, type PlayerAction, type Variant } from "@/lib/blackjack/engine";
 import { PlayingCard } from "@/components/PlayingCard";
 import { sounds } from "@/lib/sound";
 
@@ -21,6 +21,8 @@ const SHOW_COUNT_KEY = "bj-show-count";
 const SHOW_HINTS_KEY = "bj-hints";
 const TRAINER_KEY = "bj-trainer";
 const TRAINER_STATS_KEY = "bj-trainer-stats";
+const HAND_HINTS_KEY = "bj-hand-hints";
+const SHOW_SIGN_KEY = "bj-sign";
 
 interface TrainerStats {
   right: number;
@@ -97,9 +99,207 @@ interface CountInfo {
   decksRemaining: number;
 }
 
+/**
+ * Hi-Lo count, visualized: color-coded running/true count, a hot–cold meter
+ * for the true count, shoe depletion, and what the count means for your bet.
+ */
+function CountPanel({ count }: { count: CountInfo }) {
+  const tc = count.trueCount;
+  const mood = tc >= 2 ? "hot" : tc <= -1 ? "cold" : "even";
+  const color =
+    mood === "hot" ? "text-emerald-300" : mood === "cold" ? "text-red-300" : "text-[var(--cream)]/70";
+  const advice =
+    mood === "hot"
+      ? "The shoe is rich in tens and aces — the book says bet bigger."
+      : mood === "cold"
+        ? "The shoe is rich in small cards — bet the table minimum."
+        : "Neutral shoe — flat-bet the minimum.";
+  const meterPct = ((Math.max(-5, Math.min(5, tc)) + 5) / 10) * 100;
+  const shoePct = Math.max(4, Math.min(100, (count.decksRemaining / 6) * 100));
+  return (
+    <div
+      className="gold-ring flex items-center gap-2 rounded-full bg-black/40 px-3 py-1.5 font-mono text-[11px] tabular-nums"
+      title={`Hi-Lo: running count ${count.runningCount > 0 ? "+" : ""}${count.runningCount}, true count ${tc > 0 ? "+" : ""}${tc} (running ÷ ${count.decksRemaining} decks left). ${advice}`}
+    >
+      <span className={color}>
+        RC {count.runningCount > 0 ? "+" : ""}
+        {count.runningCount}
+      </span>
+      <span className="text-[var(--cream)]/40">·</span>
+      <span className={`font-bold ${color}`}>
+        TC {tc > 0 ? "+" : ""}
+        {tc}
+      </span>
+      <span className="relative h-1.5 w-16 overflow-hidden rounded-full bg-gradient-to-r from-red-500/70 via-slate-500/40 to-emerald-400/70">
+        <span
+          className="absolute top-0 h-full w-[3px] -translate-x-1/2 rounded-full bg-white shadow-[0_0_5px_rgba(255,255,255,0.9)]"
+          style={{ left: `${meterPct}%` }}
+        />
+      </span>
+      <span className={`text-[10px] font-bold uppercase tracking-wider ${color}`}>{mood}</span>
+      <span
+        className="flex items-center gap-1 text-[var(--cream)]/50"
+        title={`${count.decksRemaining} of 6 decks left in the shoe`}
+      >
+        <span className="relative h-1.5 w-9 overflow-hidden rounded-full bg-black/70">
+          <span
+            className="absolute inset-y-0 left-0 rounded-full bg-[var(--gold)]/80"
+            style={{ width: `${shoePct}%` }}
+          />
+        </span>
+        {count.decksRemaining}d
+      </span>
+    </div>
+  );
+}
+
 interface TableMin {
   min: number;
   label: string;
+}
+
+/**
+ * Casino-style table sign — always on display: the Lucky Ladies progressive
+ * jackpot ticker plus every paytable, rendered live from the engine's own
+ * rules so the sign can't drift from what the table actually pays.
+ * Vertical panel beside the felt on wide screens; compact expandable banner
+ * above it on small ones.
+ */
+function TableSign({
+  jackpot,
+  tableMin,
+  variant,
+}: {
+  jackpot: number | null;
+  tableMin: TableMin;
+  variant: Variant;
+}) {
+  const rules = rulesFor(variant);
+  const pot = jackpot === null ? "—" : jackpot.toLocaleString();
+
+  const PayRows = ({ rows }: { rows: [string, string][] }) => (
+    <table className="w-full text-[11px]">
+      <tbody>
+        {rows.map(([hand, pays]) => (
+          <tr key={hand} className="border-t border-white/5 first:border-t-0">
+            <td className="py-1 pr-2 text-left text-[var(--cream)]/65">{hand}</td>
+            <td className="py-1 text-right font-bold gold-text tabular-nums whitespace-nowrap">
+              {pays}
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+
+  const panel = (
+    <div className="bj-sign">
+      <div className="bj-sign-inner px-4 py-4">
+        <p className="text-center font-display text-[11px] font-bold uppercase tracking-[0.3em] text-[var(--cream)]/60">
+          ♠ Blackjack Club
+        </p>
+        <div className="mt-3 text-center">
+          <p className="font-display text-xs font-bold uppercase tracking-[0.2em] text-[var(--gold-bright)]">
+            👑 Lucky Ladies
+          </p>
+          <p className="text-[10px] uppercase tracking-[0.3em] text-[var(--cream)]/50">
+            Progressive Jackpot
+          </p>
+          <p className="mt-1 animate-pulse font-display text-3xl font-black gold-text tabular-nums">
+            {pot}
+          </p>
+        </div>
+        <PayRows
+          rows={[
+            ["Q♥ pair w/ dealer BJ", "JACKPOT"],
+            ["Queen of Hearts pair", `${rules.llQueenOfHearts}:1`],
+            ["Matched 20", `${rules.llMatched20}:1`],
+            ["Suited 20", `${rules.llSuited20}:1`],
+            ["Any 20", `${rules.llAny20}:1`],
+          ]}
+        />
+        <p className="mt-3 font-display text-[11px] font-bold uppercase tracking-[0.2em] text-[var(--gold-bright)]">
+          21+3
+        </p>
+        <PayRows
+          rows={[
+            ["Suited trips", `${rules.tpSuitedTrips}:1`],
+            ["Straight flush", `${rules.tpStraightFlush}:1`],
+            ["Three of a kind", `${rules.tpTrips}:1`],
+            ["Straight", `${rules.tpStraight}:1`],
+            ["Flush", `${rules.tpFlush}:1`],
+          ]}
+        />
+        <p className="mt-3 font-display text-[11px] font-bold uppercase tracking-[0.2em] text-[var(--gold-bright)]">
+          Perfect Pairs
+        </p>
+        <PayRows
+          rows={[
+            ["Perfect pair", `${rules.ppPerfect}:1`],
+            ["Colored pair", `${rules.ppColored}:1`],
+            ["Mixed pair", `${rules.ppMixed}:1`],
+          ]}
+        />
+        <div className="mt-3 border-t border-white/10 pt-2 text-center text-[10px] leading-relaxed text-[var(--cream)]/55">
+          <p className="font-semibold text-[var(--cream)]/70">
+            MIN {tableMin.min.toLocaleString()} · {tableMin.label.toUpperCase()}
+          </p>
+          <p>
+            {variant === "spanish21"
+              ? "Spanish 21 · player 21 always wins"
+              : "Blackjack pays 3 to 2"}{" "}
+            · dealer stands on all 17s
+          </p>
+          <p className="text-[var(--cream)]/40">
+            Side bets 1–{MAX_SIDE_BET} per hand · must place a Lucky Ladies wager to be
+            eligible
+          </p>
+        </div>
+      </div>
+      <style>{`
+        .bj-sign {
+          border-radius: 18px;
+          padding: 2.5px;
+          background: linear-gradient(120deg,#ff5f6d,#ffc371,#47e891,#4aa8ff,#b06ab3,#ff5f6d);
+          background-size: 400% 400%;
+          animation: bj-sign-glow 9s linear infinite;
+          box-shadow: 0 0 24px rgba(120,140,255,0.18), 0 0 8px rgba(255,120,180,0.15);
+        }
+        .bj-sign-inner {
+          border-radius: 15.5px;
+          background: linear-gradient(180deg,#131a26 0%,#0b101d 100%);
+        }
+        @keyframes bj-sign-glow {
+          0% { background-position: 0% 50%; }
+          100% { background-position: 400% 50%; }
+        }
+      `}</style>
+    </div>
+  );
+
+  return (
+    <div className="order-first w-full xl:order-none xl:w-64 xl:shrink-0 xl:self-start">
+      {/* compact always-visible banner on small screens, expandable to the full sign */}
+      <details className="mb-3 xl:hidden">
+        <summary className="bj-sign block cursor-pointer list-none">
+          <div className="bj-sign-inner flex items-center justify-between px-4 py-2">
+            <span className="font-display text-[11px] font-bold uppercase tracking-[0.15em] text-[var(--gold-bright)]">
+              👑 Lucky Ladies Jackpot
+            </span>
+            <span className="animate-pulse font-display text-lg font-black gold-text tabular-nums">
+              {pot}
+            </span>
+            <span className="text-[10px] uppercase tracking-wider text-[var(--cream)]/50">
+              paytables ▾
+            </span>
+          </div>
+        </summary>
+        <div className="mt-2">{panel}</div>
+      </details>
+      {/* full vertical sign beside the felt on wide screens */}
+      <div className="hidden xl:block">{panel}</div>
+    </div>
+  );
 }
 
 interface TableState {
@@ -108,6 +308,7 @@ interface TableState {
   round: ClientView | null;
   tableMin?: TableMin;
   dealerTips?: number;
+  jackpot?: number;
 }
 
 async function api<T>(path: string, body?: unknown): Promise<T> {
@@ -160,8 +361,13 @@ export function GameTable() {
   const [shuffling, setShuffling] = useState(false);
   const [ppBet, setPpBet] = useState(0);
   const [tpBet, setTpBet] = useState(0);
+  const [llBet, setLlBet] = useState(0);
   const [trainer, setTrainer] = useState(false);
   const [trainerStats, setTrainerStats] = useState<TrainerStats>(EMPTY_TRAINER_STATS);
+  const [jackpot, setJackpot] = useState<number | null>(null);
+  /** Per-seat opt-out for the strategy guide (master lightbulb still rules). */
+  const [handHints, setHandHints] = useState<boolean[]>([true, true, true]);
+  const [showSign, setShowSign] = useState(true);
   const [tips, setTips] = useState(0);
   const [tableMin, setTableMin] = useState<TableMin>({ min: 15, label: "standard rates" });
   /** Last-seen Hi-Lo values — kept so the pill survives between rounds. */
@@ -177,6 +383,20 @@ export function GameTable() {
     setShowHints(localStorage.getItem(SHOW_HINTS_KEY) === "1");
     setTrainer(localStorage.getItem(TRAINER_KEY) === "1");
     setTrainerStats(loadTrainerStats());
+    setShowSign(localStorage.getItem(SHOW_SIGN_KEY) !== "0");
+    try {
+      const hh = JSON.parse(localStorage.getItem(HAND_HINTS_KEY) ?? "");
+      if (
+        Array.isArray(hh) &&
+        hh.length >= 3 &&
+        hh.length <= 6 &&
+        hh.every((v) => typeof v === "boolean")
+      ) {
+        setHandHints(hh);
+      }
+    } catch {
+      /* default: hints on for every seat */
+    }
   }, []);
 
   useEffect(() => {
@@ -187,6 +407,7 @@ export function GameTable() {
         setRound(s.round);
         if (s.tableMin) setTableMin(s.tableMin);
         setTips(s.dealerTips ?? 0);
+        if (typeof s.jackpot === "number") setJackpot(s.jackpot);
         if (s.round) {
           setCount({
             runningCount: s.round.runningCount,
@@ -228,17 +449,21 @@ export function GameTable() {
     if (pendingBet < tableMin.min) return;
     setBusy(true);
     try {
-      const r = await api<{ chips: number; round: ClientView; shuffled?: boolean }>(
-        "/api/game/bet",
-        {
-          bet: pendingBet,
-          hands: seats,
-          variant,
-          bots: botCount,
-          perfectPairs: ppBet,
-          twentyOnePlusThree: tpBet,
-        }
-      );
+      const r = await api<{
+        chips: number;
+        round: ClientView;
+        shuffled?: boolean;
+        jackpot?: number;
+        jackpotWon?: number;
+      }>("/api/game/bet", {
+        bet: pendingBet,
+        hands: seats,
+        variant,
+        bots: botCount,
+        perfectPairs: ppBet,
+        twentyOnePlusThree: tpBet,
+        luckyLadies: llBet,
+      });
       if (r.shuffled) {
         // Hold the response while the shuffle plays, then deal as usual
         setShuffling(true);
@@ -247,13 +472,18 @@ export function GameTable() {
         setShuffling(false);
       }
       applyResponse(r);
+      if (typeof r.jackpot === "number") setJackpot(r.jackpot);
+      if ((r.jackpotWon ?? 0) > 0) celebrateJackpot(r.jackpotWon!);
       // Opening deal: two cards per seat and bot, plus the dealer's two
       const dealt = (seats + (r.round.bots?.length ?? 0)) * 2 + 2;
       for (let i = 0; i < dealt; i++) sounds.deal(i * 0.13);
       // Side bet hits are paid on the spot — celebrate right after the deal
       if (
         r.round.hands.some(
-          (h) => (h.pp?.payout ?? 0) > 0 || (h.tp?.payout ?? 0) > 0
+          (h) =>
+            (h.pp?.payout ?? 0) > 0 ||
+            (h.tp?.payout ?? 0) > 0 ||
+            (h.ll?.payout ?? 0) > 0
         )
       ) {
         sounds.sideBet(dealt * 0.13 + 0.15);
@@ -264,6 +494,30 @@ export function GameTable() {
     } finally {
       setBusy(false);
     }
+  }
+
+  /**
+   * Per-seat opt-in/out for the on-screen strategy guide. Splits can push
+   * hand indexes past the stored 3 seats — missing entries default to ON.
+   */
+  function toggleHandHint(i: number) {
+    setHandHints((prev) => {
+      const next = [...prev];
+      next[i] = !(next[i] ?? true);
+      localStorage.setItem(HAND_HINTS_KEY, JSON.stringify(next));
+      return next;
+    });
+    sounds.chip();
+  }
+
+  /** The rarest moment in the club: Queen of Hearts pair + dealer blackjack. */
+  function celebrateJackpot(amount: number) {
+    sounds.blackjack(0.2);
+    sounds.coins(0.6);
+    toast.success(
+      `👑 LUCKY LADIES JACKPOT! Queen of Hearts pair + dealer blackjack pays the whole pot: +${amount.toLocaleString()} chips`,
+      { duration: 12000 }
+    );
   }
 
   /** Trainer: grade a decision against basic strategy once the table accepts it. */
@@ -304,11 +558,13 @@ export function GameTable() {
     const expected = trainer ? (round?.hint ?? null) : null;
     const reason = round?.hintReason ?? null;
     try {
-      const r = await api<{ chips: number; round: ClientView }>("/api/game/action", {
-        action,
-      });
+      const r = await api<{ chips: number; round: ClientView; jackpotWon?: number }>(
+        "/api/game/action",
+        { action }
+      );
       if (expected) gradeDecision(action, expected, reason);
       applyResponse(r);
+      if ((r.jackpotWon ?? 0) > 0) celebrateJackpot(r.jackpotWon!);
       const settled = r.round.phase === "settled";
       // The reveal turns the hole-card slot from null into a card, so it
       // doesn't change the count — every extra is a genuinely new card.
@@ -356,7 +612,8 @@ export function GameTable() {
   const tableVariant = round?.variant ?? variant;
 
   return (
-    <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col px-3 pb-6">
+    <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col px-3 pb-6 xl:max-w-6xl xl:flex-row xl:items-stretch xl:gap-5">
+      <div className="flex w-full min-w-0 flex-1 flex-col">
       {/* chips HUD */}
       <div className="mb-3 flex items-center justify-between">
         <div className="gold-ring flex items-center gap-2 rounded-full bg-black/40 px-4 py-1.5">
@@ -378,20 +635,22 @@ export function GameTable() {
               {bonusAvailable ? "Daily Bonus" : "House Stake"}
             </button>
           )}
-          {showCount && count && (
-            <div
-              className="gold-ring flex items-center gap-1 rounded-full bg-black/40 px-3 py-1.5 font-mono text-xs text-[var(--cream)]/80 tabular-nums"
-              title="Hi-Lo running count · true count · decks remaining"
-            >
-              <span className="text-[var(--gold-bright)]">
-                RC {count.runningCount > 0 ? "+" : ""}{count.runningCount}
-              </span>
-              <span className="text-[var(--cream)]/40">·</span>
-              <span>TC {count.trueCount > 0 ? "+" : ""}{count.trueCount}</span>
-              <span className="text-[var(--cream)]/40">·</span>
-              <span className="text-[var(--cream)]/50">{count.decksRemaining}d</span>
-            </div>
-          )}
+          {showCount && count && <CountPanel count={count} />}
+          <button
+            onClick={() => {
+              const next = !showSign;
+              setShowSign(next);
+              localStorage.setItem(SHOW_SIGN_KEY, next ? "1" : "0");
+              sounds.chip();
+            }}
+            className={`gold-ring flex h-9 w-9 items-center justify-center rounded-full bg-black/40 transition-colors hover:text-[var(--gold-bright)] ${
+              showSign ? "text-[var(--gold-bright)]" : "text-[var(--cream)]/60"
+            }`}
+            title={showSign ? "Hide the table sign" : "Show the table sign (jackpot + paytables)"}
+            aria-label={showSign ? "Hide table sign" : "Show table sign"}
+          >
+            <Crown className="h-4 w-4" />
+          </button>
           {trainer && (
             <div
               className="gold-ring flex items-center gap-1.5 rounded-full bg-black/40 px-3 py-1.5 font-mono text-xs tabular-nums"
@@ -655,6 +914,50 @@ export function GameTable() {
                               : "21+3 ✕"}
                           </span>
                         )}
+                        {hand.ll && (
+                          <span
+                            className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
+                              hand.llJackpot
+                                ? "sidebet-win bg-[var(--gold)]/40 text-[var(--gold-bright)]"
+                                : hand.ll.payout > 0
+                                  ? "sidebet-win bg-[var(--gold)]/25 text-[var(--gold-bright)]"
+                                  : "bg-black/40 text-[var(--cream-dim)]"
+                            }`}
+                            title={
+                              hand.llJackpot
+                                ? "Lucky Ladies PROGRESSIVE JACKPOT — Queen of Hearts pair + dealer blackjack!"
+                                : `Lucky Ladies: ${hand.ll.label} — paid instantly`
+                            }
+                          >
+                            {hand.llJackpot
+                              ? "👑 JACKPOT!"
+                              : hand.ll.payout > 0
+                                ? `👑 ${hand.ll.label} +${(hand.ll.payout - hand.ll.bet).toLocaleString()}`
+                                : "Ladies ✕"}
+                          </span>
+                        )}
+                        {!settled && showHints && (
+                          <button
+                            onClick={() => toggleHandHint(hi)}
+                            className={`transition-colors ${
+                              (handHints[hi] ?? true)
+                                ? "text-[var(--gold-bright)]"
+                                : "text-[var(--cream)]/35 hover:text-[var(--cream)]/60"
+                            }`}
+                            title={
+                              (handHints[hi] ?? true)
+                                ? "Strategy guide ON for this hand — click to hide"
+                                : "Strategy guide OFF for this hand — click to show"
+                            }
+                            aria-label={`Toggle strategy guide for hand ${hi + 1}`}
+                          >
+                            {(handHints[hi] ?? true) ? (
+                              <Lightbulb className="h-3.5 w-3.5" />
+                            ) : (
+                              <LightbulbOff className="h-3.5 w-3.5" />
+                            )}
+                          </button>
+                        )}
                       </div>
                     </div>
                   );
@@ -748,8 +1051,16 @@ export function GameTable() {
                   handBet={round.hands[round.active]?.bet ?? 0}
                   onAction={act}
                   disabled={busy}
-                  hint={showHints ? (round.hint ?? null) : null}
-                  hintReason={showHints ? (round.hintReason ?? null) : null}
+                  hint={
+                    showHints && (handHints[round.active] ?? true)
+                      ? (round.hint ?? null)
+                      : null
+                  }
+                  hintReason={
+                    showHints && (handHints[round.active] ?? true)
+                      ? (round.hintReason ?? null)
+                      : null
+                  }
                 />
               ) : betting && !settled ? (
                 <BetPicker
@@ -769,6 +1080,11 @@ export function GameTable() {
                     sounds.chip();
                     setTpBet(v);
                   }}
+                  ll={llBet}
+                  onLl={(v) => {
+                    sounds.chip();
+                    setLlBet(v);
+                  }}
                   onVariant={(v) => {
                     sounds.chip();
                     setVariant(v);
@@ -786,13 +1102,20 @@ export function GameTable() {
                   onAdd={(v) => {
                     sounds.chip();
                     setPendingBet((p) =>
-                      Math.min(p + v, MAX_BET, Math.floor((chips ?? 0) / seats) - ppBet - tpBet)
+                      Math.min(
+                        p + v,
+                        MAX_BET,
+                        Math.floor((chips ?? 0) / seats) - ppBet - tpBet - llBet
+                      )
                     );
                   }}
                   onAllIn={() => {
                     sounds.coins();
                     setPendingBet(
-                      Math.min(Math.floor((chips ?? 0) / seats) - ppBet - tpBet, MAX_BET)
+                      Math.min(
+                        Math.floor((chips ?? 0) / seats) - ppBet - tpBet - llBet,
+                        MAX_BET
+                      )
                     );
                   }}
                   onClear={() => setPendingBet(0)}
@@ -804,6 +1127,10 @@ export function GameTable() {
           </>
         )}
       </div>
+      </div>
+      {showSign && (
+        <TableSign jackpot={jackpot} tableMin={tableMin} variant={tableVariant} />
+      )}
     </div>
   );
 }
@@ -1028,6 +1355,8 @@ function BetPicker({
   onPp,
   tp,
   onTp,
+  ll,
+  onLl,
   onSeats,
   onVariant,
   onBots,
@@ -1047,6 +1376,8 @@ function BetPicker({
   onPp: (v: number) => void;
   tp: number;
   onTp: (v: number) => void;
+  ll: number;
+  onLl: (v: number) => void;
   onSeats: (n: number) => void;
   onVariant: (v: Variant) => void;
   onBots: (n: number) => void;
@@ -1056,8 +1387,9 @@ function BetPicker({
   onDeal: () => void;
   disabled: boolean;
 }) {
-  const total = (pending + pp + tp) * seats;
-  const allInAmount = Math.floor(chips / seats) - pp - tp;
+  const total = (pending + pp + tp + ll) * seats;
+  const sides = pp + tp + ll;
+  const allInAmount = Math.floor(chips / seats) - sides;
   const isAllIn = pending > 0 && pending === allInAmount;
   return (
     <div className="fade-up flex flex-col items-center gap-4">
@@ -1080,7 +1412,7 @@ function BetPicker({
             key={v}
             className={`chip-btn chip-${v}`}
             onClick={() => onAdd(v)}
-            disabled={disabled || pending + v > MAX_BET || (pending + v + pp + tp) * seats > chips}
+            disabled={disabled || pending + v > MAX_BET || (pending + v + sides) * seats > chips}
             aria-label={`Add ${v} chip`}
           >
             {v}
@@ -1101,7 +1433,7 @@ function BetPicker({
             <button
               key={v}
               onClick={() => onPp(Math.min(pp + v, MAX_SIDE_BET))}
-              disabled={disabled || pp + v > MAX_SIDE_BET || (pending + pp + v + tp) * seats > chips}
+              disabled={disabled || pp + v > MAX_SIDE_BET || (pending + sides + v) * seats > chips}
               className="rounded-full border border-[var(--gold)]/40 px-2.5 py-0.5 text-[11px] font-mono text-[var(--gold-bright)] transition-colors hover:bg-[var(--gold)]/15 disabled:opacity-35"
             >
               +{v}
@@ -1132,7 +1464,7 @@ function BetPicker({
             <button
               key={v}
               onClick={() => onTp(Math.min(tp + v, MAX_SIDE_BET))}
-              disabled={disabled || tp + v > MAX_SIDE_BET || (pending + pp + tp + v) * seats > chips}
+              disabled={disabled || tp + v > MAX_SIDE_BET || (pending + sides + v) * seats > chips}
               className="rounded-full border border-[var(--gold)]/40 px-2.5 py-0.5 text-[11px] font-mono text-[var(--gold-bright)] transition-colors hover:bg-[var(--gold)]/15 disabled:opacity-35"
             >
               +{v}
@@ -1144,6 +1476,37 @@ function BetPicker({
           {tp > 0 && (
             <button
               onClick={() => onTp(0)}
+              disabled={disabled}
+              className="text-[11px] text-[var(--cream)]/40 underline-offset-2 hover:underline"
+            >
+              clear
+            </button>
+          )}
+        </div>
+
+        <div className="flex flex-wrap items-center justify-center gap-2 rounded-full bg-black/30 px-3 py-1.5 gold-ring">
+          <span
+            className="text-[11px] font-semibold uppercase tracking-wider text-[var(--cream)]/50"
+            title="Your first two cards totaling 20: any 20 4:1 · suited 20 9:1 · matched 20 19:1 · Queen of Hearts pair 125:1 · QoH pair + dealer blackjack wins the PROGRESSIVE JACKPOT"
+          >
+            👑 Lucky Ladies <span className="text-[var(--cream)]/30">$1 min</span>
+          </span>
+          {SIDE_CHIP_VALUES.map((v) => (
+            <button
+              key={v}
+              onClick={() => onLl(Math.min(ll + v, MAX_SIDE_BET))}
+              disabled={disabled || ll + v > MAX_SIDE_BET || (pending + sides + v) * seats > chips}
+              className="rounded-full border border-[var(--gold)]/40 px-2.5 py-0.5 text-[11px] font-mono text-[var(--gold-bright)] transition-colors hover:bg-[var(--gold)]/15 disabled:opacity-35"
+            >
+              +{v}
+            </button>
+          ))}
+          <span className="min-w-8 text-center font-mono text-sm font-bold gold-text tabular-nums">
+            {ll}
+          </span>
+          {ll > 0 && (
+            <button
+              onClick={() => onLl(0)}
               disabled={disabled}
               className="text-[11px] text-[var(--cream)]/40 underline-offset-2 hover:underline"
             >
@@ -1214,11 +1577,11 @@ function BetPicker({
         <div className="min-w-24 text-center sm:min-w-28">
           <div className="text-[10px] uppercase tracking-[0.3em] text-[var(--cream)]/50">
             {seats > 1 ? `Bet × ${seats}` : "Bet"}
-            {pp > 0 || tp > 0 ? " + sides" : ""}
+            {sides > 0 ? " + sides" : ""}
           </div>
           <div className="font-display text-2xl font-bold gold-text tabular-nums">
             {pending.toLocaleString()}
-            {(seats > 1 || pp > 0 || tp > 0) && (
+            {(seats > 1 || sides > 0) && (
               <span className="ml-1 text-sm text-[var(--cream)]/50">
                 = {total.toLocaleString()}
               </span>

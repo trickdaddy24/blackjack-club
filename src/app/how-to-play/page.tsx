@@ -184,6 +184,30 @@ export default function HowToPlayPage() {
           />
         </Section>
 
+        <Section title="Lucky Ladies — Side Bet with a Progressive Jackpot" delay={365}>
+          <p>
+            Optional side bet placed before the deal ($1 minimum, $100 maximum, applies to
+            each hand you play). It wins when <strong>your first two cards total 20</strong> —
+            paid instantly at the deal. Every Lucky Ladies stake feeds the site-wide{" "}
+            <strong>progressive jackpot</strong> (shown live on the table sign), and a{" "}
+            <strong>Queen of Hearts pair while the dealer has blackjack wins the entire
+            pot</strong>:
+          </p>
+          <PayTable
+            rows={[
+              ["Any 20", `${rules.llAny20}:1`],
+              ["Suited 20 (same suit)", `${rules.llSuited20}:1`],
+              ["Matched 20 (identical cards)", `${rules.llMatched20}:1`],
+              ["Queen of Hearts pair (Q♥ Q♥)", `${rules.llQueenOfHearts}:1`],
+              ["Q♥ pair + dealer blackjack", "PROGRESSIVE JACKPOT"],
+            ]}
+          />
+          <p className="mt-2 text-[var(--cream)]/55">
+            The pot reseeds after every jackpot hit. One pot, one winner — with multiple
+            hands, the first Queen of Hearts pair takes it.
+          </p>
+        </Section>
+
         <Section title="Table Minimums — Vegas Clock" delay={380}>
           <p className="mb-1 text-[var(--cream)]/55">
             Like the Strip, the table minimum changes through the day — on Las Vegas time

@@ -41,6 +41,14 @@ model Round {
   @@index([userId, status])
 }
 
+// Site-wide progressive pots (Lucky Ladies). Seeded on first use; every
+// Lucky Ladies stake feeds the pot; a hit pays the whole pot and reseeds.
+model Jackpot {
+  name      String   @id
+  amount    Int
+  updatedAt DateTime @updatedAt
+}
+
 model Account {
   id                String  @id @default(cuid())
   userId            String

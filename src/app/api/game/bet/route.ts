@@ -11,10 +11,12 @@ import {
 } from "@/lib/blackjack/engine";
 import {
   getActiveRound,
+  getLuckyLadiesJackpot,
   getPreviousCarry,
   MAX_BET,
   MAX_SIDE_BET,
   roundStatus,
+  settleLuckyLadiesPot,
 } from "@/lib/game";
 import { withHint } from "@/lib/blackjack/strategy";
 import { currentTableMinimum } from "@/lib/tableMinimum";
@@ -34,8 +36,10 @@ export async function POST(req: Request) {
   let bots: unknown;
   let perfectPairs: unknown;
   let twentyOnePlusThree: unknown;
+  let luckyLadies: unknown;
   try {
-    ({ bet, hands, variant, bots, perfectPairs, twentyOnePlusThree } = await req.json());
+    ({ bet, hands, variant, bots, perfectPairs, twentyOnePlusThree, luckyLadies } =
+      await req.json());
   } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
@@ -72,6 +76,19 @@ export async function POST(req: Request) {
   ) {
     return NextResponse.json(
       { error: `21+3 bet must be 0 to ${MAX_SIDE_BET}` },
+      { status: 400 }
+    );
+  }
+
+  const ll = luckyLadies === undefined ? 0 : luckyLadies;
+  if (
+    typeof ll !== "number" ||
+    !Number.isInteger(ll) ||
+    ll < 0 ||
+    ll > MAX_SIDE_BET
+  ) {
+    return NextResponse.json(
+      { error: `Lucky Ladies bet must be 0 to ${MAX_SIDE_BET}` },
       { status: 400 }
     );
   }
@@ -114,7 +131,7 @@ export async function POST(req: Request) {
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  if (user.chips < (bet + pp + tp) * seats) {
+  if (user.chips < (bet + pp + tp + ll) * seats) {
     return NextResponse.json({ error: "Not enough chips" }, { status: 400 });
   }
 
@@ -128,10 +145,24 @@ export async function POST(req: Request) {
     bots: botCount,
     perfectPairs: pp,
     twentyOnePlusThree: tp,
+    luckyLadies: ll,
   });
   const settled = state.phase === "settled";
+
+  // Lucky Ladies pot: stakes feed it every deal; a QoH pair + dealer
+  // blackjack (only possible here if the peek settled the round) wins it all.
+  // No LL bet → just read the pot for the table sign.
+  const { won: jackpotWon, pot: jackpot } =
+    ll > 0
+      ? await settleLuckyLadiesPot(
+          ll * seats,
+          settled && state.hands.some((h) => h.llJackpot)
+        )
+      : { won: 0, pot: await getLuckyLadiesJackpot() };
+
   // Side-bet winnings are paid on the spot, in the same transaction as the deal
-  const chipDelta = -debit + (sideBetPayout ?? 0) + (settled ? state.payoutTotal : 0);
+  const chipDelta =
+    -debit + (sideBetPayout ?? 0) + jackpotWon + (settled ? state.payoutTotal : 0);
 
   const [updated] = await prisma.$transaction([
     prisma.user.update({
@@ -155,5 +186,7 @@ export async function POST(req: Request) {
     chips: updated.chips,
     round: withHint(state, clientView(state)),
     shuffled: shuffled === true,
+    jackpot,
+    jackpotWon,
   });
 }

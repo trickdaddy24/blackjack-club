@@ -3,7 +3,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { clientView } from "@/lib/blackjack/engine";
 import { withHint } from "@/lib/blackjack/strategy";
-import { getActiveRound, parseRoundState } from "@/lib/game";
+import { getActiveRound, getLuckyLadiesJackpot, parseRoundState } from "@/lib/game";
 import { currentTableMinimum } from "@/lib/tableMinimum";
 
 export async function GET() {
@@ -40,5 +40,6 @@ export async function GET() {
     round: roundView,
     tableMin: currentTableMinimum(),
     dealerTips: user.dealerTips,
+    jackpot: await getLuckyLadiesJackpot(),
   });
 }
