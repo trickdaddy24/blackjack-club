@@ -20,7 +20,10 @@ const BOTS_KEY = "bj-bots";
 const SHOW_COUNT_KEY = "bj-show-count";
 const SHOW_HINTS_KEY = "bj-hints";
 const TRAINER_KEY = "bj-trainer";
-const TRAINER_STATS_KEY = "bj-trainer-stats";
+// v2: blind-only scoring — the old scorecard mixed hint-assisted plays into
+// the accuracy number, so it resets once with the key change.
+const TRAINER_STATS_KEY = "bj-trainer-stats-v2";
+const TRAINER_STATS_KEY_V1 = "bj-trainer-stats";
 const HAND_HINTS_KEY = "bj-hand-hints";
 const SHOW_SIGN_KEY = "bj-sign";
 
@@ -35,6 +38,7 @@ const EMPTY_TRAINER_STATS: TrainerStats = { right: 0, wrong: 0, streak: 0, best:
 
 function loadTrainerStats(): TrainerStats {
   try {
+    localStorage.removeItem(TRAINER_STATS_KEY_V1); // pre-blind-scoring scorecard
     const raw = localStorage.getItem(TRAINER_STATS_KEY);
     if (!raw) return EMPTY_TRAINER_STATS;
     const s = JSON.parse(raw) as Partial<TrainerStats>;
@@ -520,33 +524,42 @@ export function GameTable() {
     );
   }
 
-  /** Trainer: grade a decision against basic strategy once the table accepts it. */
+  /**
+   * Trainer: grade a decision against basic strategy once the table accepts
+   * it. BLIND-ONLY SCORING — the scorecard counts a decision only when the
+   * guide was hidden for it (`scored`); a mistake gets coached either way.
+   */
   function gradeDecision(
     action: PlayerAction,
     expected: PlayerAction,
-    reason: string | null
+    reason: string | null,
+    scored: boolean
   ) {
     const correct = action === expected;
-    const next: TrainerStats = {
-      right: trainerStats.right + (correct ? 1 : 0),
-      wrong: trainerStats.wrong + (correct ? 0 : 1),
-      streak: correct ? trainerStats.streak + 1 : 0,
-      best: correct
-        ? Math.max(trainerStats.best, trainerStats.streak + 1)
-        : trainerStats.best,
-    };
-    setTrainerStats(next);
-    localStorage.setItem(TRAINER_STATS_KEY, JSON.stringify(next));
+    if (scored) {
+      const next: TrainerStats = {
+        right: trainerStats.right + (correct ? 1 : 0),
+        wrong: trainerStats.wrong + (correct ? 0 : 1),
+        streak: correct ? trainerStats.streak + 1 : 0,
+        best: correct
+          ? Math.max(trainerStats.best, trainerStats.streak + 1)
+          : trainerStats.best,
+      };
+      setTrainerStats(next);
+      localStorage.setItem(TRAINER_STATS_KEY, JSON.stringify(next));
+      if (
+        correct &&
+        ([5, 10, 25, 50].includes(next.streak) ||
+          (next.streak > 0 && next.streak % 100 === 0))
+      ) {
+        toast.success(`🔥 ${next.streak} correct blind plays in a row!`);
+      }
+    }
     if (!correct) {
       toast.warning(
         `Coach: ${ACTION_LABELS[expected] ?? expected} was the play. ${reason ?? ""}`,
         { duration: 6000 }
       );
-    } else if (
-      [5, 10, 25, 50].includes(next.streak) ||
-      (next.streak > 0 && next.streak % 100 === 0)
-    ) {
-      toast.success(`🔥 ${next.streak} correct plays in a row!`);
     }
   }
 
@@ -557,12 +570,18 @@ export function GameTable() {
     // but only count it once the server actually accepts the play
     const expected = trainer ? (round?.hint ?? null) : null;
     const reason = round?.hintReason ?? null;
+    // Was the guide on screen for this decision? Insurance/even-money prompts
+    // show it with the master lightbulb; regular actions also honor the
+    // per-hand bulb. Visible guide → coached but not scored.
+    const hintVisible =
+      showHints &&
+      (round?.phase === "insurance" || (handHints[round?.active ?? 0] ?? true));
     try {
       const r = await api<{ chips: number; round: ClientView; jackpotWon?: number }>(
         "/api/game/action",
         { action }
       );
-      if (expected) gradeDecision(action, expected, reason);
+      if (expected) gradeDecision(action, expected, reason, !hintVisible);
       applyResponse(r);
       if ((r.jackpotWon ?? 0) > 0) celebrateJackpot(r.jackpotWon!);
       const settled = r.round.phase === "settled";
@@ -654,7 +673,7 @@ export function GameTable() {
           {trainer && (
             <div
               className="gold-ring flex items-center gap-1.5 rounded-full bg-black/40 px-3 py-1.5 font-mono text-xs tabular-nums"
-              title="Trainer scorecard: correct · mistakes · accuracy · current streak (best)"
+              title="Trainer scorecard — blind decisions only (guide hidden): correct · mistakes · accuracy · current streak (best)"
             >
               <span className="text-emerald-300/90">{trainerStats.right}✓</span>
               <span className="text-red-300/80">{trainerStats.wrong}✕</span>
@@ -697,7 +716,7 @@ export function GameTable() {
               sounds.chip();
               if (next) {
                 toast.success(
-                  "Trainer on — every decision is graded against basic strategy. Mistakes get coached."
+                  "Trainer on — decisions made with the guide hidden build your scorecard; mistakes get coached either way. Turn the lightbulb off for the real test."
                 );
               }
             }}

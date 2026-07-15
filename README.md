@@ -1,6 +1,6 @@
 # ♠ Blackjack Club
 
-[![Version](https://img.shields.io/badge/version-0.15.0-blue)](./VERSION)
+[![Version](https://img.shields.io/badge/version-0.15.1-blue)](./VERSION)
 [![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
 [![Tests](https://img.shields.io/badge/tests-127%20passing-brightgreen)](./src/lib/blackjack/engine.test.ts)
 
@@ -102,6 +102,7 @@ tournaments, themes, and retention mechanics.
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 0.15.1 | 2026-07-15 | **Blind-only trainer scoring** — the scorecard counts only decisions made with the guide hidden, so accuracy means you know the book (one-time scorecard reset). Side bets never graded; Spanish 21 guide honestly labeled a simplification. |
 | 0.15.0 | 2026-07-15 | **Lucky Ladies side bet + site-wide PROGRESSIVE JACKPOT** (Q♥ pair + dealer BJ wins the pot), a **casino table sign on screen at all times** (live jackpot ticker + every paytable, neon-rimmed like the real thing), **per-hand strategy guide toggles**, and a **visual card-counting panel** (hot/cold meter, shoe depletion, bet advice). 127 tests. |
 | 0.14.0 | 2026-07-15 | **21+3 side bet** (two cards + upcard as 3-card poker: flush 5:1 → suited trips 100:1, paid instantly at the deal) and a **strategy trainer** — graduation-cap toggle grades every play against basic strategy, coaches mistakes with the correct play *and why*, and keeps an accuracy/streak scorecard. Hints now explain their reasoning too. 119 tests. |
 | 0.13.0 | 2026-07-15 | **Play up to 3 hands at once** (was 2) — engine already generalized over seat count, so this was mostly a UI change (seat picker, bet labels). Re-verified shoe-depth safety margin for the extra seat. See [CHANGELOG.md](./CHANGELOG.md) for the full list of releases between here and 0.9.1 (Roulette, Wild Card, side-bet/economy work). |

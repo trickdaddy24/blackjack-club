@@ -108,9 +108,12 @@ export default function HowToPlayPage() {
           </p>
           <p className="mt-2 text-[var(--cream)]/55">
             🎓 Want to actually learn it? Turn on the <strong>trainer toggle</strong> (the
-            graduation cap) and every play you make is graded against basic strategy — the
-            scorecard tracks your accuracy and streak, and any mistake gets coached with the
-            correct play and the reason behind it. Run it with hints off for the real test.
+            graduation cap). Any mistake gets coached with the correct play and the reason
+            behind it — but the <strong>scorecard only counts decisions you make with the
+            guide hidden</strong> (lightbulb off, or that hand&apos;s bulb off). Your
+            accuracy number means you actually know the book, not that you can follow a
+            glowing button. Side bets are never graded — they&apos;re entertainment, and
+            the book&apos;s only opinion on them is that they pay for the sign&apos;s neon.
           </p>
         </Section>
 
@@ -146,7 +149,8 @@ export default function HowToPlayPage() {
             ]}
           />
           <p className="mt-2 text-[var(--cream)]/55">
-            Bonuses are void after doubling — the 21 still wins, at even money.
+            Bonuses are void after doubling — the 21 still wins, at even money. The strategy
+            guide at this table is a close simplification of the published Spanish 21 chart.
           </p>
         </Section>
 

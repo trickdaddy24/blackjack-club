@@ -5,6 +5,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the `VERSION` fi
 
 ---
 
+## [0.15.1] — 2026-07-15
+
+### Changed
+- **Blind-only trainer scoring** (from the design grill): the scorecard now
+  counts ONLY decisions made with the strategy guide hidden (master
+  lightbulb off, or that hand's bulb off) — following the glowing button no
+  longer inflates accuracy. Mistakes still get coached either way. The old
+  scorecard reset once with this change (its number mixed assisted plays and
+  meant something different); the localStorage key moved to
+  `bj-trainer-stats-v2`.
+- How to Play now spells out blind scoring, notes that side bets are never
+  graded, and labels the Spanish 21 guide as a close simplification of the
+  published chart.
+- Decisions locked for the roadmap: "Pro book" (Illustrious 18 count
+  deviations) as an opt-in toggle, server-side "Strategy Masters"
+  leaderboard (min 100 blind decisions) with the leaderboard-categories
+  work, full-fidelity Spanish 21 chart backlogged.
+
 ## [0.15.0] — 2026-07-15
 
 ### Added
