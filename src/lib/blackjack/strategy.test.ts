@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { recommendAction } from "./strategy";
-import type { Card, PlayerAction, Rank, Suit } from "./engine";
+import { explainAction, recommendAction, withHint } from "./strategy";
+import { clientView, startRound, type Card, type PlayerAction, type Rank, type Suit } from "./engine";
 
 function c(rank: Rank, suit: Suit = "C"): Card {
   return { rank, suit };
@@ -68,5 +68,46 @@ describe("recommendAction — spanish 21", () => {
   it("doubles 10 vs 8 but not vs 9", () => {
     expect(recommendAction([c("6"), c("4")], c("8"), SP, "spanish21")).toBe("double");
     expect(recommendAction([c("6"), c("4")], c("9"), SP, "spanish21")).toBe("hit");
+  });
+});
+
+describe("explainAction", () => {
+  it("explains standing on a stiff hand against a weak dealer", () => {
+    const why = explainAction([c("10"), c("6")], c("6"), "stand");
+    expect(why).toMatch(/bust/i);
+    expect(why).toContain("6");
+  });
+
+  it("explains standing on 17+ differently (no bust-the-dealer talk)", () => {
+    const why = explainAction([c("10"), c("9")], c("6"), "stand");
+    expect(why).toMatch(/19/);
+  });
+
+  it("explains hitting: free card under 12, forced draw on a stiff", () => {
+    expect(explainAction([c("5"), c("4")], c("K"), "hit")).toMatch(/can't bust/i);
+    expect(explainAction([c("10"), c("6")], c("K"), "hit")).toMatch(/dealer/i);
+  });
+
+  it("has dedicated stories for aces and eights", () => {
+    expect(explainAction([c("A", "C"), c("A", "H")], c("5"), "split")).toMatch(/aces/i);
+    expect(explainAction([c("8", "C"), c("8", "H")], c("K"), "split")).toMatch(/worst/i);
+  });
+
+  it("explains doubles, surrender, and never-take-insurance", () => {
+    expect(explainAction([c("6"), c("5")], c("6"), "double")).toContain("11");
+    expect(explainAction([c("A"), c("7")], c("5"), "double")).toMatch(/soft/i);
+    expect(explainAction([c("K"), c("6")], c("A"), "surrender")).toMatch(/half/i);
+    expect(explainAction([c("10"), c("9")], c("A"), "insurance-no")).toMatch(/insurance/i);
+    expect(explainAction([c("A"), c("K")], c("A"), "even-money-no")).toMatch(/3:2/);
+  });
+
+  it("withHint attaches both the hint and its reason to the client view", () => {
+    // Rig: player 10♦+6♦ vs dealer 6 up — basic strategy stands
+    const filler: Card[] = Array.from({ length: 100 }, () => c("2", "D"));
+    const shoe = [...filler, ...[c("10", "D"), c("6", "C"), c("6", "D"), c("9", "H")].reverse()];
+    const { state } = startRound(10, { previousShoe: shoe });
+    const view = withHint(state, clientView(state));
+    expect(view.hint).toBe("stand");
+    expect(view.hintReason).toMatch(/bust/i);
   });
 });

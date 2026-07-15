@@ -893,6 +893,103 @@ describe("perfect pairs", () => {
   });
 });
 
+describe("21+3", () => {
+  // Deal order: player c1, dealer up, player c2, hole — the poker hand is
+  // player c1 + player c2 + the upcard
+  const tpRound = (c1: Card, up: Card, c2: Card) =>
+    startRound(10, {
+      previousShoe: shoeFor(c1, up, c2, c("5", "H")),
+      twentyOnePlusThree: 5,
+    });
+
+  it("pays 100:1 on suited trips, credited immediately at the deal", () => {
+    const { state, debit, sideBetPayout } = tpRound(c("K", "H"), c("K", "H"), c("K", "H"));
+    expect(debit).toBe(15); // 10 bet + 5 side bet leave the stack together
+    expect(sideBetPayout).toBe(505); // 5 stake + 5 × 100
+    expect(state.staked).toBe(10); // main-game accounting excludes the side bet
+    expect(state.hands[0].tp).toEqual({ bet: 5, payout: 505, label: "suited trips" });
+    const settled = applyAction(state, "stand").state;
+    // settle pays the main hand only — the side bet was already paid
+    expect(settled.payoutTotal).toBe(settled.hands[0].payout);
+  });
+
+  it("pays 40:1 on a straight flush", () => {
+    const { state } = tpRound(c("9", "H"), c("10", "H"), c("J", "H"));
+    expect(state.hands[0].tp).toEqual({ bet: 5, payout: 205, label: "straight flush" });
+  });
+
+  it("pays 30:1 on unsuited three of a kind", () => {
+    const { state } = tpRound(c("K", "H"), c("K", "D"), c("K", "S"));
+    expect(state.hands[0].tp).toEqual({ bet: 5, payout: 155, label: "three of a kind" });
+  });
+
+  it("pays 10:1 on a mixed-suit straight", () => {
+    const { state } = tpRound(c("9", "H"), c("10", "D"), c("J", "S"));
+    expect(state.hands[0].tp).toEqual({ bet: 5, payout: 55, label: "straight" });
+  });
+
+  it("plays the ace low (A-2-3) and high (Q-K-A) in straights", () => {
+    const low = tpRound(c("A", "H"), c("2", "D"), c("3", "S"));
+    expect(low.state.hands[0].tp?.label).toBe("straight");
+    const high = tpRound(c("Q", "H"), c("K", "D"), c("A", "S"));
+    expect(high.state.hands[0].tp?.label).toBe("straight");
+  });
+
+  it("does not wrap straights around the corner (K-A-2)", () => {
+    const { state } = tpRound(c("K", "H"), c("A", "D"), c("2", "S"));
+    expect(state.hands[0].tp).toEqual({ bet: 5, payout: 0, label: "no hand" });
+  });
+
+  it("pays 5:1 on a flush", () => {
+    const { state, sideBetPayout } = tpRound(c("2", "H"), c("9", "H"), c("K", "H"));
+    expect(state.hands[0].tp).toEqual({ bet: 5, payout: 30, label: "flush" });
+    expect(sideBetPayout).toBe(30);
+  });
+
+  it("loses the stake on no hand (zero immediate payout)", () => {
+    const { state, sideBetPayout } = tpRound(c("2", "H"), c("9", "D"), c("K", "S"));
+    expect(sideBetPayout).toBe(0);
+    expect(state.hands[0].tp).toEqual({ bet: 5, payout: 0, label: "no hand" });
+    const settled = applyAction(state, "stand").state;
+    // netResult tracks the MAIN game only; the side-bet stake left with the debit
+    expect(netResult(settled)).toBe(settled.payoutTotal - 10);
+  });
+
+  it("stacks with Perfect Pairs — both paid on the spot", () => {
+    // K♥ K♥ player pair, K♦ upcard: perfect pair AND three of a kind
+    const { debit, sideBetPayout, state } = startRound(10, {
+      previousShoe: shoeFor(c("K", "H"), c("K", "D"), c("K", "H"), c("5", "H")),
+      perfectPairs: 5,
+      twentyOnePlusThree: 5,
+    });
+    expect(debit).toBe(20); // 10 + 5 + 5
+    expect(state.hands[0].pp?.payout).toBe(155); // perfect pair 30:1
+    expect(state.hands[0].tp?.payout).toBe(155); // trips 30:1
+    expect(sideBetPayout).toBe(310);
+  });
+
+  it("evaluates every seat against the same upcard", () => {
+    // Seat order: s1c1, s2c1, up, s1c2, s2c2, hole
+    const { state, debit } = startRound(10, {
+      previousShoe: shoeFor(
+        c("9", "H"), c("2", "H"), c("10", "H"), c("J", "H"), c("7", "S"), c("5", "H")
+      ),
+      seats: 2,
+      twentyOnePlusThree: 5,
+    });
+    expect(debit).toBe(30); // (10 + 5) × 2
+    expect(state.hands[0].tp?.label).toBe("straight flush"); // 9♥ J♥ + 10♥
+    expect(state.hands[1].tp?.payout).toBe(0); // 2♥ 7♠ + 10♥
+  });
+
+  it("rejects invalid bets and passes through clientView", () => {
+    expect(() => startRound(10, { twentyOnePlusThree: -1 })).toThrow(IllegalActionError);
+    expect(() => startRound(10, { twentyOnePlusThree: 2.5 })).toThrow(IllegalActionError);
+    const { state } = tpRound(c("K", "H"), c("K", "H"), c("K", "H"));
+    expect(clientView(state).hands[0].tp?.payout).toBe(505);
+  });
+});
+
 describe("even money", () => {
   // Player blackjack vs dealer ace: A♣, up A♥, K♣, hole = ?
   const bjVsAce = (hole: Card) =>

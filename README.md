@@ -1,8 +1,8 @@
 # ♠ Blackjack Club
 
-[![Version](https://img.shields.io/badge/version-0.13.0-blue)](./VERSION)
+[![Version](https://img.shields.io/badge/version-0.14.0-blue)](./VERSION)
 [![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
-[![Tests](https://img.shields.io/badge/tests-99%20passing-brightgreen)](./src/lib/blackjack/engine.test.ts)
+[![Tests](https://img.shields.io/badge/tests-119%20passing-brightgreen)](./src/lib/blackjack/engine.test.ts)
 
 A play-money blackjack site in the spirit of Zynga Poker — real casino rules, persistent
 chip balances, daily free chips, and a dim, gold-on-felt "midnight table" aesthetic.
@@ -21,8 +21,8 @@ free demo at [blackjack.minus-one-labs.com](https://blackjack.minus-one-labs.com
   until reveal, and chip balances mutate in the same DB transaction as round state.
 - **Accounts & persistent chips** — Auth.js v5 (email/password, optional Google OAuth),
   10,000 starting chips, +2,500 daily bonus, house rescue stake when you bust out.
-- **Two hands at once** — seat selector deals casino-style and plays hands left to right;
-  plus an **All In** button for the brave.
+- **Up to three hands at once** — seat selector deals casino-style and plays hands left to
+  right; plus an **All In** button for the brave.
 - **Synthesized sound effects** — chip clinks, card swishes, win fanfares, and an
   arcade-death warble on losses; all Web Audio, no asset files, mutable from the HUD.
 - **Rounds survive refresh** — active round state is persisted; reload mid-hand and resume.
@@ -102,6 +102,7 @@ tournaments, themes, and retention mechanics.
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 0.14.0 | 2026-07-15 | **21+3 side bet** (two cards + upcard as 3-card poker: flush 5:1 → suited trips 100:1, paid instantly at the deal) and a **strategy trainer** — graduation-cap toggle grades every play against basic strategy, coaches mistakes with the correct play *and why*, and keeps an accuracy/streak scorecard. Hints now explain their reasoning too. 119 tests. |
 | 0.13.0 | 2026-07-15 | **Play up to 3 hands at once** (was 2) — engine already generalized over seat count, so this was mostly a UI change (seat picker, bet labels). Re-verified shoe-depth safety margin for the extra seat. See [CHANGELOG.md](./CHANGELOG.md) for the full list of releases between here and 0.9.1 (Roulette, Wild Card, side-bet/economy work). |
 | 0.9.1 | 2026-07-10 | Spades polish: draggable bid panel (no longer hides your hand) and the on-screen version now reflects the real app build. |
 | 0.9.0 | 2026-07-10 | **Spades joins the Club.** New `/spades` route with full partnership Spades (Nil, Blind Nil, bags, to 500) vs heuristic bots — no LLM, no accounts needed. Lobby now advertises it. Blackjack Club is a games hub. |

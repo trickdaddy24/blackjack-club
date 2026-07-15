@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Coins, Eye, EyeOff, Gift, HandCoins, Lightbulb, Loader2, Volume2, VolumeX } from "lucide-react";
+import { Coins, Eye, EyeOff, Gift, GraduationCap, HandCoins, Lightbulb, Loader2, RotateCcw, Volume2, VolumeX } from "lucide-react";
 import type { ClientView, PlayerAction, Variant } from "@/lib/blackjack/engine";
 import { PlayingCard } from "@/components/PlayingCard";
 import { sounds } from "@/lib/sound";
@@ -19,6 +19,33 @@ const VARIANT_KEY = "bj-variant";
 const BOTS_KEY = "bj-bots";
 const SHOW_COUNT_KEY = "bj-show-count";
 const SHOW_HINTS_KEY = "bj-hints";
+const TRAINER_KEY = "bj-trainer";
+const TRAINER_STATS_KEY = "bj-trainer-stats";
+
+interface TrainerStats {
+  right: number;
+  wrong: number;
+  streak: number;
+  best: number;
+}
+
+const EMPTY_TRAINER_STATS: TrainerStats = { right: 0, wrong: 0, streak: 0, best: 0 };
+
+function loadTrainerStats(): TrainerStats {
+  try {
+    const raw = localStorage.getItem(TRAINER_STATS_KEY);
+    if (!raw) return EMPTY_TRAINER_STATS;
+    const s = JSON.parse(raw) as Partial<TrainerStats>;
+    return {
+      right: Number.isInteger(s.right) ? (s.right as number) : 0,
+      wrong: Number.isInteger(s.wrong) ? (s.wrong as number) : 0,
+      streak: Number.isInteger(s.streak) ? (s.streak as number) : 0,
+      best: Number.isInteger(s.best) ? (s.best as number) : 0,
+    };
+  } catch {
+    return EMPTY_TRAINER_STATS;
+  }
+}
 
 const ACTION_LABELS: Record<string, string> = {
   hit: "Hit",
@@ -132,6 +159,9 @@ export function GameTable() {
   const [showHints, setShowHints] = useState(false);
   const [shuffling, setShuffling] = useState(false);
   const [ppBet, setPpBet] = useState(0);
+  const [tpBet, setTpBet] = useState(0);
+  const [trainer, setTrainer] = useState(false);
+  const [trainerStats, setTrainerStats] = useState<TrainerStats>(EMPTY_TRAINER_STATS);
   const [tips, setTips] = useState(0);
   const [tableMin, setTableMin] = useState<TableMin>({ min: 15, label: "standard rates" });
   /** Last-seen Hi-Lo values — kept so the pill survives between rounds. */
@@ -145,6 +175,8 @@ export function GameTable() {
     if (Number.isInteger(b) && b >= 0 && b <= MAX_BOTS) setBotCount(b);
     setShowCount(localStorage.getItem(SHOW_COUNT_KEY) === "1");
     setShowHints(localStorage.getItem(SHOW_HINTS_KEY) === "1");
+    setTrainer(localStorage.getItem(TRAINER_KEY) === "1");
+    setTrainerStats(loadTrainerStats());
   }, []);
 
   useEffect(() => {
@@ -198,7 +230,14 @@ export function GameTable() {
     try {
       const r = await api<{ chips: number; round: ClientView; shuffled?: boolean }>(
         "/api/game/bet",
-        { bet: pendingBet, hands: seats, variant, bots: botCount, perfectPairs: ppBet }
+        {
+          bet: pendingBet,
+          hands: seats,
+          variant,
+          bots: botCount,
+          perfectPairs: ppBet,
+          twentyOnePlusThree: tpBet,
+        }
       );
       if (r.shuffled) {
         // Hold the response while the shuffle plays, then deal as usual
@@ -212,7 +251,11 @@ export function GameTable() {
       const dealt = (seats + (r.round.bots?.length ?? 0)) * 2 + 2;
       for (let i = 0; i < dealt; i++) sounds.deal(i * 0.13);
       // Side bet hits are paid on the spot — celebrate right after the deal
-      if (r.round.hands.some((h) => (h.pp?.payout ?? 0) > 0)) {
+      if (
+        r.round.hands.some(
+          (h) => (h.pp?.payout ?? 0) > 0 || (h.tp?.payout ?? 0) > 0
+        )
+      ) {
         sounds.sideBet(dealt * 0.13 + 0.15);
       }
       if (r.round.phase === "settled") playResult(r.round, dealt * 0.13 + 0.3);
@@ -223,13 +266,48 @@ export function GameTable() {
     }
   }
 
+  /** Trainer: grade a decision against basic strategy once the table accepts it. */
+  function gradeDecision(
+    action: PlayerAction,
+    expected: PlayerAction,
+    reason: string | null
+  ) {
+    const correct = action === expected;
+    const next: TrainerStats = {
+      right: trainerStats.right + (correct ? 1 : 0),
+      wrong: trainerStats.wrong + (correct ? 0 : 1),
+      streak: correct ? trainerStats.streak + 1 : 0,
+      best: correct
+        ? Math.max(trainerStats.best, trainerStats.streak + 1)
+        : trainerStats.best,
+    };
+    setTrainerStats(next);
+    localStorage.setItem(TRAINER_STATS_KEY, JSON.stringify(next));
+    if (!correct) {
+      toast.warning(
+        `Coach: ${ACTION_LABELS[expected] ?? expected} was the play. ${reason ?? ""}`,
+        { duration: 6000 }
+      );
+    } else if (
+      [5, 10, 25, 50].includes(next.streak) ||
+      (next.streak > 0 && next.streak % 100 === 0)
+    ) {
+      toast.success(`🔥 ${next.streak} correct plays in a row!`);
+    }
+  }
+
   async function act(action: PlayerAction) {
     setBusy(true);
     const before = visibleCards(round);
+    // Snapshot the pre-action hint so the grade survives the state update —
+    // but only count it once the server actually accepts the play
+    const expected = trainer ? (round?.hint ?? null) : null;
+    const reason = round?.hintReason ?? null;
     try {
       const r = await api<{ chips: number; round: ClientView }>("/api/game/action", {
         action,
       });
+      if (expected) gradeDecision(action, expected, reason);
       applyResponse(r);
       const settled = r.round.phase === "settled";
       // The reveal turns the hole-card slot from null into a card, so it
@@ -314,6 +392,68 @@ export function GameTable() {
               <span className="text-[var(--cream)]/50">{count.decksRemaining}d</span>
             </div>
           )}
+          {trainer && (
+            <div
+              className="gold-ring flex items-center gap-1.5 rounded-full bg-black/40 px-3 py-1.5 font-mono text-xs tabular-nums"
+              title="Trainer scorecard: correct · mistakes · accuracy · current streak (best)"
+            >
+              <span className="text-emerald-300/90">{trainerStats.right}✓</span>
+              <span className="text-red-300/80">{trainerStats.wrong}✕</span>
+              {trainerStats.right + trainerStats.wrong > 0 && (
+                <>
+                  <span className="text-[var(--cream)]/40">·</span>
+                  <span className="text-[var(--gold-bright)]">
+                    {Math.round(
+                      (trainerStats.right / (trainerStats.right + trainerStats.wrong)) * 100
+                    )}
+                    %
+                  </span>
+                  <span className="text-[var(--cream)]/40">·</span>
+                  <span className="text-[var(--cream)]/70">
+                    🔥{trainerStats.streak}
+                    <span className="text-[var(--cream)]/40"> ({trainerStats.best})</span>
+                  </span>
+                </>
+              )}
+              <button
+                onClick={() => {
+                  setTrainerStats(EMPTY_TRAINER_STATS);
+                  localStorage.setItem(TRAINER_STATS_KEY, JSON.stringify(EMPTY_TRAINER_STATS));
+                  sounds.chip();
+                  toast.success("Trainer scorecard reset");
+                }}
+                className="ml-0.5 text-[var(--cream)]/40 transition-colors hover:text-[var(--gold-bright)]"
+                title="Reset trainer scorecard"
+                aria-label="Reset trainer scorecard"
+              >
+                <RotateCcw className="h-3 w-3" />
+              </button>
+            </div>
+          )}
+          <button
+            onClick={() => {
+              const next = !trainer;
+              setTrainer(next);
+              localStorage.setItem(TRAINER_KEY, next ? "1" : "0");
+              sounds.chip();
+              if (next) {
+                toast.success(
+                  "Trainer on — every decision is graded against basic strategy. Mistakes get coached."
+                );
+              }
+            }}
+            className={`gold-ring flex h-9 w-9 items-center justify-center rounded-full bg-black/40 transition-colors hover:text-[var(--gold-bright)] ${
+              trainer ? "text-[var(--gold-bright)]" : "text-[var(--cream)]/60"
+            }`}
+            title={
+              trainer
+                ? "Trainer on — decisions are graded against basic strategy"
+                : "Turn on the strategy trainer (grades every play, coaches mistakes)"
+            }
+            aria-label={trainer ? "Turn off strategy trainer" : "Turn on strategy trainer"}
+          >
+            <GraduationCap className="h-4 w-4" />
+          </button>
           <button
             onClick={() => {
               const next = !showHints;
@@ -501,6 +641,20 @@ export function GameTable() {
                               : "Pairs ✕"}
                           </span>
                         )}
+                        {hand.tp && (
+                          <span
+                            className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
+                              hand.tp.payout > 0
+                                ? "sidebet-win bg-[var(--gold)]/25 text-[var(--gold-bright)]"
+                                : "bg-black/40 text-[var(--cream-dim)]"
+                            }`}
+                            title={`21+3: ${hand.tp.label} — paid instantly`}
+                          >
+                            {hand.tp.payout > 0
+                              ? `♠ ${hand.tp.label} +${(hand.tp.payout - hand.tp.bet).toLocaleString()}`
+                              : "21+3 ✕"}
+                          </span>
+                        )}
                       </div>
                     </div>
                   );
@@ -595,6 +749,7 @@ export function GameTable() {
                   onAction={act}
                   disabled={busy}
                   hint={showHints ? (round.hint ?? null) : null}
+                  hintReason={showHints ? (round.hintReason ?? null) : null}
                 />
               ) : betting && !settled ? (
                 <BetPicker
@@ -608,6 +763,11 @@ export function GameTable() {
                   onPp={(v) => {
                     sounds.chip();
                     setPpBet(v);
+                  }}
+                  tp={tpBet}
+                  onTp={(v) => {
+                    sounds.chip();
+                    setTpBet(v);
                   }}
                   onVariant={(v) => {
                     sounds.chip();
@@ -626,13 +786,13 @@ export function GameTable() {
                   onAdd={(v) => {
                     sounds.chip();
                     setPendingBet((p) =>
-                      Math.min(p + v, MAX_BET, Math.floor((chips ?? 0) / seats) - ppBet)
+                      Math.min(p + v, MAX_BET, Math.floor((chips ?? 0) / seats) - ppBet - tpBet)
                     );
                   }}
                   onAllIn={() => {
                     sounds.coins();
                     setPendingBet(
-                      Math.min(Math.floor((chips ?? 0) / seats) - ppBet, MAX_BET)
+                      Math.min(Math.floor((chips ?? 0) / seats) - ppBet - tpBet, MAX_BET)
                     );
                   }}
                   onClear={() => setPendingBet(0)}
@@ -778,6 +938,7 @@ function ActionBar({
   onAction,
   disabled,
   hint,
+  hintReason,
 }: {
   actions: PlayerAction[];
   chips: number;
@@ -785,6 +946,7 @@ function ActionBar({
   onAction: (a: PlayerAction) => void;
   disabled: boolean;
   hint?: PlayerAction | null;
+  hintReason?: string | null;
 }) {
   const canAffordExtra = chips >= handBet;
   const hintRing =
@@ -842,9 +1004,14 @@ function ActionBar({
         )}
       </div>
       {hint && (
-        <p className="flex items-center gap-1 text-xs text-[var(--gold-bright)]/80">
-          <Lightbulb className="h-3 w-3" /> Basic strategy says: {ACTION_LABELS[hint] ?? hint}
-        </p>
+        <div className="flex max-w-md flex-col items-center gap-0.5 text-center">
+          <p className="flex items-center gap-1 text-xs text-[var(--gold-bright)]/80">
+            <Lightbulb className="h-3 w-3" /> Basic strategy says: {ACTION_LABELS[hint] ?? hint}
+          </p>
+          {hintReason && (
+            <p className="text-[11px] leading-snug text-[var(--cream)]/50">{hintReason}</p>
+          )}
+        </div>
       )}
     </div>
   );
@@ -859,6 +1026,8 @@ function BetPicker({
   tableMin,
   pp,
   onPp,
+  tp,
+  onTp,
   onSeats,
   onVariant,
   onBots,
@@ -876,6 +1045,8 @@ function BetPicker({
   tableMin: TableMin;
   pp: number;
   onPp: (v: number) => void;
+  tp: number;
+  onTp: (v: number) => void;
   onSeats: (n: number) => void;
   onVariant: (v: Variant) => void;
   onBots: (n: number) => void;
@@ -885,8 +1056,8 @@ function BetPicker({
   onDeal: () => void;
   disabled: boolean;
 }) {
-  const total = (pending + pp) * seats;
-  const allInAmount = Math.floor(chips / seats) - pp;
+  const total = (pending + pp + tp) * seats;
+  const allInAmount = Math.floor(chips / seats) - pp - tp;
   const isAllIn = pending > 0 && pending === allInAmount;
   return (
     <div className="fade-up flex flex-col items-center gap-4">
@@ -909,7 +1080,7 @@ function BetPicker({
             key={v}
             className={`chip-btn chip-${v}`}
             onClick={() => onAdd(v)}
-            disabled={disabled || pending + v > MAX_BET || (pending + v + pp) * seats > chips}
+            disabled={disabled || pending + v > MAX_BET || (pending + v + pp + tp) * seats > chips}
             aria-label={`Add ${v} chip`}
           >
             {v}
@@ -917,36 +1088,69 @@ function BetPicker({
         ))}
       </div>
 
-      {/* Perfect Pairs side bet */}
-      <div className="flex flex-wrap items-center justify-center gap-2 rounded-full bg-black/30 px-3 py-1.5 gold-ring">
-        <span
-          className="text-[11px] font-semibold uppercase tracking-wider text-[var(--cream)]/50"
-          title="Your first two cards as a pair: mixed 5:1 · colored 10:1 · perfect 30:1"
-        >
-          Perfect Pairs <span className="text-[var(--cream)]/30">$1 min</span>
-        </span>
-        {SIDE_CHIP_VALUES.map((v) => (
-          <button
-            key={v}
-            onClick={() => onPp(Math.min(pp + v, MAX_SIDE_BET))}
-            disabled={disabled || pp + v > MAX_SIDE_BET || (pending + pp + v) * seats > chips}
-            className="rounded-full border border-[var(--gold)]/40 px-2.5 py-0.5 text-[11px] font-mono text-[var(--gold-bright)] transition-colors hover:bg-[var(--gold)]/15 disabled:opacity-35"
+      {/* side bets */}
+      <div className="flex flex-wrap items-center justify-center gap-2">
+        <div className="flex flex-wrap items-center justify-center gap-2 rounded-full bg-black/30 px-3 py-1.5 gold-ring">
+          <span
+            className="text-[11px] font-semibold uppercase tracking-wider text-[var(--cream)]/50"
+            title="Your first two cards as a pair: mixed 5:1 · colored 10:1 · perfect 30:1"
           >
-            +{v}
-          </button>
-        ))}
-        <span className="min-w-8 text-center font-mono text-sm font-bold gold-text tabular-nums">
-          {pp}
-        </span>
-        {pp > 0 && (
-          <button
-            onClick={() => onPp(0)}
-            disabled={disabled}
-            className="text-[11px] text-[var(--cream)]/40 underline-offset-2 hover:underline"
+            Perfect Pairs <span className="text-[var(--cream)]/30">$1 min</span>
+          </span>
+          {SIDE_CHIP_VALUES.map((v) => (
+            <button
+              key={v}
+              onClick={() => onPp(Math.min(pp + v, MAX_SIDE_BET))}
+              disabled={disabled || pp + v > MAX_SIDE_BET || (pending + pp + v + tp) * seats > chips}
+              className="rounded-full border border-[var(--gold)]/40 px-2.5 py-0.5 text-[11px] font-mono text-[var(--gold-bright)] transition-colors hover:bg-[var(--gold)]/15 disabled:opacity-35"
+            >
+              +{v}
+            </button>
+          ))}
+          <span className="min-w-8 text-center font-mono text-sm font-bold gold-text tabular-nums">
+            {pp}
+          </span>
+          {pp > 0 && (
+            <button
+              onClick={() => onPp(0)}
+              disabled={disabled}
+              className="text-[11px] text-[var(--cream)]/40 underline-offset-2 hover:underline"
+            >
+              clear
+            </button>
+          )}
+        </div>
+
+        <div className="flex flex-wrap items-center justify-center gap-2 rounded-full bg-black/30 px-3 py-1.5 gold-ring">
+          <span
+            className="text-[11px] font-semibold uppercase tracking-wider text-[var(--cream)]/50"
+            title="Your two cards + dealer upcard as 3-card poker: flush 5:1 · straight 10:1 · trips 30:1 · straight flush 40:1 · suited trips 100:1"
           >
-            clear
-          </button>
-        )}
+            21+3 <span className="text-[var(--cream)]/30">$1 min</span>
+          </span>
+          {SIDE_CHIP_VALUES.map((v) => (
+            <button
+              key={v}
+              onClick={() => onTp(Math.min(tp + v, MAX_SIDE_BET))}
+              disabled={disabled || tp + v > MAX_SIDE_BET || (pending + pp + tp + v) * seats > chips}
+              className="rounded-full border border-[var(--gold)]/40 px-2.5 py-0.5 text-[11px] font-mono text-[var(--gold-bright)] transition-colors hover:bg-[var(--gold)]/15 disabled:opacity-35"
+            >
+              +{v}
+            </button>
+          ))}
+          <span className="min-w-8 text-center font-mono text-sm font-bold gold-text tabular-nums">
+            {tp}
+          </span>
+          {tp > 0 && (
+            <button
+              onClick={() => onTp(0)}
+              disabled={disabled}
+              className="text-[11px] text-[var(--cream)]/40 underline-offset-2 hover:underline"
+            >
+              clear
+            </button>
+          )}
+        </div>
       </div>
 
       {/* table selectors */}
@@ -1010,11 +1214,11 @@ function BetPicker({
         <div className="min-w-24 text-center sm:min-w-28">
           <div className="text-[10px] uppercase tracking-[0.3em] text-[var(--cream)]/50">
             {seats > 1 ? `Bet × ${seats}` : "Bet"}
-            {pp > 0 ? " + Pairs" : ""}
+            {pp > 0 || tp > 0 ? " + sides" : ""}
           </div>
           <div className="font-display text-2xl font-bold gold-text tabular-nums">
             {pending.toLocaleString()}
-            {(seats > 1 || pp > 0) && (
+            {(seats > 1 || pp > 0 || tp > 0) && (
               <span className="ml-1 text-sm text-[var(--cream)]/50">
                 = {total.toLocaleString()}
               </span>

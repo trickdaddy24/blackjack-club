@@ -132,13 +132,66 @@ export function recommendAction(
   return legalize(advice, fallback, actions);
 }
 
-/** Attach the basic-strategy hint for the active hand to a client view. */
+/**
+ * One-line plain-English reason behind a recommended action — the teaching
+ * half of the hint. Written for the situation, not the rulebook.
+ */
+export function explainAction(
+  cards: Card[],
+  upcard: Card,
+  action: PlayerAction
+): string {
+  const up = cardValue(upcard);
+  const upName = upcard.rank === "A" ? "ace" : String(up);
+  const { total, soft } = handValue(cards);
+  const dealerWeak = up >= 2 && up <= 6;
+
+  switch (action) {
+    case "insurance-no":
+      return "Insurance is a losing bet — the dealer lands blackjack less than 1 time in 3, so it never pays for itself.";
+    case "even-money-no":
+      return "Play it out: the 3:2 blackjack payout is worth more on average than a locked-in 1:1.";
+    case "surrender":
+      return `Hard ${total} against a dealer ${upName} loses well over half the time — saving half the bet beats playing it.`;
+    case "split": {
+      const rank = cardValue(cards[0]);
+      if (rank === 11)
+        return "A pair of aces as one hand is a weak 12 — split them and each hand starts with an 11 instead.";
+      if (rank === 8)
+        return "16 is the worst total in blackjack — splitting the 8s trades it for two fresh starts.";
+      if (dealerWeak)
+        return `The dealer's ${upName} busts often — splitting puts more chips on the table while they're vulnerable.`;
+      return `A pair of ${cards[0].rank}s plays better as two separate hands against a ${upName}.`;
+    }
+    case "double": {
+      if (soft)
+        return `Soft ${total} can't bust on one card, and the dealer's ${upName} busts often — the perfect double.`;
+      return `${total} draws into a strong hand more often than the dealer's ${upName} improves — get extra chips in as the favorite.`;
+    }
+    case "stand": {
+      if (total >= 17)
+        return `${soft ? "Soft " : ""}${total} already competes — one more card busts too often to be worth it.`;
+      return `The dealer's ${upName} is their weakest upcard — they must keep drawing and bust often. Make them take the risk.`;
+    }
+    case "hit": {
+      if (total <= 11) return `${total} can't bust — the next card is free improvement.`;
+      if (soft)
+        return `Soft ${total} can't bust on one card — keep improving it against a dealer ${upName}.`;
+      return `${total} rarely wins against a dealer ${upName} standing pat — you have to draw even at the risk of busting.`;
+    }
+    default:
+      return "";
+  }
+}
+
+/** Attach the basic-strategy hint (and its reason) for the active hand to a client view. */
 export function withHint(state: RoundState, view: ClientView): ClientView {
   let hint: PlayerAction | null = null;
+  let hand = state.hands[state.active] ?? state.hands[0];
   if (state.phase === "insurance") {
-    hint = "insurance-no";
+    hint = view.actions.includes("even-money-no") ? "even-money-no" : "insurance-no";
   } else if (state.phase === "player") {
-    const hand = state.hands[state.active];
+    hand = state.hands[state.active];
     hint = recommendAction(
       hand.cards,
       state.dealer[0],
@@ -146,5 +199,7 @@ export function withHint(state: RoundState, view: ClientView): ClientView {
       state.variant ?? "classic"
     );
   }
-  return { ...view, hint };
+  const hintReason =
+    hint && hand ? explainAction(hand.cards, state.dealer[0], hint) : null;
+  return { ...view, hint, hintReason };
 }

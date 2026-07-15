@@ -5,6 +5,39 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the `VERSION` fi
 
 ---
 
+## [0.14.0] — 2026-07-15
+
+### Added
+- **21+3 side bet** — your first two cards plus the dealer's upcard as a
+  three-card poker hand, placed alongside Perfect Pairs before the deal
+  ($1–$100 per seat). Standard Vegas paytable: flush 5:1, straight 10:1,
+  three of a kind 30:1, straight flush 40:1, suited trips 100:1. Aces play
+  high or low in straights (A-2-3 and Q-K-A both count; no wrap-around).
+  Paid **instantly at the deal** via the same `SideBetResult` / on-the-spot
+  transaction pattern as Perfect Pairs — main-game accounting and the result
+  banner exclude it. Result badge on every hand, new bet row in the picker,
+  paytable added to How to Play (rendered from `rulesFor()` so docs can't
+  drift).
+- **Strategy trainer (learning mode)** — a graduation-cap toggle in the HUD
+  grades every decision you make against basic strategy the moment you make
+  it. Mistakes get coached with a toast naming the correct play *and why*;
+  correct-play streaks earn milestone celebrations (5/10/25/50/100…). A
+  persistent scorecard pill tracks correct/mistakes, accuracy %, current and
+  best streak (localStorage, with a reset button). Runs independently of the
+  hint lightbulb — hints off + trainer on is the "real test" mode.
+- **Hint explanations** — the lightbulb hint now says *why*: every
+  recommendation carries a one-line plain-English reason (new
+  `explainAction()` in `strategy.ts`, `hintReason` on `ClientView`), shown
+  under the hint line and inside coach toasts. Aces/eights splits, stiff
+  hands vs weak dealers, soft doubles, insurance math, and even-money value
+  all get their own tailored story.
+- 17 new tests (11 engine: full 21+3 paytable, ace-high/low straights,
+  no wrap-around, stacking with Perfect Pairs, multi-seat, validation;
+  6 strategy: explanation content + `withHint` reason plumbing) — 119 total.
+- E2E verified against the dev server: a live 21+3 straight paid +50 on the
+  spot with exact chip math, and Playwright confirmed the bet row, badge,
+  trainer scorecard, hint reasons, and coach toast in the browser.
+
 ## [0.13.0] — 2026-07-15
 
 ### Added

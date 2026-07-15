@@ -33,8 +33,9 @@ export async function POST(req: Request) {
   let variant: unknown;
   let bots: unknown;
   let perfectPairs: unknown;
+  let twentyOnePlusThree: unknown;
   try {
-    ({ bet, hands, variant, bots, perfectPairs } = await req.json());
+    ({ bet, hands, variant, bots, perfectPairs, twentyOnePlusThree } = await req.json());
   } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
@@ -58,6 +59,19 @@ export async function POST(req: Request) {
   ) {
     return NextResponse.json(
       { error: `Perfect Pairs bet must be 0 to ${MAX_SIDE_BET}` },
+      { status: 400 }
+    );
+  }
+
+  const tp = twentyOnePlusThree === undefined ? 0 : twentyOnePlusThree;
+  if (
+    typeof tp !== "number" ||
+    !Number.isInteger(tp) ||
+    tp < 0 ||
+    tp > MAX_SIDE_BET
+  ) {
+    return NextResponse.json(
+      { error: `21+3 bet must be 0 to ${MAX_SIDE_BET}` },
       { status: 400 }
     );
   }
@@ -100,7 +114,7 @@ export async function POST(req: Request) {
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  if (user.chips < (bet + pp) * seats) {
+  if (user.chips < (bet + pp + tp) * seats) {
     return NextResponse.json({ error: "Not enough chips" }, { status: 400 });
   }
 
@@ -113,6 +127,7 @@ export async function POST(req: Request) {
     variant: tableVariant as Variant,
     bots: botCount,
     perfectPairs: pp,
+    twentyOnePlusThree: tp,
   });
   const settled = state.phase === "settled";
   // Side-bet winnings are paid on the spot, in the same transaction as the deal

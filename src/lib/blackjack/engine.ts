@@ -20,6 +20,10 @@
 // Perfect Pairs side bet (per seat): the seat's own first two cards as a
 // pair — mixed 5:1, colored 10:1, perfect 30:1 — resolved at the deal.
 //
+// 21+3 side bet (per seat): the seat's first two cards + the dealer upcard
+// as a three-card poker hand — flush 5:1, straight 10:1, three of a kind
+// 30:1, straight flush 40:1, suited trips 100:1 — resolved at the deal.
+//
 // Up to MAX_BOTS simulated players can share the table. Bots consume real
 // cards from the shoe (so card counting stays honest) and settle against the
 // dealer for display, but never touch the human player's chips.
@@ -62,6 +66,12 @@ export interface Rules {
   ppMixed: number;
   ppColored: number;
   ppPerfect: number;
+  /** 21+3 side bet: X-to-1 by three-card poker hand. */
+  tpFlush: number;
+  tpStraight: number;
+  tpTrips: number;
+  tpStraightFlush: number;
+  tpSuitedTrips: number;
 }
 
 export function rulesFor(variant: Variant = "classic"): Rules {
@@ -81,6 +91,12 @@ export function rulesFor(variant: Variant = "classic"): Rules {
     ppMixed: 5,
     ppColored: 10,
     ppPerfect: 30,
+    // Standard Vegas 21+3 paytable
+    tpFlush: 5,
+    tpStraight: 10,
+    tpTrips: 30,
+    tpStraightFlush: 40,
+    tpSuitedTrips: 100,
   };
 }
 
@@ -105,6 +121,8 @@ export interface HandState {
   bonus?: string;
   /** Perfect Pairs side bet, resolved at the deal. */
   pp?: SideBetResult;
+  /** 21+3 side bet, resolved at the deal. */
+  tp?: SideBetResult;
   /** Legacy Match the Dealer field — only read at settle for in-flight rounds. */
   mtd?: SideBetResult;
 }
@@ -309,6 +327,8 @@ export interface RoundOptions {
   bots?: number;
   /** Perfect Pairs side bet per seat (0 = none). */
   perfectPairs?: number;
+  /** 21+3 side bet per seat (0 = none). */
+  twentyOnePlusThree?: number;
 }
 
 /**
@@ -342,6 +362,7 @@ export function startRound(
   const variant = opts.variant ?? "classic";
   const bots = opts.bots ?? 0;
   const ppBet = opts.perfectPairs ?? 0;
+  const tpBet = opts.twentyOnePlusThree ?? 0;
   const rules = rulesFor(variant);
 
   if (!Number.isInteger(bet) || bet <= 0) {
@@ -356,6 +377,9 @@ export function startRound(
   if (!Number.isInteger(ppBet) || ppBet < 0) {
     throw new IllegalActionError("Perfect Pairs bet must be a non-negative integer");
   }
+  if (!Number.isInteger(tpBet) || tpBet < 0) {
+    throw new IllegalActionError("21+3 bet must be a non-negative integer");
+  }
 
   const { previousShoe } = opts;
   const reuseShoe =
@@ -364,9 +388,9 @@ export function startRound(
     (opts.previousVariant ?? "classic") === variant;
   const shuffled = !reuseShoe;
 
-  // The side bet is debited with the deal but paid on the spot, so the main
-  // game's staked/payout accounting (and the result banner) excludes it.
-  const debit = (bet + ppBet) * seats;
+  // Side bets are debited with the deal but paid on the spot, so the main
+  // game's staked/payout accounting (and the result banner) excludes them.
+  const debit = (bet + ppBet + tpBet) * seats;
   const state: RoundState = {
     shoe: reuseShoe ? [...previousShoe] : createShoe(rng, rules),
     dealer: [],
@@ -438,7 +462,26 @@ export function startRound(
     }
   }
 
-  const sideBetPayout = state.hands.reduce((sum, h) => sum + (h.pp?.payout ?? 0), 0);
+  // 21+3 also resolves at the deal: first two cards + the upcard as a
+  // three-card poker hand
+  if (tpBet > 0) {
+    for (const hand of state.hands) {
+      const { mult, label } = evaluate21Plus3(
+        [hand.cards[0], hand.cards[1], upcard],
+        rules
+      );
+      hand.tp = {
+        bet: tpBet,
+        payout: mult > 0 ? tpBet + tpBet * mult : 0,
+        label,
+      };
+    }
+  }
+
+  const sideBetPayout = state.hands.reduce(
+    (sum, h) => sum + (h.pp?.payout ?? 0) + (h.tp?.payout ?? 0),
+    0
+  );
 
   if (upcard.rank === "A") {
     // Insurance (or even money, when holding blackjack) comes before the peek
@@ -454,6 +497,30 @@ export function startRound(
 
   // advance() settles right away when every hand is a natural
   return { state: advance(state), debit, shuffled, sideBetPayout };
+}
+
+/**
+ * 21+3 three-card poker evaluation: the seat's first two cards + the dealer
+ * upcard. Precedence: suited trips > straight flush > trips > straight >
+ * flush. Aces play high or low in straights (A-2-3 and Q-K-A both count).
+ */
+export function evaluate21Plus3(
+  cards: [Card, Card, Card],
+  rules: Rules
+): { mult: number; label: string } {
+  const suited = cards.every((c) => c.suit === cards[0].suit);
+  const trips = cards.every((c) => c.rank === cards[0].rank);
+  const idx = cards.map((c) => RANKS.indexOf(c.rank)).sort((a, b) => a - b);
+  const straight =
+    (idx[1] === idx[0] + 1 && idx[2] === idx[1] + 1) ||
+    (idx[0] === 0 && idx[1] === 11 && idx[2] === 12); // Q-K-A (ace high)
+
+  if (trips && suited) return { mult: rules.tpSuitedTrips, label: "suited trips" };
+  if (straight && suited) return { mult: rules.tpStraightFlush, label: "straight flush" };
+  if (trips) return { mult: rules.tpTrips, label: "three of a kind" };
+  if (straight) return { mult: rules.tpStraight, label: "straight" };
+  if (suited) return { mult: rules.tpFlush, label: "flush" };
+  return { mult: 0, label: "no hand" };
 }
 
 /** Even money is offered when every hand is a natural and the dealer shows an ace. */
@@ -792,7 +859,7 @@ function settle(state: RoundState): RoundState {
     ).outcome;
   }
 
-  // Perfect Pairs was paid on the spot at the deal — NOT counted here.
+  // Perfect Pairs and 21+3 were paid on the spot at the deal — NOT counted here.
   // (mtd = legacy pre-0.6.0 in-flight rounds, still settled the old way.)
   s.payoutTotal = s.hands.reduce(
     (sum, h) => sum + h.payout + (h.mtd?.payout ?? 0),
@@ -837,6 +904,8 @@ export interface ClientHand {
   bonus?: string;
   /** Perfect Pairs side bet result (resolved at the deal). */
   pp?: SideBetResult;
+  /** 21+3 side bet result (resolved at the deal). */
+  tp?: SideBetResult;
 }
 
 export interface ClientBotHand {
@@ -873,6 +942,8 @@ export interface ClientView {
   trueCount: number;
   /** Basic-strategy recommendation for the active hand (set by the API). */
   hint?: PlayerAction | null;
+  /** One-line plain-English reason behind the hint (set by the API). */
+  hintReason?: string | null;
 }
 
 export function clientView(state: RoundState): ClientView {
@@ -936,6 +1007,7 @@ export function clientView(state: RoundState): ClientView {
         payout: h.payout,
         ...(h.bonus ? { bonus: h.bonus } : {}),
         ...(h.pp ? { pp: h.pp } : {}),
+        ...(h.tp ? { tp: h.tp } : {}),
       };
     }),
     bots: state.bots.map((b) => {

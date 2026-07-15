@@ -103,7 +103,14 @@ export default function HowToPlayPage() {
           </ul>
           <p className="mt-3 text-[var(--cream)]/55">
             💡 Not sure what to do? Turn on the <strong>lightbulb toggle</strong> in the game
-            HUD and the mathematically correct play glows gold on every decision.
+            HUD and the mathematically correct play glows gold on every decision — with a
+            one-line explanation of <em>why</em> it&apos;s right.
+          </p>
+          <p className="mt-2 text-[var(--cream)]/55">
+            🎓 Want to actually learn it? Turn on the <strong>trainer toggle</strong> (the
+            graduation cap) and every play you make is graded against basic strategy — the
+            scorecard tracks your accuracy and streak, and any mistake gets coached with the
+            correct play and the reason behind it. Run it with hints off for the real test.
           </p>
         </Section>
 
@@ -159,6 +166,24 @@ export default function HowToPlayPage() {
           />
         </Section>
 
+        <Section title="21+3 — Side Bet" delay={350}>
+          <p>
+            Optional side bet placed before the deal ($1 minimum, $100 maximum, applies to
+            each hand you play). Your <strong>first two cards plus the dealer&apos;s
+            upcard</strong> form a three-card poker hand — <strong>paid instantly at the
+            deal</strong>, win or lose the main hand. Aces play high or low in straights:
+          </p>
+          <PayTable
+            rows={[
+              ["Flush (three of one suit)", `${rules.tpFlush}:1`],
+              ["Straight (e.g. 9-10-J, A-2-3, Q-K-A)", `${rules.tpStraight}:1`],
+              ["Three of a kind", `${rules.tpTrips}:1`],
+              ["Straight flush", `${rules.tpStraightFlush}:1`],
+              ["Suited three of a kind (identical cards)", `${rules.tpSuitedTrips}:1`],
+            ]}
+          />
+        </Section>
+
         <Section title="Table Minimums — Vegas Clock" delay={380}>
           <p className="mb-1 text-[var(--cream)]/55">
             Like the Strip, the table minimum changes through the day — on Las Vegas time
@@ -192,7 +217,7 @@ export default function HowToPlayPage() {
               if you ever go broke the house stakes you back to 1,000.
             </li>
             <li>
-              <strong>Two hands</strong> — play one or two seats at once, same bet each.
+              <strong>Multiple hands</strong> — play up to three seats at once, same bet each.
             </li>
           </ul>
         </Section>
