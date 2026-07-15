@@ -85,7 +85,12 @@ export async function POST(req: Request) {
     ({ won: jackpotWon } = await settleLuckyLadiesPot(0, true));
   }
 
-  const chipDelta = -debit + jackpotWon + (settled ? next.payoutTotal : 0);
+  // A settled round also pays out any riding Dealer Bust bet (side-bet
+  // accounting: excluded from payoutTotal, credited here)
+  const chipDelta =
+    -debit +
+    jackpotWon +
+    (settled ? next.payoutTotal + (next.bustPayout ?? 0) : 0);
 
   const [updated] = await prisma.$transaction([
     prisma.user.update({

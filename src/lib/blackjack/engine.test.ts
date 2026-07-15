@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   applyAction,
   blackjackPayout,
+  canPlaceBustBet,
   canSplit,
   cardValue,
   clientView,
@@ -11,6 +12,7 @@ import {
   IllegalActionError,
   insuranceCost,
   netResult,
+  placeBustBet,
   RESHUFFLE_AT,
   rulesFor,
   SHOE_SIZE,
@@ -704,6 +706,7 @@ describe("hi-lo count", () => {
       variant: "classic",
       runningCount: 8,
       bots: [],
+      bustBet: 0,
     };
     const view = clientView(state);
     expect(view.decksRemaining).toBe(4);
@@ -1079,6 +1082,88 @@ describe("lucky ladies", () => {
     expect(state.hands[0].tp?.label).toBe("three of a kind"); // Q♥ Q♥ + Q♦ up
     expect(state.hands[0].ll?.label).toBe("queen of hearts pair");
     expect(sideBetPayout).toBe(155 + 155 + 630);
+  });
+});
+
+describe("dealer bust bet", () => {
+  // Deal order: player c1, dealer up, player c2, hole, then later draws
+  const bustRound = (...deal: Card[]) =>
+    startRound(10, { previousShoe: shoeFor(...deal) }).state;
+
+  it("is offered only while the dealer shows a 5 or 6", () => {
+    expect(canPlaceBustBet(bustRound(c("K"), c("5", "D"), c("Q"), c("10", "D")))).toBe(true);
+    expect(canPlaceBustBet(bustRound(c("K"), c("6", "D"), c("Q"), c("10", "D")))).toBe(true);
+    expect(canPlaceBustBet(bustRound(c("K"), c("9", "D"), c("Q"), c("10", "D")))).toBe(false);
+  });
+
+  it("places once, debits the stake, and rejects bad amounts", () => {
+    const state = bustRound(c("K"), c("5", "D"), c("Q"), c("10", "D"));
+    expect(() => placeBustBet(state, 0)).toThrow(IllegalActionError);
+    expect(() => placeBustBet(state, 2.5)).toThrow(IllegalActionError);
+    const { state: withBet, debit } = placeBustBet(state, 500);
+    expect(debit).toBe(500);
+    expect(withBet.bustBet).toBe(500);
+    expect(withBet.staked).toBe(10); // side-bet accounting: main game untouched
+    expect(() => placeBustBet(withBet, 100)).toThrow(IllegalActionError); // one per round
+    expect(clientView(withBet).bustBet).toBe(500);
+    expect(clientView(withBet).bustOffered).toBe(false);
+  });
+
+  it("pays 2× the stake when the dealer busts, outside payoutTotal", () => {
+    // Dealer 5+10=15 draws K → 25 bust; player stands on 20
+    const start = bustRound(c("K"), c("5", "D"), c("Q"), c("10", "D"), c("K", "S"));
+    const { state } = placeBustBet(start, 500);
+    const settled = applyAction(state, "stand").state;
+    expect(handValue(settled.dealer).total).toBeGreaterThan(21);
+    expect(settled.bustPayout).toBe(1000);
+    // Main hand won 20 v bust — payoutTotal covers ONLY the main game
+    expect(settled.payoutTotal).toBe(20);
+    expect(clientView(settled).bustPayout).toBe(1000);
+  });
+
+  it("loses when the dealer makes a hand", () => {
+    // Dealer 5+10=15 draws 2 → 17 stands
+    const start = bustRound(c("K"), c("5", "D"), c("Q"), c("10", "D"), c("2", "S"));
+    const { state } = placeBustBet(start, 500);
+    const settled = applyAction(state, "stand").state;
+    expect(handValue(settled.dealer).total).toBe(17);
+    expect(settled.bustPayout).toBe(0);
+  });
+
+  it("forces the dealer to play out even when every player hand busted", () => {
+    // Player K+6 hits Q → 26 bust; dealer 5+10=15 must STILL draw (K → bust)
+    const start = bustRound(c("K"), c("5", "D"), c("6", "C"), c("10", "D"), c("Q", "C"), c("K", "S"));
+    const { state } = placeBustBet(start, 100);
+    const settled = applyAction(state, "hit").state;
+    expect(settled.phase).toBe("settled");
+    expect(settled.hands[0].outcome).toBe("lose"); // player busted first
+    expect(settled.dealer.length).toBe(3); // dealer drew anyway
+    expect(settled.bustPayout).toBe(200); // and busted
+  });
+
+  it("without a bust bet the dealer still skips drawing when everyone busted", () => {
+    const start = bustRound(c("K"), c("5", "D"), c("6", "C"), c("10", "D"), c("Q", "C"), c("K", "S"));
+    const settled = applyAction(start, "hit").state;
+    expect(settled.dealer.length).toBe(2); // unchanged behavior
+    expect(settled.bustPayout).toBeUndefined();
+  });
+});
+
+describe("promotions", () => {
+  it("happy hour pays naturals 2:1 (locked in at the deal)", () => {
+    const natural = (promo?: string) =>
+      startRound(10, {
+        previousShoe: shoeFor(c("A", "C"), c("9", "D"), c("K", "C"), c("5", "H")),
+        promo: promo ?? null,
+      }).state;
+    const happy = natural("happy-hour");
+    expect(happy.phase).toBe("settled");
+    expect(happy.hands[0].outcome).toBe("blackjack");
+    expect(happy.hands[0].payout).toBe(30); // 10 + 10×2
+    expect(clientView(happy).promo).toBe("happy-hour");
+
+    const normal = natural();
+    expect(normal.hands[0].payout).toBe(25); // 10 + 10×1.5
   });
 });
 

@@ -20,6 +20,7 @@ import {
 } from "@/lib/game";
 import { withHint } from "@/lib/blackjack/strategy";
 import { currentTableMinimum } from "@/lib/tableMinimum";
+import { currentPromo } from "@/lib/promotions";
 
 const VARIANTS: Variant[] = ["classic", "spanish21"];
 
@@ -146,6 +147,7 @@ export async function POST(req: Request) {
     perfectPairs: pp,
     twentyOnePlusThree: tp,
     luckyLadies: ll,
+    promo: currentPromo()?.id ?? null,
   });
   const settled = state.phase === "settled";
 

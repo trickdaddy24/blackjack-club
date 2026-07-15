@@ -5,6 +5,35 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the `VERSION` fi
 
 ---
 
+## [0.16.0] — 2026-07-15
+
+### Added
+- **Dealer Bust bet** — while the dealer shows a 5 or 6 (their weakest
+  upcards), a fire bar appears mid-round: even money that the dealer
+  **busts**, for **any amount you can cover** (no side-bet cap; up to the
+  table max). One per round, placed any time before the dealer plays; while
+  it rides the dealer always plays out their hand, even when every player
+  hand busted. Resolved at settle outside the main staked/payout accounting
+  (`RoundState.bustBet`/`bustPayout`, `placeBustBet()`/`canPlaceBustBet()`,
+  new `/api/game/bust-bet` route). Ten-rich shoes make it a counter's toy —
+  intentionally.
+- **Floor promotions on the Vegas clock** (`src/lib/promotions.ts`, single
+  source for the engine, banner, sign, and rules page):
+  - **Happy Hour (5pm–7pm PT): blackjack pays 2:1** — locked in at the deal
+    (a round dealt 6:59pm still pays 2:1), badge reads "Blackjack 2:1!".
+  - **Midnight Madness (midnight–2am PT): daily bonus pays double** (5,000).
+- **Promo banner, always shouting** — an animated strip above the table:
+  the live promo with a countdown while one runs, otherwise a teaser for
+  the next one ("starts in 3h 56m"). The table sign footer lists the bust
+  bet and the full promo schedule.
+- 14 new tests (bust-bet legality/payout/dealer-plays-out rules, happy-hour
+  2:1 math, promo clock boundaries incl. midnight wrap) — 141 total.
+- E2E verified: bust bet debit/payout math exact over multiple rounds
+  including a real dealer-bust win at 2×, 409s on wrong upcard and double
+  placement, 150-chip wager proving the old side-bet cap doesn't apply;
+  Playwright confirmed the promo banner, fire bar, riding pill, and result
+  toast in the browser.
+
 ## [0.15.1] — 2026-07-15
 
 ### Changed

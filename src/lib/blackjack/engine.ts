@@ -24,6 +24,16 @@
 // as a three-card poker hand — flush 5:1, straight 10:1, three of a kind
 // 30:1, straight flush 40:1, suited trips 100:1 — resolved at the deal.
 //
+// Dealer Bust bet (per round): offered mid-round while the dealer shows a 5
+// or 6 — an even-money wager that the dealer busts, any amount the player
+// can cover. The dealer always plays out their hand while a bust bet is
+// live (even when every player hand busted). Paid outside the main game's
+// staked/payout accounting like the other side bets.
+//
+// Promotions: a round dealt during Happy Hour ("happy-hour" on
+// RoundOptions.promo) pays naturals 2:1 instead of 3:2. The promo is locked
+// in at the deal and travels with the persisted round.
+//
 // Lucky Ladies side bet (per seat): the seat's first two cards totaling 20 —
 // any 20 pays 4:1, suited 20 9:1, matched 20 (identical cards) 19:1, and a
 // Queen of Hearts pair 125:1, all resolved at the deal. A Queen of Hearts
@@ -184,6 +194,12 @@ export interface RoundState {
   runningCount: number;
   /** Simulated players at the table. Absent in pre-0.4.0 rounds → none. */
   bots: BotHand[];
+  /** Dealer Bust bet riding this round (0 = none). Absent pre-0.16.0 → 0. */
+  bustBet: number;
+  /** Set at settle when a bust bet rode: stake × 2 on a dealer bust, else 0. */
+  bustPayout?: number;
+  /** Floor promotion the round was dealt under (e.g. "happy-hour"). */
+  promo?: string | null;
 }
 
 export type PlayerAction =
@@ -299,11 +315,12 @@ function draw(state: RoundState, visible = true): Card {
   return card;
 }
 
-/** Fill in fields absent from pre-0.4.0 persisted rounds. */
+/** Fill in fields absent from older persisted rounds. */
 function normalizeState(state: RoundState): RoundState {
   state.variant ??= "classic";
   state.runningCount ??= 0;
   state.bots ??= [];
+  state.bustBet ??= 0;
   return state;
 }
 
@@ -320,8 +337,8 @@ function newHand(cards: Card[], bet: number, fromSplit = false, splitAces = fals
   };
 }
 
-export function blackjackPayout(bet: number): number {
-  return bet + Math.floor(bet * 1.5);
+export function blackjackPayout(bet: number, mult = 1.5): number {
+  return bet + Math.floor(bet * mult);
 }
 
 export function insuranceCost(baseBet: number): number {
@@ -355,6 +372,8 @@ export interface RoundOptions {
   twentyOnePlusThree?: number;
   /** Lucky Ladies side bet per seat (0 = none). */
   luckyLadies?: number;
+  /** Floor promotion in effect at the deal (e.g. "happy-hour" → 2:1 naturals). */
+  promo?: string | null;
 }
 
 /**
@@ -435,6 +454,8 @@ export function startRound(
     payoutTotal: 0,
     variant,
     runningCount: reuseShoe ? (opts.previousCount ?? 0) : 0,
+    bustBet: 0,
+    promo: opts.promo ?? null,
     bots: BOT_SEATS.slice(0, bots).map((seat) => ({
       name: seat.name,
       cards: [],
@@ -589,6 +610,38 @@ export function evaluateLuckyLadies(
     return { mult: rules.llMatched20, label: "matched 20", queens };
   if (c1.suit === c2.suit) return { mult: rules.llSuited20, label: "suited 20", queens };
   return { mult: rules.llAny20, label: "any 20", queens };
+}
+
+/**
+ * The Dealer Bust bet is on offer while the player is still acting, the
+ * dealer shows a 5 or 6, and no bust bet is riding yet.
+ */
+export function canPlaceBustBet(state: RoundState): boolean {
+  normalizeState(state);
+  const up = state.dealer[0];
+  return (
+    state.phase === "player" &&
+    !state.dealerRevealed &&
+    !!up &&
+    (cardValue(up) === 5 || cardValue(up) === 6) &&
+    state.bustBet === 0
+  );
+}
+
+/**
+ * Ride the Dealer Bust bet: even money that the dealer busts, any amount
+ * (affordability is checked API-side). Returns the chips to debit now.
+ */
+export function placeBustBet(state: RoundState, amount: number): ActionResult {
+  if (!Number.isInteger(amount) || amount <= 0) {
+    throw new IllegalActionError("Bust bet must be a positive whole number");
+  }
+  if (!canPlaceBustBet(state)) {
+    throw new IllegalActionError("The bust bet is not on offer right now");
+  }
+  const s = cloneState(state);
+  s.bustBet = amount;
+  return { state: s, debit: amount };
 }
 
 /** Even money is offered when every hand is a natural and the dealer shows an ace. */
@@ -837,7 +890,8 @@ function settleHand(
   hand: { cards: Card[]; bet: number; doubled: boolean; fromSplit?: boolean },
   dealerBJ: boolean,
   dealerTotal: number,
-  rules: Rules
+  rules: Rules,
+  bjMult = 1.5
 ): { outcome: Outcome; payout: number; bonus?: string } {
   const { total } = handValue(hand.cards);
   const natural = isBlackjack({ cards: hand.cards, fromSplit: hand.fromSplit ?? false });
@@ -848,7 +902,7 @@ function settleHand(
     if (dealerBJ && !rules.player21AlwaysWins) {
       return { outcome: "push", payout: hand.bet };
     }
-    return { outcome: "blackjack", payout: blackjackPayout(hand.bet) };
+    return { outcome: "blackjack", payout: blackjackPayout(hand.bet, bjMult) };
   }
 
   // Spanish 21: any player 21 always wins, with bonus payouts when undoubled
@@ -898,8 +952,9 @@ function settle(state: RoundState): RoundState {
     s.hands.some((h) => live(h.cards, h.outcome === "surrender", isBlackjack(h))) ||
     s.bots.some((b) => live(b.cards, false, handValue(b.cards).total === 21 && b.cards.length === 2));
 
-  // Dealer only draws when someone at the table is still standing
-  if (!dealerBJ && anyLive) {
+  // Dealer draws when someone at the table is still standing — or when a
+  // bust bet is riding (the wager needs the dealer to play out their hand)
+  if (!dealerBJ && (anyLive || s.bustBet > 0)) {
     for (;;) {
       const { total } = handValue(s.dealer);
       if (total >= 17) break; // stands on soft 17
@@ -908,6 +963,15 @@ function settle(state: RoundState): RoundState {
   }
 
   const dealerTotal = handValue(s.dealer).total;
+
+  // Dealer Bust bet: even money on a bust, resolved now that the dealer is
+  // done. Paid by the API outside the main staked/payout accounting.
+  if (s.bustBet > 0) {
+    s.bustPayout = dealerTotal > 21 ? s.bustBet * 2 : 0;
+  }
+
+  // Happy Hour rounds pay naturals 2:1 (locked in at the deal)
+  const bjMult = s.promo === "happy-hour" ? 2 : 1.5;
 
   for (const hand of s.hands) {
     if (hand.outcome === "surrender") {
@@ -918,7 +982,7 @@ function settle(state: RoundState): RoundState {
       hand.payout = hand.bet * 2; // guaranteed 1:1, dealer blackjack or not
       continue;
     }
-    const r = settleHand(hand, dealerBJ, dealerTotal, rules);
+    const r = settleHand(hand, dealerBJ, dealerTotal, rules, bjMult);
     hand.outcome = r.outcome;
     hand.payout = r.payout;
     if (r.bonus) hand.bonus = r.bonus;
@@ -1023,6 +1087,14 @@ export interface ClientView {
   hint?: PlayerAction | null;
   /** One-line plain-English reason behind the hint (set by the API). */
   hintReason?: string | null;
+  /** Floor promotion the round was dealt under (e.g. "happy-hour"). */
+  promo?: string | null;
+  /** The Dealer Bust bet is on offer right now (upcard 5/6, none riding). */
+  bustOffered: boolean;
+  /** Bust bet riding this round (0 = none). */
+  bustBet: number;
+  /** Bust bet result once settled: stake × 2 on a dealer bust, else 0. */
+  bustPayout?: number;
 }
 
 export function clientView(state: RoundState): ClientView {
@@ -1111,5 +1183,9 @@ export function clientView(state: RoundState): ClientView {
     runningCount,
     decksRemaining,
     trueCount,
+    promo: state.promo ?? null,
+    bustOffered: canPlaceBustBet(state),
+    bustBet: state.bustBet,
+    ...(state.bustPayout !== undefined ? { bustPayout: state.bustPayout } : {}),
   };
 }

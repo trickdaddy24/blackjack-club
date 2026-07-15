@@ -1,6 +1,7 @@
 import { TopBar } from "@/components/TopBar";
 import { rulesFor } from "@/lib/blackjack/engine";
 import { MINIMUM_SCHEDULE } from "@/lib/tableMinimum";
+import { PROMO_SCHEDULE } from "@/lib/promotions";
 
 export const metadata = {
   title: "How to Play — Blackjack Club",
@@ -209,6 +210,35 @@ export default function HowToPlayPage() {
           <p className="mt-2 text-[var(--cream)]/55">
             The pot reseeds after every jackpot hit. One pot, one winner — with multiple
             hands, the first Queen of Hearts pair takes it.
+          </p>
+        </Section>
+
+        <Section title="Dealer Bust Bet" delay={372}>
+          <p>
+            When the dealer's upcard is a <strong>5 or a 6</strong> — their two weakest
+            cards — a fire bar appears mid-round: bet that the dealer <strong>busts</strong>,
+            paying <strong>1:1</strong>, for <strong>any amount you can cover</strong> (no
+            side-bet cap). One bust bet per round, placed any time before the dealer plays.
+            While your bust bet rides, the dealer always plays out their hand — even if
+            every player hand already busted. Card counters take note: a ten-rich shoe
+            makes this bet a lot more interesting.
+          </p>
+        </Section>
+
+        <Section title="Floor Promotions — Vegas Clock" delay={376}>
+          <p className="mb-1 text-[var(--cream)]/55">
+            The floor runs promotions on the same Pacific-time clock as the table minimums.
+            The promo banner above the table shows what&apos;s live and what&apos;s next:
+          </p>
+          <PayTable
+            rows={PROMO_SCHEDULE.map((p) => [
+              `${p.name} (${p.hours})`,
+              p.pitch,
+            ])}
+          />
+          <p className="mt-2 text-[var(--cream)]/55">
+            Happy Hour applies to rounds <em>dealt</em> during the window — a hand dealt at
+            6:59pm still pays 2:1 on a natural.
           </p>
         </Section>
 

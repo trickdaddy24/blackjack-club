@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Coins, Crown, Eye, EyeOff, Gift, GraduationCap, HandCoins, Lightbulb, LightbulbOff, Loader2, RotateCcw, Volume2, VolumeX } from "lucide-react";
+import { Coins, Crown, Eye, EyeOff, Flame, Gift, GraduationCap, HandCoins, Lightbulb, LightbulbOff, Loader2, RotateCcw, Volume2, VolumeX } from "lucide-react";
 import { rulesFor, type ClientView, type PlayerAction, type Variant } from "@/lib/blackjack/engine";
+import { PROMO_SCHEDULE, promoStatus, type PromoStatus } from "@/lib/promotions";
 import { PlayingCard } from "@/components/PlayingCard";
 import { sounds } from "@/lib/sound";
 
@@ -157,6 +158,134 @@ function CountPanel({ count }: { count: CountInfo }) {
   );
 }
 
+/**
+ * The floor's promo board — always shouting. Shows the live promotion with
+ * a countdown while one runs, and hypes the next one when the floor is
+ * quiet. Runs on the Vegas clock from `promotions.ts`.
+ */
+function PromoBanner() {
+  const [status, setStatus] = useState<PromoStatus | null>(null);
+  useEffect(() => {
+    const tick = () => setStatus(promoStatus());
+    tick();
+    const id = setInterval(tick, 30_000);
+    return () => clearInterval(id);
+  }, []);
+  if (!status) return null;
+
+  const fmt = (m: number) =>
+    m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`;
+
+  return (
+    <div className={`bj-promo ${status.active ? "bj-promo-live" : ""} mb-3`}>
+      <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-0.5 px-4 py-1.5 text-center">
+        {status.active ? (
+          <>
+            <Flame className="h-3.5 w-3.5 shrink-0 text-amber-300" />
+            <span className="font-display text-xs font-black uppercase tracking-[0.2em] text-amber-200">
+              {status.active.name}
+            </span>
+            <span className="font-display text-xs font-bold uppercase tracking-wider text-white">
+              {status.active.pitch}
+            </span>
+            <span className="text-[11px] text-white/70 tabular-nums">
+              · ends in {fmt(status.endsInMinutes ?? 0)}
+            </span>
+          </>
+        ) : (
+          <>
+            <span className="text-[11px] uppercase tracking-[0.2em] text-[var(--cream)]/50">
+              Next up
+            </span>
+            <span className="font-display text-xs font-bold uppercase tracking-wider text-[var(--gold-bright)]">
+              {status.next.name} — {status.next.pitch}
+            </span>
+            <span className="text-[11px] text-[var(--cream)]/50 tabular-nums">
+              · {status.next.hours} Vegas time · starts in {fmt(status.startsInMinutes ?? 0)}
+            </span>
+          </>
+        )}
+      </div>
+      <style>{`
+        .bj-promo {
+          border-radius: 12px;
+          border: 1px solid rgba(201, 162, 39, 0.25);
+          background: rgba(0, 0, 0, 0.35);
+        }
+        .bj-promo-live {
+          border: none;
+          background: linear-gradient(110deg,#7a1fa2,#c0262d,#e8790c,#c0262d,#7a1fa2);
+          background-size: 300% 100%;
+          animation: bj-promo-slide 4s linear infinite;
+          box-shadow: 0 0 18px rgba(232, 121, 12, 0.35);
+        }
+        @keyframes bj-promo-slide {
+          0% { background-position: 0% 50%; }
+          100% { background-position: 300% 50%; }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+/**
+ * The Dealer Bust bet — flashes up mid-round while the dealer shows a 5 or
+ * 6: even money that they bust, for any amount the player can cover.
+ */
+function BustBetBar({
+  chips,
+  upcard,
+  disabled,
+  onPlace,
+}: {
+  chips: number;
+  upcard: string;
+  disabled: boolean;
+  onPlace: (amount: number) => void;
+}) {
+  const [amount, setAmount] = useState("");
+  const parsed = parseInt(amount, 10);
+  const valid = Number.isInteger(parsed) && parsed >= 1 && parsed <= Math.min(chips, MAX_BET);
+  const bump = (v: number) =>
+    setAmount(String(Math.min((Number.isInteger(parsed) ? parsed : 0) + v, chips, MAX_BET)));
+
+  return (
+    <div className="fade-up mx-auto mb-3 flex max-w-xl flex-wrap items-center justify-center gap-2 rounded-2xl border border-amber-400/40 bg-black/40 px-4 py-2.5 shadow-[0_0_18px_rgba(245,158,11,0.15)]">
+      <span className="flex items-center gap-1.5 text-xs font-semibold text-amber-200">
+        <Flame className="h-4 w-4 animate-pulse text-amber-300" />
+        Dealer shows a {upcard} — bet they BUST · pays 1:1 · any amount
+      </span>
+      {[25, 100, 500].map((v) => (
+        <button
+          key={v}
+          onClick={() => bump(v)}
+          disabled={disabled || chips < 1}
+          className="rounded-full border border-amber-400/40 px-2.5 py-0.5 font-mono text-[11px] text-amber-200 transition-colors hover:bg-amber-400/15 disabled:opacity-35"
+        >
+          +{v}
+        </button>
+      ))}
+      <input
+        type="text"
+        inputMode="numeric"
+        value={amount}
+        onChange={(e) => setAmount(e.target.value.replace(/[^0-9]/g, ""))}
+        placeholder="amount"
+        className="w-24 rounded-full border border-amber-400/40 bg-black/50 px-3 py-1 text-center font-mono text-sm text-amber-100 placeholder:text-amber-100/30 focus:outline-none focus:ring-1 focus:ring-amber-300"
+        aria-label="Bust bet amount"
+      />
+      <button
+        onClick={() => valid && onPlace(parsed)}
+        disabled={disabled || !valid}
+        className="action-btn !border-amber-400/60 !px-4 !py-1.5 !text-sm !text-amber-200 disabled:opacity-35"
+        title={valid ? `Bet ${parsed.toLocaleString()} that the dealer busts` : "Enter an amount first"}
+      >
+        Bet the Bust
+      </button>
+    </div>
+  );
+}
+
 interface TableMin {
   min: number;
   label: string;
@@ -258,6 +387,14 @@ function TableSign({
             Side bets 1–{MAX_SIDE_BET} per hand · must place a Lucky Ladies wager to be
             eligible
           </p>
+          <p className="mt-1 text-amber-200/70">
+            🔥 Dealer shows 5 or 6? Bet they BUST — 1:1, any amount
+          </p>
+          {PROMO_SCHEDULE.map((p) => (
+            <p key={p.id} className="text-[var(--cream)]/45">
+              {p.name} ({p.hours}): {p.pitch.toLowerCase()}
+            </p>
+          ))}
         </div>
       </div>
       <style>{`
@@ -514,6 +651,23 @@ export function GameTable() {
     sounds.chip();
   }
 
+  /** Ride the Dealer Bust bet (upcard 5/6, even money, any amount). */
+  async function placeBust(amount: number) {
+    setBusy(true);
+    try {
+      const r = await api<{ chips: number; round: ClientView }>("/api/game/bust-bet", {
+        amount,
+      });
+      applyResponse(r);
+      sounds.coins();
+      toast.success(`🔥 ${amount.toLocaleString()} riding on the dealer busting`);
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   /** The rarest moment in the club: Queen of Hearts pair + dealer blackjack. */
   function celebrateJackpot(amount: number) {
     sounds.blackjack(0.2);
@@ -592,6 +746,20 @@ export function GameTable() {
       if (settled) {
         sounds.flip(newCards * 0.13);
         playResult(r.round, newCards * 0.13 + 0.35);
+        // Dealer Bust bet resolves with the reveal
+        if ((r.round.bustBet ?? 0) > 0) {
+          if ((r.round.bustPayout ?? 0) > 0) {
+            sounds.coins(newCards * 0.13 + 0.6);
+            toast.success(
+              `🔥 Dealer BUSTED — bust bet pays +${(r.round.bustPayout! - r.round.bustBet).toLocaleString()} chips`,
+              { duration: 8000 }
+            );
+          } else {
+            toast(
+              `Dealer made ${r.round.dealer.total} — the ${r.round.bustBet.toLocaleString()} bust bet goes to the house`
+            );
+          }
+        }
       }
     } catch (e) {
       toast.error((e as Error).message);
@@ -603,13 +771,18 @@ export function GameTable() {
   async function claimBonus() {
     setBusy(true);
     try {
-      const r = await api<{ chips: number; granted: number; type: string }>("/api/bonus", {});
+      const r = await api<{ chips: number; granted: number; type: string; promo?: string }>(
+        "/api/bonus",
+        {}
+      );
       setChips(r.chips);
       setBonusAvailable(false);
       sounds.coins();
       toast.success(
         r.type === "daily"
-          ? `Daily bonus: +${r.granted.toLocaleString()} chips`
+          ? r.promo === "midnight-madness"
+            ? `🌙 MIDNIGHT MADNESS — double daily bonus: +${r.granted.toLocaleString()} chips`
+            : `Daily bonus: +${r.granted.toLocaleString()} chips`
           : `The house staked you ${r.chips.toLocaleString()} chips`
       );
     } catch (e) {
@@ -633,6 +806,7 @@ export function GameTable() {
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col px-3 pb-6 xl:max-w-6xl xl:flex-row xl:items-stretch xl:gap-5">
       <div className="flex w-full min-w-0 flex-1 flex-col">
+      <PromoBanner />
       {/* chips HUD */}
       <div className="mb-3 flex items-center justify-between">
         <div className="gold-ring flex items-center gap-2 rounded-full bg-black/40 px-4 py-1.5">
@@ -899,7 +1073,9 @@ export function GameTable() {
                             {hand.bonus
                               ? `${hand.bonus}!`
                               : hand.outcome === "blackjack"
-                                ? "Blackjack!"
+                                ? round.promo === "happy-hour"
+                                  ? "Blackjack 2:1!"
+                                  : "Blackjack!"
                                 : hand.outcome === "even-money"
                                   ? "Even Money ✓"
                                   : hand.outcome}
@@ -1046,6 +1222,20 @@ export function GameTable() {
 
             {/* controls */}
             <div className="mt-auto pt-4">
+              {round?.bustOffered && !settled && (
+                <BustBetBar
+                  chips={chips ?? 0}
+                  upcard={round.dealer.cards[0]?.rank ?? "5"}
+                  disabled={busy}
+                  onPlace={placeBust}
+                />
+              )}
+              {(round?.bustBet ?? 0) > 0 && !settled && (
+                <p className="mb-2 flex items-center justify-center gap-1.5 text-xs font-semibold text-amber-200/90">
+                  <Flame className="h-3.5 w-3.5 text-amber-300" />
+                  {round!.bustBet.toLocaleString()} riding on the dealer busting — pays 1:1
+                </p>
+              )}
               {round?.phase === "insurance" ? (
                 round.actions.includes("even-money-yes") ? (
                   <EvenMoneyPrompt
