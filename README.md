@@ -1,6 +1,6 @@
 # ♠ Blackjack Club
 
-[![Version](https://img.shields.io/badge/version-0.16.0-blue)](./VERSION)
+[![Version](https://img.shields.io/badge/version-0.17.0-blue)](./VERSION)
 [![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
 [![Tests](https://img.shields.io/badge/tests-141%20passing-brightgreen)](./src/lib/blackjack/engine.test.ts)
 
@@ -102,6 +102,7 @@ tournaments, themes, and retention mechanics.
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 0.17.0 | 2026-07-15 | **House Rules hub at `/rules`** — public rules for every game in the Club: full new pages for Spades (bidding, bags, Deuces High), Roulette (both wheels, every payout), and Wild Card (actions, last-card penalty, scoring), all written from the engines. TopBar Rules now lands on the hub. |
 | 0.16.0 | 2026-07-15 | **Dealer Bust bet** (dealer shows 5/6 → even money they bust, ANY amount, dealer plays out while it rides) and **floor promotions on the Vegas clock** — Happy Hour 5–7pm PT pays blackjacks 2:1, Midnight Madness doubles the daily bonus, with an always-on animated promo banner counting down. 141 tests. |
 | 0.15.1 | 2026-07-15 | **Blind-only trainer scoring** — the scorecard counts only decisions made with the guide hidden, so accuracy means you know the book (one-time scorecard reset). Side bets never graded; Spanish 21 guide honestly labeled a simplification. |
 | 0.15.0 | 2026-07-15 | **Lucky Ladies side bet + site-wide PROGRESSIVE JACKPOT** (Q♥ pair + dealer BJ wins the pot), a **casino table sign on screen at all times** (live jackpot ticker + every paytable, neon-rimmed like the real thing), **per-hand strategy guide toggles**, and a **visual card-counting panel** (hot/cold meter, shoe depletion, bet advice). 127 tests. |

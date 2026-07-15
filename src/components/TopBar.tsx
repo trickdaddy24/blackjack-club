@@ -33,9 +33,9 @@ export async function TopBar() {
               <span className="hidden sm:inline">Leaders</span>
             </Link>
             <Link
-              href="/how-to-play"
+              href="/rules"
               className="flex items-center gap-1.5 uppercase tracking-widest text-[var(--cream)]/70 hover:text-[var(--gold-bright)] transition-colors"
-              title="Rules, side bets & payouts"
+              title="House rules for every game in the Club"
             >
               <HelpCircle className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">Rules</span>
@@ -60,7 +60,7 @@ export async function TopBar() {
         ) : (
           <>
             <Link
-              href="/how-to-play"
+              href="/rules"
               className="uppercase tracking-widest text-[var(--cream)]/70 hover:text-[var(--gold-bright)] transition-colors"
             >
               Rules

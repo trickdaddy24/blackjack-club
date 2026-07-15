@@ -5,6 +5,33 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the `VERSION` fi
 
 ---
 
+## [0.17.0] — 2026-07-15
+
+### Added
+- **House Rules hub (`/rules`)** — one public page covering every game in the
+  Club, with a card per table (quick facts + link) and full rules pages for
+  the three games that never had any:
+  - **`/rules/spades`** — partnership seating (you + North vs West + East),
+    bidding incl. Nil ±100 / Blind Nil ±200, follow-suit and
+    breaking-spades rules, the full scoring table (contract ×10, bags,
+    10-bag −100 rollover), and the Deuces High variant (2♠ > 2♥ > 2♣ > 2♦
+    above the A♠).
+  - **`/rules/roulette`** — both wheels (European 37 / American 38 pockets
+    with house-edge notes), every inside bet (straight 35:1 → six line 5:1,
+    European first-four 8:1, American five-number 6:1) and outside bet, the
+    zeros-take-everything explanation, and the separate 1,000-chip table
+    bankroll.
+  - **`/rules/wildcard`** — 108-card deck composition, matching rules,
+    action-card effects, the "last card!" 2-card penalty, and scoring
+    (face value / 20 / 50, first to 500).
+  All content written from the engines themselves, not generic rulebooks.
+- Shared `rules-ui` components (Section/PayTable/RulesHeader) — extracted
+  from How to Play so every rules page shares one look; How to Play now
+  uses them too and is retitled "How to Play — Blackjack" with a hub link.
+- TopBar "Rules" now goes to the hub (logged in and out).
+- Playwright-verified: all five pages render logged-out with the right
+  content, hub cards navigate, and the TopBar link lands on the hub.
+
 ## [0.16.0] — 2026-07-15
 
 ### Added
