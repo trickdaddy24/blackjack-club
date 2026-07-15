@@ -28,8 +28,11 @@
 // (+1 for 2-6, 0 for 7-9, -1 for 10/J/Q/K/A); the dealer hole card is counted
 // at reveal. The count carries across rounds with the shoe.
 //
-// Shoe-depth margin: the worst legal round at the reshuffle floor (Spanish,
-// 72 cards) is ~45 cards (2 seats with max splits + 3 bots + dealer) — safe.
+// Shoe-depth margin: `splits` is a ROUND-wide counter (not per seat) — at
+// most 2 splits happen per round no matter how many seats are in play, so
+// worst-case total hands = MAX_SEATS + 2, not MAX_SEATS x 3. At the reshuffle
+// floor (Spanish, 72 cards) that's 3 seats + 2 splits + 3 bots + dealer =
+// 9 hands sharing the shoe, ~50 cards worst case — still safe margin.
 
 export type Suit = "S" | "H" | "D" | "C";
 export type Rank =
@@ -283,7 +286,7 @@ export function insuranceCost(baseBet: number): number {
   return Math.floor(baseBet / 2);
 }
 
-export const MAX_SEATS = 2;
+export const MAX_SEATS = 3;
 export const MAX_BOTS = 3;
 
 /** Fixed bot personas — bot i always gets persona i so names are stable. */

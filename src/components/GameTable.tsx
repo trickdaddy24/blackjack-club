@@ -969,18 +969,18 @@ function BetPicker({
         </div>
 
         <div className="flex items-center gap-1 rounded-full bg-black/30 p-1 gold-ring">
-          {[1, 2].map((n) => (
+          {[1, 2, 3].map((n) => (
             <button
               key={n}
               onClick={() => onSeats(n)}
-              disabled={disabled || (n === 2 && pending * 2 > chips && pending > 0)}
+              disabled={disabled || (n > 1 && pending * n > chips && pending > 0)}
               className={`rounded-full px-4 py-1 text-[11px] font-semibold uppercase tracking-wider transition-colors disabled:opacity-35 ${
                 seats === n
                   ? "bg-[var(--gold)]/25 text-[var(--gold-bright)]"
                   : "text-[var(--cream)]/50 hover:text-[var(--cream)]/80"
               }`}
             >
-              {n === 1 ? "1 Hand" : "2 Hands"}
+              {n === 1 ? "1 Hand" : `${n} Hands`}
             </button>
           ))}
         </div>
@@ -1009,12 +1009,12 @@ function BetPicker({
       <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4">
         <div className="min-w-24 text-center sm:min-w-28">
           <div className="text-[10px] uppercase tracking-[0.3em] text-[var(--cream)]/50">
-            {seats === 2 ? "Bet × 2" : "Bet"}
+            {seats > 1 ? `Bet × ${seats}` : "Bet"}
             {pp > 0 ? " + Pairs" : ""}
           </div>
           <div className="font-display text-2xl font-bold gold-text tabular-nums">
             {pending.toLocaleString()}
-            {(seats === 2 || pp > 0) && (
+            {(seats > 1 || pp > 0) && (
               <span className="ml-1 text-sm text-[var(--cream)]/50">
                 = {total.toLocaleString()}
               </span>
@@ -1032,7 +1032,7 @@ function BetPicker({
           className={`action-btn !border-red-400/50 !text-red-200 ${isAllIn ? "!bg-red-900/40" : ""}`}
           onClick={onAllIn}
           disabled={disabled || allInAmount < tableMin.min || isAllIn}
-          title={`Bet your whole stack${seats === 2 ? " (split across both hands)" : ""}`}
+          title={`Bet your whole stack${seats > 1 ? ` (split across all ${seats} hands)` : ""}`}
         >
           All In
         </button>

@@ -5,6 +5,29 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the `VERSION` fi
 
 ---
 
+## [0.13.0] — 2026-07-15
+
+### Added
+- **Play up to 3 hands at once** (was 2) — the seat picker in the bet screen
+  now offers 1/2/3 Hands. The engine already generalized over seat count
+  (`Array.from({ length: seats }, ...)`), so this was mostly a UI change:
+  the seat-picker buttons, "Bet × N" label, and All In tooltip now scale
+  with `seats` instead of assuming exactly 2. Verified the felt layout
+  (already a flex-wrap grid, not hardcoded to 2 slots) holds up cleanly on
+  both desktop and mobile with 3 hands live at once.
+- Re-verified the shoe-depth safety margin for the extra seat: the split
+  budget (`state.splits`) is round-wide, not per-seat, so adding a 3rd seat
+  only adds one more base hand's worth of card consumption (~5-6 cards),
+  not a proportional increase — worst case at the reshuffle floor stays
+  comfortably inside the existing 25% margin. Comment in `engine.ts`
+  corrected to reflect this (previously implied splits scaled per seat).
+- 3 new engine tests (three-seat deal, independent settlement, and a split
+  on one seat while two others play normally) — 102 total, plus confirmed
+  existing hint/strategy logic needed no changes (already per-hand).
+- Static demo (`blackjack.minus-one-labs.com`) intentionally NOT updated —
+  by existing convention (Spanish 21/bots/counter are "main app only, static
+  stays classic by choice"), new gameplay scope stays on the full app.
+
 ## [0.12.0] — 2026-07-11
 
 ### Added

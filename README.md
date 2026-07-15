@@ -1,6 +1,6 @@
 # ♠ Blackjack Club
 
-[![Version](https://img.shields.io/badge/version-0.8.0-blue)](./VERSION)
+[![Version](https://img.shields.io/badge/version-0.13.0-blue)](./VERSION)
 [![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
 [![Tests](https://img.shields.io/badge/tests-99%20passing-brightgreen)](./src/lib/blackjack/engine.test.ts)
 
@@ -102,6 +102,7 @@ tournaments, themes, and retention mechanics.
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 0.13.0 | 2026-07-15 | **Play up to 3 hands at once** (was 2) — engine already generalized over seat count, so this was mostly a UI change (seat picker, bet labels). Re-verified shoe-depth safety margin for the extra seat. See [CHANGELOG.md](./CHANGELOG.md) for the full list of releases between here and 0.9.1 (Roulette, Wild Card, side-bet/economy work). |
 | 0.9.1 | 2026-07-10 | Spades polish: draggable bid panel (no longer hides your hand) and the on-screen version now reflects the real app build. |
 | 0.9.0 | 2026-07-10 | **Spades joins the Club.** New `/spades` route with full partnership Spades (Nil, Blind Nil, bags, to 500) vs heuristic bots — no LLM, no accounts needed. Lobby now advertises it. Blackjack Club is a games hub. |
 | 0.8.0 | 2026-07-03 | **Instant side-bet payouts** — Perfect Pairs pays the moment the cards land (same transaction as the deal) with a color-cycling glow + sparkle sound, then the hand plays on. **Even money** offered on blackjack vs a dealer ace (guaranteed 1:1 or play the 3:2). Bets render as mini chip stacks on the felt (desktop). |

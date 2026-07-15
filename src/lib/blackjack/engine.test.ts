@@ -336,7 +336,65 @@ describe("multi-seat (two hands at once)", () => {
 
   it("rejects invalid seat counts", () => {
     expect(() => startRound(10, undefined, undefined, 0)).toThrow(IllegalActionError);
-    expect(() => startRound(10, undefined, undefined, 3)).toThrow(IllegalActionError);
+    expect(() => startRound(10, undefined, undefined, 4)).toThrow(IllegalActionError);
+  });
+
+  it("deals three hands casino-style and debits all three bets", () => {
+    // Deal order: seat0,seat1,seat2,dealerUp, seat0,seat1,seat2,dealerHole
+    const { state, debit } = startRound(
+      10,
+      shoeFor(c("5"), c("6"), c("7"), c("9"), c("8"), c("2"), c("3"), c("4")),
+      undefined,
+      3
+    );
+    expect(debit).toBe(30);
+    expect(state.staked).toBe(30);
+    expect(state.hands.length).toBe(3);
+    expect(state.hands[0].cards).toEqual([c("5"), c("8")]);
+    expect(state.hands[1].cards).toEqual([c("6"), c("2")]);
+    expect(state.hands[2].cards).toEqual([c("7"), c("3")]);
+    expect(state.dealer).toEqual([c("9"), c("4")]);
+    expect(state.phase).toBe("player");
+    expect(state.active).toBe(0);
+  });
+
+  it("plays three seats left to right and settles each independently", () => {
+    // h0=5+6=11 (lose), h1=9+6=15 (lose), h2=10+8=18 (push) vs a
+    // made 10+8=18 dealer that stands immediately (no draw needed)
+    const { state } = startRound(
+      10,
+      shoeFor(c("5"), c("9"), c("10"), c("10"), c("6"), c("6"), c("8"), c("8")),
+      undefined,
+      3
+    );
+    const after0 = applyAction(state, "stand").state;
+    expect(after0.active).toBe(1);
+    const after1 = applyAction(after0, "stand").state;
+    expect(after1.active).toBe(2);
+    const settled = applyAction(after1, "stand").state;
+    expect(settled.phase).toBe("settled");
+    expect(settled.hands[0].outcome).toBe("lose");
+    expect(settled.hands[1].outcome).toBe("lose");
+    expect(settled.hands[2].outcome).toBe("push");
+    expect(netResult(settled)).toBe(-20);
+  });
+
+  it("a split on any one of three seats only spends the shared round-wide split budget", () => {
+    // seat 0 gets a pair of 8s; after splitting, the first resulting hand
+    // draws another 8 (re-forming a pair) and can STILL split again, because
+    // the round-wide split budget (max 2) isn't reset or scoped per seat.
+    const { state } = startRound(
+      10,
+      shoeFor(c("8"), c("5"), c("6"), c("9"), c("8"), c("7"), c("2"), c("4"), c("8"), c("3")),
+      undefined,
+      3
+    );
+    expect(canSplit(state, 0)).toBe(true);
+    const s = applyAction(state, "split").state;
+    expect(s.hands.length).toBe(4); // 3 seats + 1 extra hand from the split
+    expect(s.splits).toBe(1);
+    expect(s.hands[0].cards).toEqual([c("8"), c("8")]);
+    expect(canSplit(s, 0)).toBe(true);
   });
 
   it("plays seats left to right and settles each independently", () => {
