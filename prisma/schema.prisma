@@ -22,9 +22,10 @@ model User {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
-  accounts Account[]
-  sessions Session[]
-  rounds   Round[]
+  accounts    Account[]
+  sessions    Session[]
+  rounds      Round[]
+  trainerStat TrainerStat?
 }
 
 model Round {
@@ -35,10 +36,26 @@ model Round {
   bet       Int
   stateJson String
   netResult Int       @default(0)
+  // Side-bet net for the round (PP/21+3/Lucky Ladies/bust bet stakes vs
+  // payouts, plus any jackpot won) — netResult tracks the main game only.
+  sideNet   Int       @default(0)
   createdAt DateTime  @default(now())
   settledAt DateTime?
 
   @@index([userId, status])
+  @@index([settledAt])
+}
+
+// Server-side strategy-trainer record: blind decisions graded by the API
+// against its own basic-strategy book. Feeds the Strategy Masters board.
+model TrainerStat {
+  userId    String   @id
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  right     Int      @default(0)
+  wrong     Int      @default(0)
+  streak    Int      @default(0)
+  best      Int      @default(0)
+  updatedAt DateTime @updatedAt
 }
 
 // Site-wide progressive pots (Lucky Ladies). Seeded on first use; every

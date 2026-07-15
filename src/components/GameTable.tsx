@@ -730,10 +730,12 @@ export function GameTable() {
     const hintVisible =
       showHints &&
       (round?.phase === "insurance" || (handHints[round?.active ?? 0] ?? true));
+    // Blind + trainer on → the server also grades it for Strategy Masters
+    const blind = trainer && !hintVisible;
     try {
       const r = await api<{ chips: number; round: ClientView; jackpotWon?: number }>(
         "/api/game/action",
-        { action }
+        { action, blind }
       );
       if (expected) gradeDecision(action, expected, reason, !hintVisible);
       applyResponse(r);

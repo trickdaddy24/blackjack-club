@@ -16,6 +16,7 @@ import {
   RESHUFFLE_AT,
   rulesFor,
   SHOE_SIZE,
+  sideNetFromState,
   startRound,
   stateInsuranceCost,
   type Card,
@@ -1146,6 +1147,37 @@ describe("dealer bust bet", () => {
     const settled = applyAction(start, "hit").state;
     expect(settled.dealer.length).toBe(2); // unchanged behavior
     expect(settled.bustPayout).toBeUndefined();
+  });
+});
+
+describe("sideNetFromState", () => {
+  it("nets every side bet against its stake, jackpot excluded (added by the API)", () => {
+    // Q♥ Q♥ vs Q♦ up: perfect pair (+150), trips (+150), QoH ladies (+625)
+    const { state } = startRound(10, {
+      previousShoe: shoeFor(c("Q", "H"), c("Q", "D"), c("Q", "H"), c("5", "H")),
+      perfectPairs: 5,
+      twentyOnePlusThree: 5,
+      luckyLadies: 5,
+    });
+    expect(sideNetFromState(state)).toBe(150 + 150 + 625);
+  });
+
+  it("counts losing stakes and the bust bet result", () => {
+    // No side-bet hits; bust bet 100 rides and the dealer busts (+100)
+    const start = startRound(10, {
+      previousShoe: shoeFor(c("K"), c("5", "D"), c("Q"), c("10", "D"), c("K", "S")),
+      perfectPairs: 5, // K + Q: no pair → −5
+    }).state;
+    const { state } = placeBustBet(start, 100);
+    const settled = applyAction(state, "stand").state;
+    expect(sideNetFromState(settled)).toBe(-5 + 100);
+  });
+
+  it("is zero for a plain round", () => {
+    const { state } = startRound(10, {
+      previousShoe: shoeFor(c("K"), c("9", "D"), c("Q"), c("5", "H")),
+    });
+    expect(sideNetFromState(state)).toBe(0);
   });
 });
 

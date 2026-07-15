@@ -97,6 +97,7 @@ export function parseRoundState(stateJson: string): RoundState {
   return JSON.parse(stateJson) as RoundState;
 }
 
+
 export function roundStatus(state: RoundState): string {
   return state.phase === "settled" ? "settled" : state.phase;
 }

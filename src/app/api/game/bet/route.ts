@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+﻿import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import {
@@ -6,6 +6,7 @@ import {
   MAX_BOTS,
   MAX_SEATS,
   netResult,
+  sideNetFromState,
   startRound,
   type Variant,
 } from "@/lib/blackjack/engine";
@@ -179,6 +180,7 @@ export async function POST(req: Request) {
         bet,
         stateJson: JSON.stringify(state),
         netResult: settled ? netResult(state) : 0,
+        sideNet: settled ? sideNetFromState(state) + jackpotWon : 0,
         settledAt: settled ? new Date() : null,
       },
     }),

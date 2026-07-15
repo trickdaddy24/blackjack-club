@@ -6,6 +6,7 @@ import {
   clientView,
   IllegalActionError,
   netResult,
+  sideNetFromState,
   type PlayerAction,
 } from "@/lib/blackjack/engine";
 import {
@@ -36,8 +37,9 @@ export async function POST(req: Request) {
   const userId = session.user.id;
 
   let action: unknown;
+  let blind: unknown;
   try {
-    ({ action } = await req.json());
+    ({ action, blind } = await req.json());
   } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
@@ -52,6 +54,12 @@ export async function POST(req: Request) {
   }
 
   const state = parseRoundState(round.stateJson);
+
+  // Strategy Masters: grade the decision against the SERVER's own book,
+  // computed from the pre-action state. The client only attests that the
+  // guide was hidden (`blind`) — accuracy itself can't be fabricated.
+  const bookPlay =
+    blind === true ? withHint(state, clientView(state)).hint : null;
 
   let result;
   try {
@@ -104,10 +112,34 @@ export async function POST(req: Request) {
         status: roundStatus(next),
         stateJson: JSON.stringify(next),
         netResult: settled ? netResult(next) : 0,
+        sideNet: settled ? sideNetFromState(next) + jackpotWon : 0,
         settledAt: settled ? new Date() : null,
       },
     }),
   ]);
+
+  // Record the graded blind decision (non-critical — outside the game tx)
+  if (bookPlay) {
+    const correct = action === bookPlay;
+    const existing = await prisma.trainerStat.findUnique({ where: { userId } });
+    const streak = correct ? (existing?.streak ?? 0) + 1 : 0;
+    await prisma.trainerStat.upsert({
+      where: { userId },
+      create: {
+        userId,
+        right: correct ? 1 : 0,
+        wrong: correct ? 0 : 1,
+        streak,
+        best: streak,
+      },
+      update: {
+        right: { increment: correct ? 1 : 0 },
+        wrong: { increment: correct ? 0 : 1 },
+        streak,
+        best: Math.max(existing?.best ?? 0, streak),
+      },
+    });
+  }
 
   return NextResponse.json({
     chips: updated.chips,

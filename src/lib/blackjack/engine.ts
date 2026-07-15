@@ -1020,6 +1020,25 @@ export function netResult(state: RoundState): number {
   return state.payoutTotal - state.staked;
 }
 
+/**
+ * Side-bet net for a settled round: Perfect Pairs / 21+3 / Lucky Ladies
+ * payouts minus stakes across every hand, plus the bust bet's result.
+ * The Lucky Ladies JACKPOT is paid by the API (the pot amount never lives
+ * in round state) — callers add the jackpot on top.
+ */
+export function sideNetFromState(state: RoundState): number {
+  let net = 0;
+  for (const h of state.hands) {
+    for (const sb of [h.pp, h.tp, h.ll]) {
+      if (sb) net += sb.payout - sb.bet;
+    }
+  }
+  if ((state.bustBet ?? 0) > 0) {
+    net += (state.bustPayout ?? 0) - state.bustBet;
+  }
+  return net;
+}
+
 function cloneState(state: RoundState): RoundState {
   return structuredClone(state);
 }

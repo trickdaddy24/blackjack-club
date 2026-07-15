@@ -5,6 +5,39 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the `VERSION` fi
 
 ---
 
+## [0.18.0] — 2026-07-15
+
+### Added
+- **Leaderboard, rebuilt as four boards** (from the design grill):
+  - **High Rollers** — all-time top stacks (unchanged)
+  - **Today** — net winnings since midnight *Vegas time*, side bets and
+    jackpots included, with a "biggest single win" callout
+  - **This Week** — same, Monday-anchored on the Vegas clock
+  - **Strategy Masters** — best blind-decision accuracy against the book
+    (accuracy % · decision volume · best streak)
+  Minimum **10 settled rounds** in the window to rank on the daily/weekly
+  boards (negative leaders shown — honesty over vanity); minimum
+  **100 graded decisions** for Strategy Masters. Your own row appears below
+  the top 10 when you're outside it; progress callouts show how close you
+  are to qualifying.
+- **True net tracking** — new `Round.sideNet` column records each round's
+  side-bet net (PP/21+3/Lucky Ladies stakes vs payouts, bust bet, jackpot),
+  because `netResult` has been main-game-only since v0.8.0 and a daily board
+  built on it would show a jackpot winner as flat. Backfilled for history
+  from each round's persisted `stateJson`.
+- **Server-graded trainer decisions** — the action route now grades every
+  attested-blind decision against its own book (`TrainerStat` table:
+  right/wrong/streak/best). The client only claims the guide was hidden;
+  accuracy itself can't be fabricated. The local scorecard pill stays as the
+  live in-session display; the server record feeds Strategy Masters.
+- New `src/lib/leaderboard.ts` — Vegas-clock day/week window math
+  (DST-safe), qualification constants; 8 new tests (window boundaries
+  incl. PST/PDT and the Sunday→Monday reach-back, sideNet accounting) —
+  **149 total**.
+- E2E verified: 12 live rounds produced exactly 15 server-banked blind
+  decisions, the Today board showed the qualified row, and all four boards
+  render with correct callouts.
+
 ## [0.17.0] — 2026-07-15
 
 ### Added

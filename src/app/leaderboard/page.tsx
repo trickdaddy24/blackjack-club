@@ -1,14 +1,30 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Crown, Medal } from "lucide-react";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { TopBar } from "@/components/TopBar";
+import {
+  MIN_DECISIONS_TO_RANK,
+  MIN_ROUNDS_TO_RANK,
+  vegasDayStart,
+  vegasWeekStart,
+} from "@/lib/leaderboard";
 
 export const metadata = {
   title: "Leaderboard — Blackjack Club",
 };
 
 const TOP_N = 10;
+
+type Board = "stacks" | "today" | "week" | "masters";
+
+const TABS: { id: Board; label: string }[] = [
+  { id: "stacks", label: "High Rollers" },
+  { id: "today", label: "Today" },
+  { id: "week", label: "This Week" },
+  { id: "masters", label: "Strategy Masters" },
+];
 
 function RankBadge({ rank }: { rank: number }) {
   if (rank === 1) return <Crown className="h-5 w-5 text-[var(--gold-bright)]" fill="currentColor" />;
@@ -17,37 +33,32 @@ function RankBadge({ rank }: { rank: number }) {
   return <span className="font-mono text-sm text-[var(--cream)]/50 tabular-nums">{rank}</span>;
 }
 
-export default async function LeaderboardPage() {
-  const session = await auth();
-  if (!session?.user?.id) redirect("/login");
-  const userId = session.user.id;
+interface RowData {
+  id: string;
+  name: string;
+  /** Right-hand number (chips, net, or accuracy). */
+  value: string;
+  valueClass?: string;
+  /** Small middle detail (member-since, rounds played, decision volume). */
+  detail?: string;
+}
 
-  const [top, me] = await Promise.all([
-    prisma.user.findMany({
-      orderBy: [{ chips: "desc" }, { createdAt: "asc" }],
-      take: TOP_N,
-      select: { id: true, name: true, chips: true, createdAt: true },
-    }),
-    prisma.user.findUnique({
-      where: { id: userId },
-      select: { id: true, name: true, chips: true, createdAt: true },
-    }),
-  ]);
-  if (!me) redirect("/login");
-
-  const inTop = top.some((u) => u.id === userId);
-  const myRank = inTop
-    ? top.findIndex((u) => u.id === userId) + 1
-    : (await prisma.user.count({ where: { chips: { gt: me.chips } } })) + 1;
-
-  const row = (
-    u: { id: string; name: string | null; chips: number; createdAt: Date },
-    rank: number
-  ) => {
-    const isMe = u.id === userId;
+function BoardList({
+  rows,
+  meRow,
+  myRank,
+  userId,
+}: {
+  rows: RowData[];
+  meRow: RowData | null;
+  myRank: number | null;
+  userId: string;
+}) {
+  const render = (r: RowData, rank: number) => {
+    const isMe = r.id === userId;
     return (
       <li
-        key={u.id}
+        key={`${r.id}-${rank}`}
         className={`flex items-center gap-4 px-5 py-3 ${
           isMe ? "bg-[var(--gold)]/10 shadow-[inset_2px_0_0_var(--gold)]" : ""
         }`}
@@ -56,22 +67,188 @@ export default async function LeaderboardPage() {
           <RankBadge rank={rank} />
         </span>
         <span className="flex-1 truncate font-display font-semibold text-[var(--cream)]/90">
-          {u.name ?? "Player"}
+          {r.name}
           {isMe && (
             <span className="ml-2 rounded bg-[var(--gold)]/20 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[var(--gold-bright)]">
               you
             </span>
           )}
         </span>
-        <span className="hidden text-xs text-[var(--cream)]/40 sm:block">
-          since {u.createdAt.toLocaleDateString("en-US", { month: "short", year: "numeric" })}
-        </span>
-        <span className="font-display text-lg font-bold gold-text tabular-nums">
-          {u.chips.toLocaleString()}
+        {r.detail && (
+          <span className="hidden text-xs text-[var(--cream)]/40 sm:block">{r.detail}</span>
+        )}
+        <span
+          className={`font-display text-lg font-bold tabular-nums ${r.valueClass ?? "gold-text"}`}
+        >
+          {r.value}
         </span>
       </li>
     );
   };
+
+  return (
+    <ul
+      className="fade-up gold-ring mt-6 divide-y divide-[var(--gold)]/10 overflow-hidden rounded-2xl bg-black/25"
+      style={{ animationDelay: "120ms" }}
+    >
+      {rows.length === 0 && (
+        <li className="px-5 py-8 text-center text-sm text-[var(--cream)]/40">
+          Nobody has qualified yet — the board is wide open.
+        </li>
+      )}
+      {rows.map((r, i) => render(r, i + 1))}
+      {meRow && myRank !== null && (
+        <>
+          <li className="px-5 py-1.5 text-center text-xs text-[var(--cream)]/30">···</li>
+          {render(meRow, myRank)}
+        </>
+      )}
+    </ul>
+  );
+}
+
+const fmtNet = (n: number) => `${n > 0 ? "+" : ""}${n.toLocaleString()}`;
+const netClass = (n: number) =>
+  n > 0 ? "gold-text" : n < 0 ? "text-red-300/90" : "text-[var(--cream-dim)]";
+
+export default async function LeaderboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ board?: string }>;
+}) {
+  const session = await auth();
+  if (!session?.user?.id) redirect("/login");
+  const userId = session.user.id;
+
+  const { board: boardParam } = await searchParams;
+  const board: Board = (TABS.find((t) => t.id === boardParam)?.id ?? "stacks") as Board;
+
+  let rows: RowData[] = [];
+  let meRow: RowData | null = null;
+  let myRank: number | null = null;
+  let subtitle = "";
+  let callout: string | null = null;
+
+  if (board === "stacks") {
+    subtitle = "The club's biggest chip stacks — all time";
+    const [top, me] = await Promise.all([
+      prisma.user.findMany({
+        orderBy: [{ chips: "desc" }, { createdAt: "asc" }],
+        take: TOP_N,
+        select: { id: true, name: true, chips: true, createdAt: true },
+      }),
+      prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true, name: true, chips: true, createdAt: true },
+      }),
+    ]);
+    if (!me) redirect("/login");
+    const toRow = (u: typeof top[number]): RowData => ({
+      id: u.id,
+      name: u.name ?? "Player",
+      value: u.chips.toLocaleString(),
+      detail: `since ${u.createdAt.toLocaleDateString("en-US", { month: "short", year: "numeric" })}`,
+    });
+    rows = top.map(toRow);
+    if (!top.some((u) => u.id === userId)) {
+      myRank = (await prisma.user.count({ where: { chips: { gt: me.chips } } })) + 1;
+      meRow = toRow(me);
+    }
+  } else if (board === "today" || board === "week") {
+    const start = board === "today" ? vegasDayStart() : vegasWeekStart();
+    subtitle =
+      board === "today"
+        ? "Net winnings since midnight, Vegas time — side bets and jackpots included"
+        : "Net winnings since Monday midnight, Vegas time";
+    const rounds = await prisma.round.findMany({
+      where: { status: "settled", settledAt: { gte: start } },
+      select: {
+        userId: true,
+        netResult: true,
+        sideNet: true,
+        user: { select: { name: true } },
+      },
+    });
+    const byUser = new Map<string, { name: string; net: number; count: number }>();
+    let biggest: { name: string; net: number } | null = null;
+    for (const r of rounds) {
+      const net = r.netResult + r.sideNet;
+      const entry = byUser.get(r.userId) ?? {
+        name: r.user.name ?? "Player",
+        net: 0,
+        count: 0,
+      };
+      entry.net += net;
+      entry.count += 1;
+      byUser.set(r.userId, entry);
+      if (net > 0 && (!biggest || net > biggest.net)) {
+        biggest = { name: r.user.name ?? "Player", net };
+      }
+    }
+    const ranked = [...byUser.entries()]
+      .filter(([, e]) => e.count >= MIN_ROUNDS_TO_RANK)
+      .sort((a, b) => b[1].net - a[1].net);
+    const toRow = ([id, e]: (typeof ranked)[number]): RowData => ({
+      id,
+      name: e.name,
+      value: fmtNet(e.net),
+      valueClass: netClass(e.net),
+      detail: `${e.count} rounds`,
+    });
+    rows = ranked.slice(0, TOP_N).map(toRow);
+    const myIdx = ranked.findIndex(([id]) => id === userId);
+    if (myIdx >= TOP_N) {
+      myRank = myIdx + 1;
+      meRow = toRow(ranked[myIdx]);
+    } else if (myIdx === -1 && byUser.has(userId)) {
+      const mine = byUser.get(userId)!;
+      callout = `You've played ${mine.count} of the ${MIN_ROUNDS_TO_RANK} rounds needed to rank ${
+        board === "today" ? "today" : "this week"
+      } (running ${fmtNet(mine.net)}).`;
+    }
+    if (biggest) {
+      callout = `💥 Biggest single win: ${biggest.name}, ${fmtNet(biggest.net)} on one round.${
+        callout ? ` ${callout}` : ""
+      }`;
+    }
+  } else {
+    subtitle = `Best blind-decision accuracy vs the book — ${MIN_DECISIONS_TO_RANK}+ graded decisions to qualify`;
+    const stats = await prisma.trainerStat.findMany({
+      select: {
+        userId: true,
+        right: true,
+        wrong: true,
+        best: true,
+        user: { select: { name: true } },
+      },
+    });
+    const qualified = stats
+      .map((s) => ({
+        id: s.userId,
+        name: s.user.name ?? "Player",
+        volume: s.right + s.wrong,
+        acc: s.right + s.wrong > 0 ? s.right / (s.right + s.wrong) : 0,
+        best: s.best,
+      }))
+      .filter((s) => s.volume >= MIN_DECISIONS_TO_RANK)
+      .sort((a, b) => b.acc - a.acc || b.volume - a.volume);
+    const toRow = (s: (typeof qualified)[number]): RowData => ({
+      id: s.id,
+      name: s.name,
+      value: `${(s.acc * 100).toFixed(1)}%`,
+      detail: `${s.volume.toLocaleString()} decisions · best streak ${s.best}`,
+    });
+    rows = qualified.slice(0, TOP_N).map(toRow);
+    const myIdx = qualified.findIndex((s) => s.id === userId);
+    if (myIdx >= TOP_N) {
+      myRank = myIdx + 1;
+      meRow = toRow(qualified[myIdx]);
+    } else if (myIdx === -1) {
+      const mine = stats.find((s) => s.userId === userId);
+      const vol = mine ? mine.right + mine.wrong : 0;
+      callout = `Grade decisions with the trainer on and the guide hidden — ${vol} of ${MIN_DECISIONS_TO_RANK} banked so far.`;
+    }
+  }
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -82,23 +259,38 @@ export default async function LeaderboardPage() {
           <h1 className="font-display text-3xl font-bold tracking-wide gold-text">
             Leaderboard
           </h1>
-          <p className="mt-1 text-sm text-[var(--cream)]/50">
-            The club&apos;s biggest chip stacks{!inTop && <> · you&apos;re ranked #{myRank}</>}
-          </p>
+          <p className="mt-1 text-sm text-[var(--cream)]/50">{subtitle}</p>
         </div>
 
-        <ul
-          className="fade-up gold-ring mt-8 divide-y divide-[var(--gold)]/10 overflow-hidden rounded-2xl bg-black/25"
-          style={{ animationDelay: "120ms" }}
+        <nav
+          className="fade-up mt-6 flex flex-wrap items-center justify-center gap-1 rounded-full bg-black/30 p-1 gold-ring"
+          style={{ animationDelay: "60ms" }}
         >
-          {top.map((u, i) => row(u, i + 1))}
-          {!inTop && (
-            <>
-              <li className="px-5 py-1.5 text-center text-xs text-[var(--cream)]/30">···</li>
-              {row(me, myRank)}
-            </>
-          )}
-        </ul>
+          {TABS.map((t) => (
+            <Link
+              key={t.id}
+              href={t.id === "stacks" ? "/leaderboard" : `/leaderboard?board=${t.id}`}
+              className={`rounded-full px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wider transition-colors ${
+                board === t.id
+                  ? "bg-[var(--gold)]/25 text-[var(--gold-bright)]"
+                  : "text-[var(--cream)]/50 hover:text-[var(--cream)]/80"
+              }`}
+            >
+              {t.label}
+            </Link>
+          ))}
+        </nav>
+
+        {callout && (
+          <p
+            className="fade-up mt-4 text-center text-xs text-[var(--cream)]/55"
+            style={{ animationDelay: "90ms" }}
+          >
+            {callout}
+          </p>
+        )}
+
+        <BoardList rows={rows} meRow={meRow} myRank={myRank} userId={userId} />
       </main>
     </div>
   );
