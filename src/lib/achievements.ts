@@ -6,7 +6,7 @@
 
 // Relative import (not "@/") so vitest can load this module without the
 // Next.js alias — same convention as the rest of src/lib.
-import { netResult, type RoundState } from "./blackjack/engine";
+import { netResult, netResultForOwner, type RoundState } from "./blackjack/engine";
 
 export interface AchievementDef {
   slug: string;
@@ -58,6 +58,8 @@ export interface SettleContext {
   winStreak: number;
   /** Lifetime settled rounds INCLUDING this one. */
   roundsPlayed: number;
+  /** Multiplayer: scope the checks to this seat's hands and net (solo = unset). */
+  owner?: number;
 }
 
 const WON = (o: string | null) => o === "win" || o === "blackjack" || o === "even-money";
@@ -69,9 +71,14 @@ const WON = (o: string | null) => o === "win" || o === "blackjack" || o === "eve
 export function earnedThisSettle(ctx: SettleContext): string[] {
   const { state } = ctx;
   const earned: string[] = [];
-  const roundNet = netResult(state);
+  // At a shared table each player earns off their OWN hands and net —
+  // the guest's blackjack must not unlock the host's trophy.
+  const scoped = ctx.owner !== undefined;
+  const roundNet = scoped ? netResultForOwner(state, ctx.owner!) : netResult(state);
   const wonRound = roundNet > 0;
-  const hands = state.hands;
+  const hands = scoped
+    ? state.hands.filter((h) => (h.owner ?? 0) === ctx.owner)
+    : state.hands;
 
   if (ctx.roundsPlayed >= 1) earned.push("first-hand");
   if (ctx.roundsPlayed >= 100) earned.push("grinder-100");

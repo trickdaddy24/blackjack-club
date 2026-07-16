@@ -44,11 +44,54 @@ model Round {
   // Side-bet net for the round (PP/21+3/Lucky Ladies/bust bet stakes vs
   // payouts, plus any jackpot won) — netResult tracks the main game only.
   sideNet   Int       @default(0)
+  // Shared-table round this row records (one row PER PLAYER at settle).
+  // Null = solo. Solo shoe carry-over skips table rounds.
+  tableId   String?
   createdAt DateTime  @default(now())
   settledAt DateTime?
 
   @@index([userId, status])
   @@index([settledAt])
+}
+
+// A shared 2-player table (game-agnostic social layer — gameType decides the
+// engine). Live round state rides in stateJson; per-player Round rows are
+// written only at settle.
+model Table {
+  id            String    @id @default(cuid())
+  gameType      String    @default("blackjack")
+  status        String    @default("open") // "open" (no guest) | "active" | "ended"
+  hostId        String
+  guestId       String?
+  stateJson     String? // current/last shared RoundState (carries the shoe)
+  hostBet       Int       @default(0) // next-round wagers; 0 = not placed yet
+  guestBet      Int       @default(0)
+  hostSideJson  String? // {pp,tp,ll} for the next round
+  guestSideJson String?
+  // Player-phase turn clock; expired = the active hand auto-stands (enforced
+  // lazily by whichever request arrives next)
+  turnDeadline  DateTime?
+  endedReason   String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([hostId, status])
+  @@index([guestId, status])
+}
+
+// Table invite: members-only, 5-minute expiry, superseded when the host
+// invites someone else. Expiry/supersession are enforced lazily on read.
+model Invite {
+  id        String   @id @default(cuid())
+  tableId   String
+  fromId    String
+  toId      String
+  status    String   @default("pending") // pending|accepted|canceled|expired|superseded
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+
+  @@index([toId, status])
+  @@index([tableId, status])
 }
 
 // Server-side strategy-trainer record: blind decisions graded by the API

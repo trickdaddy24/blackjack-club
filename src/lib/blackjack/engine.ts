@@ -159,6 +159,9 @@ export interface HandState {
   llJackpot?: boolean;
   /** Legacy Match the Dealer field — only read at settle for in-flight rounds. */
   mtd?: SideBetResult;
+  /** Seat that owns this hand (multiplayer tables). Absent/0 = solo player.
+   *  Splits copy the owner, so per-player accounting survives them. */
+  owner?: number;
 }
 
 /** A simulated player's hand. Cosmetic bet — never touches the human's chips. */
@@ -324,7 +327,13 @@ function normalizeState(state: RoundState): RoundState {
   return state;
 }
 
-function newHand(cards: Card[], bet: number, fromSplit = false, splitAces = false): HandState {
+function newHand(
+  cards: Card[],
+  bet: number,
+  fromSplit = false,
+  splitAces = false,
+  owner = 0
+): HandState {
   return {
     cards,
     bet,
@@ -334,6 +343,7 @@ function newHand(cards: Card[], bet: number, fromSplit = false, splitAces = fals
     splitAces,
     outcome: null,
     payout: 0,
+    owner,
   };
 }
 
@@ -372,6 +382,11 @@ export interface RoundOptions {
   twentyOnePlusThree?: number;
   /** Lucky Ladies side bet per seat (0 = none). */
   luckyLadies?: number;
+  /** Per-seat main bets (multiplayer tables) — length must equal `seats`;
+   *  overrides `bet` per seat. `bet` still validates as seat 0's wager. */
+  seatBets?: number[];
+  /** Per-seat side bets (multiplayer) — overrides the flat pp/tp/ll values. */
+  seatSideBets?: { pp?: number; tp?: number; ll?: number }[];
   /** Floor promotion in effect at the deal (e.g. "happy-hour" → 2:1 naturals). */
   promo?: string | null;
 }
@@ -430,6 +445,33 @@ export function startRound(
     throw new IllegalActionError("Lucky Ladies bet must be a non-negative integer");
   }
 
+  // Multiplayer: per-seat wagers. Every seat resolves to a main bet plus a
+  // side-bet trio; solo play falls back to the flat values.
+  if (opts.seatBets && opts.seatBets.length !== seats) {
+    throw new IllegalActionError("seatBets must have one entry per seat");
+  }
+  if (opts.seatSideBets && opts.seatSideBets.length !== seats) {
+    throw new IllegalActionError("seatSideBets must have one entry per seat");
+  }
+  const betFor = (i: number) => opts.seatBets?.[i] ?? bet;
+  const sideFor = (i: number) => ({
+    pp: opts.seatSideBets?.[i]?.pp ?? ppBet,
+    tp: opts.seatSideBets?.[i]?.tp ?? tpBet,
+    ll: opts.seatSideBets?.[i]?.ll ?? llBet,
+  });
+  for (let i = 0; i < seats; i++) {
+    const b = betFor(i);
+    const s = sideFor(i);
+    if (!Number.isInteger(b) || b <= 0) {
+      throw new IllegalActionError("Every seat needs a positive integer bet");
+    }
+    for (const v of [s.pp, s.tp, s.ll]) {
+      if (!Number.isInteger(v) || v < 0) {
+        throw new IllegalActionError("Side bets must be non-negative integers");
+      }
+    }
+  }
+
   const { previousShoe } = opts;
   const reuseShoe =
     !!previousShoe &&
@@ -439,18 +481,24 @@ export function startRound(
 
   // Side bets are debited with the deal but paid on the spot, so the main
   // game's staked/payout accounting (and the result banner) excludes them.
-  const debit = (bet + ppBet + tpBet + llBet) * seats;
+  let debit = 0;
+  let mainStaked = 0;
+  for (let i = 0; i < seats; i++) {
+    const side = sideFor(i);
+    debit += betFor(i) + side.pp + side.tp + side.ll;
+    mainStaked += betFor(i);
+  }
   const state: RoundState = {
     shoe: reuseShoe ? [...previousShoe] : createShoe(rng, rules),
     dealer: [],
     dealerRevealed: false,
-    hands: Array.from({ length: seats }, () => newHand([], bet)),
+    hands: Array.from({ length: seats }, (_, i) => newHand([], betFor(i), false, false, i)),
     active: 0,
     phase: "player",
     baseBet: bet,
     insuranceBet: 0,
     splits: 0,
-    staked: bet * seats,
+    staked: mainStaked,
     payoutTotal: 0,
     variant,
     runningCount: reuseShoe ? (opts.previousCount ?? 0) : 0,
@@ -487,65 +535,65 @@ export function startRound(
 
   // Perfect Pairs resolves right at the deal: the seat's own first two cards
   // as a pair — perfect (same rank + suit) > colored (same color) > mixed
-  if (ppBet > 0) {
-    const isRed = (s: Suit) => s === "H" || s === "D";
-    for (const hand of state.hands) {
-      const [c1, c2] = hand.cards;
-      let mult = 0;
-      let label = "no pair";
-      if (c1.rank === c2.rank) {
-        if (c1.suit === c2.suit) {
-          mult = rules.ppPerfect;
-          label = "perfect pair";
-        } else if (isRed(c1.suit) === isRed(c2.suit)) {
-          mult = rules.ppColored;
-          label = "colored pair";
-        } else {
-          mult = rules.ppMixed;
-          label = "mixed pair";
-        }
+  const isRed = (s: Suit) => s === "H" || s === "D";
+  state.hands.forEach((hand, i) => {
+    const stake = sideFor(i).pp;
+    if (stake <= 0) return;
+    const [c1, c2] = hand.cards;
+    let mult = 0;
+    let label = "no pair";
+    if (c1.rank === c2.rank) {
+      if (c1.suit === c2.suit) {
+        mult = rules.ppPerfect;
+        label = "perfect pair";
+      } else if (isRed(c1.suit) === isRed(c2.suit)) {
+        mult = rules.ppColored;
+        label = "colored pair";
+      } else {
+        mult = rules.ppMixed;
+        label = "mixed pair";
       }
-      hand.pp = {
-        bet: ppBet,
-        payout: mult > 0 ? ppBet + ppBet * mult : 0,
-        label,
-      };
     }
-  }
+    hand.pp = {
+      bet: stake,
+      payout: mult > 0 ? stake + stake * mult : 0,
+      label,
+    };
+  });
 
   // 21+3 also resolves at the deal: first two cards + the upcard as a
   // three-card poker hand
-  if (tpBet > 0) {
-    for (const hand of state.hands) {
-      const { mult, label } = evaluate21Plus3(
-        [hand.cards[0], hand.cards[1], upcard],
-        rules
-      );
-      hand.tp = {
-        bet: tpBet,
-        payout: mult > 0 ? tpBet + tpBet * mult : 0,
-        label,
-      };
-    }
-  }
+  state.hands.forEach((hand, i) => {
+    const stake = sideFor(i).tp;
+    if (stake <= 0) return;
+    const { mult, label } = evaluate21Plus3(
+      [hand.cards[0], hand.cards[1], upcard],
+      rules
+    );
+    hand.tp = {
+      bet: stake,
+      payout: mult > 0 ? stake + stake * mult : 0,
+      label,
+    };
+  });
 
   // Lucky Ladies also resolves at the deal: first two cards totaling 20.
   // The QoH-pair jackpot tier waits for settle (dealer blackjack is not
   // public yet during an insurance phase).
-  if (llBet > 0) {
-    for (const hand of state.hands) {
-      const { mult, label, queens } = evaluateLuckyLadies(
-        [hand.cards[0], hand.cards[1]],
-        rules
-      );
-      hand.ll = {
-        bet: llBet,
-        payout: mult > 0 ? llBet + llBet * mult : 0,
-        label,
-      };
-      if (queens) hand.llQueens = true;
-    }
-  }
+  state.hands.forEach((hand, i) => {
+    const stake = sideFor(i).ll;
+    if (stake <= 0) return;
+    const { mult, label, queens } = evaluateLuckyLadies(
+      [hand.cards[0], hand.cards[1]],
+      rules
+    );
+    hand.ll = {
+      bet: stake,
+      payout: mult > 0 ? stake + stake * mult : 0,
+      label,
+    };
+    if (queens) hand.llQueens = true;
+  });
 
   const sideBetPayout = state.hands.reduce(
     (sum, h) => sum + (h.pp?.payout ?? 0) + (h.tp?.payout ?? 0) + (h.ll?.payout ?? 0),
@@ -729,7 +777,7 @@ export function applyAction(state: RoundState, action: PlayerAction): ActionResu
       hand.fromSplit = true;
       hand.splitAces = aces;
 
-      const second = newHand([c2, draw(s)], extra, true, aces);
+      const second = newHand([c2, draw(s)], extra, true, aces, hand.owner ?? 0);
       s.hands.splice(s.active + 1, 0, second);
       s.splits += 1;
       s.staked += extra;
@@ -1039,6 +1087,31 @@ export function sideNetFromState(state: RoundState): number {
   return net;
 }
 
+/**
+ * Per-owner MAIN-GAME net for a settled multiplayer round: this owner's
+ * hands' payouts minus their (possibly doubled/split) bets. Insurance is
+ * round-level and never offered at shared tables, so it's excluded.
+ */
+export function netResultForOwner(state: RoundState, owner: number): number {
+  if (state.phase !== "settled") throw new Error("Round not settled");
+  return state.hands
+    .filter((h) => (h.owner ?? 0) === owner)
+    .reduce((net, h) => net + h.payout - h.bet, 0);
+}
+
+/** Per-owner side-bet net (PP/21+3/LL stakes vs payouts). Jackpot added by
+ *  the API; the bust bet is solo-only and never rides at shared tables. */
+export function sideNetForOwner(state: RoundState, owner: number): number {
+  let net = 0;
+  for (const h of state.hands) {
+    if ((h.owner ?? 0) !== owner) continue;
+    for (const sb of [h.pp, h.tp, h.ll, h.mtd]) {
+      if (sb) net += sb.payout - sb.bet;
+    }
+  }
+  return net;
+}
+
 function cloneState(state: RoundState): RoundState {
   return structuredClone(state);
 }
@@ -1068,6 +1141,8 @@ export interface ClientHand {
   ll?: SideBetResult;
   /** This hand hit the Lucky Ladies progressive jackpot at settle. */
   llJackpot?: boolean;
+  /** Seat that owns this hand (multiplayer tables). Absent = solo. */
+  owner?: number;
 }
 
 export interface ClientBotHand {
@@ -1180,6 +1255,7 @@ export function clientView(state: RoundState): ClientView {
         ...(h.tp ? { tp: h.tp } : {}),
         ...(h.ll ? { ll: h.ll } : {}),
         ...(h.llJackpot ? { llJackpot: true } : {}),
+        ...(h.owner !== undefined ? { owner: h.owner } : {}),
       };
     }),
     bots: state.bots.map((b) => {

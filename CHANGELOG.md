@@ -5,6 +5,41 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the `VERSION` fi
 
 ---
 
+## [0.21.0] — 2026-07-16
+
+### Added
+- **Duo Table — the Club's first real multiplayer.** Host + one invited
+  friend at the SAME table: shared shoe, own chips, own bets, full side bets
+  (Perfect Pairs / 21+3 / Lucky Ladies incl. the progressive — a shared
+  table can win the pot). Built from the 7-decision design grill:
+  - **Invites**: members-only, in-app bell + email (Gmail SMTP, env-gated —
+    in-app-only until `SMTP_USER`/`SMTP_PASS` are set). The seat is held
+    **5 minutes**; inviting someone else supersedes the hold; the host can
+    cancel it.
+  - **Turn clock**: 30 seconds per decision with an on-seat countdown —
+    expiry auto-stands, enforced lazily by the next poll (no cron).
+  - **Host controls everything**: kick the guest or end the table (between
+    rounds); the guest can leave; either way the table survives for the host.
+  - **Sync**: 1.5s polling — turn-based blackjack needs nothing heavier.
+  - Not at shared tables (documented in the launcher): insurance/even money
+    (auto-declined) and the Dealer Bust bet (solo-only).
+- **Engine: per-seat wagers + hand ownership** — `seatBets`/`seatSideBets`
+  options and an `owner` on every hand (splits inherit it), plus
+  `netResultForOwner`/`sideNetForOwner`. The deal debits BOTH players in one
+  transaction; settle pays each seat exactly its own hands.
+- **Every stat still counts**: settle writes one Round row per player
+  (`Round.tableId` marks them; solo shoe carry skips shared shoes), so
+  leaderboards, win streaks, and achievements all track duo play — scoped
+  per owner, so the guest's blackjack can't unlock the host's trophy.
+- New `Table`/`Invite` models; `/table` launcher; invite bell in the TopBar;
+  6 new engine tests (**176 total**, engine 122).
+- E2E: a full two-session round (25 assertions) — invite → supersede → join,
+  turn locks both directions, exact per-player chip deltas with mixed side
+  bets, the 30s clock settling an abandoned round, kick lockout — plus a
+  dual-browser Playwright pass on the live UI.
+
+---
+
 ## [0.20.1] — 2026-07-16
 
 ### Fixed

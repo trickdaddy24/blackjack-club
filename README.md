@@ -1,8 +1,8 @@
 ﻿# ♠ Blackjack Club
 
-[![Version](https://img.shields.io/badge/version-0.20.1-blue)](./VERSION)
+[![Version](https://img.shields.io/badge/version-0.21.0-blue)](./VERSION)
 [![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
-[![Tests](https://img.shields.io/badge/tests-170%20passing-brightgreen)](./src/lib/blackjack/engine.test.ts)
+[![Tests](https://img.shields.io/badge/tests-176%20passing-brightgreen)](./src/lib/blackjack/engine.test.ts)
 
 A play-money blackjack site in the spirit of Zynga Poker — real casino rules, persistent
 chip balances, daily free chips, and a dim, gold-on-felt "midnight table" aesthetic.
@@ -102,6 +102,7 @@ tournaments, themes, and retention mechanics.
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 0.21.0 | 2026-07-16 | **Duo Table — first real multiplayer.** Invite a member (in-app bell + email, seat held 5 min, invites supersede), share one shoe with own chips/bets/side bets incl. the progressive, 30s turn clock with auto-stand, host kick/end controls, 1.5s polling. Engine grew per-seat wagers + hand ownership; every leaderboard/streak/achievement counts duo play per player. 176 tests. |
 | 0.20.1 | 2026-07-16 | Turnstile site key plumbed through the Docker build (build arg from host `.env`) — the human check is now live on `/register`. |
 | 0.20.0 | 2026-07-16 | **Pit Boss console** (`/admin`, admin-role only, 404-invisible otherwise) — searchable players with audited chip adjustments / ban–unban / trophy grants, bot signals, bulk purge of never-played accounts, full audit log; promotion is shell-only. **Registration defense**: honeypot, 3-per-IP-hour rate limit, disposable-email blocklist, and Cloudflare Turnstile (activates when keys are set). Bans also kill existing sessions. 170 tests. |
 | 0.19.0 | 2026-07-15 | **Achievements** — 20 server-awarded trophies (first hand → Chip Millionaire → the Queen's Crown jackpot), a **Trophy Case** on the profile with win-streak stats, 🏆 counts on every leaderboard row, and unlock toasts with a coin fanfare. **Wild Card Club gets full sound** (every play voiced, shared mute switch) + its hydration flash fixed. Admin console designed (`docs/ADMIN-CONSOLE.md`), not yet built. 162 tests. |

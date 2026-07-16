@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { HelpCircle, Spade, LogOut, Trophy, User } from "lucide-react";
+import { HelpCircle, Spade, LogOut, Trophy, User, Users } from "lucide-react";
 import { auth } from "@/auth";
 import { logout } from "@/lib/actions";
+import { InviteBell } from "@/components/InviteBell";
 
 export async function TopBar() {
   const session = await auth();
@@ -24,6 +25,15 @@ export async function TopBar() {
             >
               Table
             </Link>
+            <Link
+              href="/table"
+              className="flex items-center gap-1.5 uppercase tracking-widest text-[var(--cream)]/70 hover:text-[var(--gold-bright)] transition-colors"
+              title="Shared table — invite a friend"
+            >
+              <Users className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Duo</span>
+            </Link>
+            <InviteBell />
             <Link
               href="/leaderboard"
               className="flex items-center gap-1.5 uppercase tracking-widest text-[var(--cream)]/70 hover:text-[var(--gold-bright)] transition-colors"

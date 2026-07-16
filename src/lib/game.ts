@@ -74,8 +74,10 @@ export interface PreviousCarry {
  * Pre-0.4.0 rounds have no variant/count → classic, 0 (documented in CHANGELOG).
  */
 export async function getPreviousCarry(userId: string): Promise<PreviousCarry | null> {
+  // Table rounds carry their shoe inside the Table row — solo play must not
+  // continue a SHARED shoe (both players would see identical future cards).
   const last = await prisma.round.findFirst({
-    where: { userId },
+    where: { userId, tableId: null },
     orderBy: { createdAt: "desc" },
     select: { stateJson: true },
   });

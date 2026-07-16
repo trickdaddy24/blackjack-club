@@ -1289,3 +1289,93 @@ describe("v0.4.0 compat", () => {
     expect(view.variant).toBe("classic");
   });
 });
+
+// ---------------------------------------------------------------------------
+// Multiplayer: per-seat bets/side bets + hand ownership (v0.21.0)
+// ---------------------------------------------------------------------------
+
+import { netResultForOwner, sideNetForOwner } from "./engine";
+
+describe("multiplayer seats", () => {
+  // 2 seats deal order: s0, s1, up, s0, s1, hole
+  const twoSeatShoe = (...cards: Card[]) => shoeFor(...cards);
+
+  it("per-seat bets: staked/debit sum, owners assigned", () => {
+    const { state, debit } = startRound(0 + 25, {
+      previousShoe: twoSeatShoe(c("5"), c("9"), c("6"), c("7"), c("8"), c("2")),
+      seats: 2,
+      seatBets: [25, 100],
+    });
+    expect(debit).toBe(125);
+    expect(state.staked).toBe(125);
+    expect(state.hands[0].bet).toBe(25);
+    expect(state.hands[1].bet).toBe(100);
+    expect(state.hands[0].owner).toBe(0);
+    expect(state.hands[1].owner).toBe(1);
+  });
+
+  it("per-seat side bets resolve independently and only where staked", () => {
+    // seat0 gets a mixed pair (5C,5D... colored? C+D: C black, D red -> mixed)
+    const { state, debit } = startRound(25, {
+      previousShoe: twoSeatShoe(c("5", "C"), c("9"), c("6", "H"), c("5", "D"), c("K"), c("2")),
+      seats: 2,
+      seatBets: [25, 25],
+      seatSideBets: [{ pp: 10 }, {}],
+    });
+    expect(debit).toBe(60); // 25+25 main + 10 pp
+    expect(state.hands[0].pp?.label).toBe("mixed pair");
+    expect(state.hands[0].pp?.payout).toBe(10 + 10 * 5);
+    expect(state.hands[1].pp).toBeUndefined();
+  });
+
+  it("rejects seatBets length mismatch and non-positive seat bets", () => {
+    expect(() => startRound(10, { seats: 2, seatBets: [10] })).toThrow(IllegalActionError);
+    expect(() => startRound(10, { seats: 2, seatBets: [10, 0] })).toThrow(IllegalActionError);
+  });
+
+  it("split copies the owner and per-owner nets add up", () => {
+    // seat0: 8,8 (split), seat1: K,Q stands. dealer 9,7=16 then draws 10 -> bust 26? 
+    // Keep simple: dealer 9,7 = 16, draws 2 -> 18.
+    // seat0 splits 8s: split hands draw Q (18) and 9 (17) -> both lose to 18? 18 push/17 lose.
+    // 2-seat deal order: s0c1, s1c1, up, s0c2, s1c2, hole
+    const { state } = startRound(25, {
+      previousShoe: shoeFor(
+        c("8", "C"), c("K"), c("9"), c("8", "D"), c("Q"), c("7"),
+        c("Q", "H"), c("9", "H"), // split draws
+        c("2") // dealer hits 16 -> 18
+      ),
+      seats: 2,
+      seatBets: [25, 50],
+    });
+    expect(state.hands[0].cards).toEqual([c("8", "C"), c("8", "D")]);
+    let s = applyAction(state, "split").state; // seat0 splits
+    // finish seat0 hands (stand both), then seat1 stands
+    while (s.phase === "player") {
+      s = applyAction(s, "stand").state;
+    }
+    expect(s.phase).toBe("settled");
+    const splitOwners = s.hands.filter((h) => (h.owner ?? 0) === 0);
+    expect(splitOwners.length).toBe(2); // both split hands owned by seat 0
+    // dealer 9+7+2 = 18: 8Q=18 push (+0), 8+9=17 lose (-25); seat1 K+Q=20 win (+50)
+    expect(netResultForOwner(s, 0)).toBe(-25);
+    expect(netResultForOwner(s, 1)).toBe(50);
+  });
+
+  it("sideNetForOwner isolates each owner", () => {
+    const { state } = startRound(25, {
+      previousShoe: twoSeatShoe(c("5", "C"), c("9"), c("6", "H"), c("5", "D"), c("K"), c("2")),
+      seats: 2,
+      seatBets: [25, 25],
+      seatSideBets: [{ pp: 10 }, { tp: 5 }],
+    });
+    // seat0 pp mixed pair: +50 net; seat1 tp (6H,K + up 9): no hand -> -5
+    expect(sideNetForOwner(state, 0)).toBe(50);
+    expect(sideNetForOwner(state, 1)).toBe(-5);
+  });
+
+  it("solo play is unchanged (no owners in options -> owner 0, flat bets)", () => {
+    const { state, debit } = startRound(10, shoeFor(c("5"), c("9"), c("6"), c("7")));
+    expect(debit).toBe(10);
+    expect(state.hands[0].owner).toBe(0);
+  });
+});
