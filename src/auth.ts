@@ -21,6 +21,7 @@ const providers: Provider[] = [
       });
 
       if (!user || !user.password) return null;
+      if (user.role === "banned") return null;
 
       const valid = await bcrypt.compare(
         credentials.password as string,
@@ -70,7 +71,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           select: { role: true, name: true, image: true },
         });
 
-        if (!dbUser) {
+        // Deleted AND banned users lose the session on their next request —
+        // the JWT can't be revoked, so we hollow it out here instead.
+        if (!dbUser || dbUser.role === "banned") {
           return { ...token, id: undefined, role: undefined };
         }
 

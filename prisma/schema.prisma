@@ -71,6 +71,19 @@ model Jackpot {
   updatedAt DateTime @updatedAt
 }
 
+// Audit trail for the pit-boss console — every mutating admin action writes
+// a row. detail is JSON ({amount, reason, before, after, ...}).
+model AdminAction {
+  id        String   @id @default(cuid())
+  adminId   String
+  action    String // "chips-adjust" | "role-set" | "achievement-grant" | "achievement-revoke" | "purge"
+  targetId  String?
+  detail    String
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
+
 // One row per unlocked achievement. The catalog (names, conditions, art)
 // lives in code (src/lib/achievements.ts) — the DB only records the unlock.
 model Achievement {

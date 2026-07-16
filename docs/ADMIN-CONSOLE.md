@@ -1,8 +1,14 @@
-# Admin Console — Design (no code yet)
+# Admin Console — Design
 
-Design document for a pit-boss console at `/admin`. Nothing here is built;
-this captures scope, auth, and data model decisions so implementation is a
-mechanical follow-up. Requested 2026-07-15 ("no code, but admin console for BJ").
+Design document for the pit-boss console at `/admin`. Requested 2026-07-15
+("no code, but admin console for BJ").
+
+> **Status (v0.20.0, 2026-07-16):** slice 1 SHIPPED — players page (search,
+> audited chip adjust, ban/unban, trophy grant/revoke), signals cards, bulk
+> purge, `/admin/audit`, `scripts/promote-admin.js`, plus registration
+> defense (honeypot / rate limit / disposable blocklist / Turnstile).
+> Still open from this doc: round inspector (`/admin/rounds`), house
+> dashboard (`/admin/house`, jackpot override, force-promo).
 
 ## Why
 

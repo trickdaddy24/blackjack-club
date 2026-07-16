@@ -2,11 +2,16 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import Script from "next/script";
 import { useRouter } from "next/navigation";
 import { Spade, Loader2, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { register } from "@/lib/actions";
 import { getPasswordStrength } from "@/lib/password";
+
+// Cloudflare Turnstile — inlined at build; the widget renders only when the
+// site key is configured, so the defense can ship ahead of the key.
+const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -128,6 +133,19 @@ export default function RegisterPage() {
                 placeholder="••••••••"
               />
             </div>
+
+            {/* Honeypot — humans never see it, autofill bots do */}
+            <div aria-hidden="true" className="absolute -left-[9999px] top-0 h-0 w-0 overflow-hidden">
+              <label htmlFor="website">Website</label>
+              <input id="website" name="website" type="text" tabIndex={-1} autoComplete="off" />
+            </div>
+
+            {TURNSTILE_SITE_KEY && (
+              <>
+                <Script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer />
+                <div className="cf-turnstile" data-sitekey={TURNSTILE_SITE_KEY} data-theme="dark" />
+              </>
+            )}
 
             <button type="submit" disabled={loading} className="action-btn primary w-full !py-3">
               {loading ? (

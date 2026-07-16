@@ -1,8 +1,8 @@
 ﻿# ♠ Blackjack Club
 
-[![Version](https://img.shields.io/badge/version-0.19.0-blue)](./VERSION)
+[![Version](https://img.shields.io/badge/version-0.20.0-blue)](./VERSION)
 [![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
-[![Tests](https://img.shields.io/badge/tests-162%20passing-brightgreen)](./src/lib/blackjack/engine.test.ts)
+[![Tests](https://img.shields.io/badge/tests-170%20passing-brightgreen)](./src/lib/blackjack/engine.test.ts)
 
 A play-money blackjack site in the spirit of Zynga Poker — real casino rules, persistent
 chip balances, daily free chips, and a dim, gold-on-felt "midnight table" aesthetic.
@@ -102,6 +102,7 @@ tournaments, themes, and retention mechanics.
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 0.20.0 | 2026-07-16 | **Pit Boss console** (`/admin`, admin-role only, 404-invisible otherwise) — searchable players with audited chip adjustments / ban–unban / trophy grants, bot signals, bulk purge of never-played accounts, full audit log; promotion is shell-only. **Registration defense**: honeypot, 3-per-IP-hour rate limit, disposable-email blocklist, and Cloudflare Turnstile (activates when keys are set). Bans also kill existing sessions. 170 tests. |
 | 0.19.0 | 2026-07-15 | **Achievements** — 20 server-awarded trophies (first hand → Chip Millionaire → the Queen's Crown jackpot), a **Trophy Case** on the profile with win-streak stats, 🏆 counts on every leaderboard row, and unlock toasts with a coin fanfare. **Wild Card Club gets full sound** (every play voiced, shared mute switch) + its hydration flash fixed. Admin console designed (`docs/ADMIN-CONSOLE.md`), not yet built. 162 tests. |
 | 0.18.0 | 2026-07-15 | **Four leaderboards** — High Rollers, Today, and This Week (net winnings on the Vegas clock, side bets + jackpots included via the new `sideNet` column, 10-round minimum, biggest-single-win callout), plus **Strategy Masters**: server-graded blind-decision accuracy vs the book, 100 decisions to qualify. 149 tests. |
 | 0.17.0 | 2026-07-15 | **House Rules hub at `/rules`** — public rules for every game in the Club: full new pages for Spades (bidding, bags, Deuces High), Roulette (both wheels, every payout), and Wild Card (actions, last-card penalty, scoring), all written from the engines. TopBar Rules now lands on the hub. |

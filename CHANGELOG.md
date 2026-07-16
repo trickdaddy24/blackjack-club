@@ -5,6 +5,40 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the `VERSION` fi
 
 ---
 
+## [0.20.0] — 2026-07-16
+
+### Added
+- **Pit Boss console at `/admin`** (admin role only; 404s for everyone else,
+  invisible in the UI) — first slice of `docs/ADMIN-CONSOLE.md`:
+  - **Players** — searchable list with chips, rounds, trophies, streak, role;
+    per-player **chip adjustments**, **ban/unban**, **trophy grant/revoke** —
+    every action requires a typed reason
+  - **Signals** — total players, joined-24h, never-played, banned counts
+    (burst thresholds highlight red)
+  - **Bulk purge** — delete never-played `user`-role accounts older than N
+    days (re-checks conditions inside the delete)
+  - **Audit log at `/admin/audit`** — every console action recorded
+    (actor, target, before/after, reason)
+  - Admin promotion is deliberately shell-only: `scripts/promote-admin.js`
+    (`docker exec blackjack node scripts/promote-admin.js <email>`)
+  - Chip adjustments touch `User.chips` only, never Round rows — the
+    daily/weekly boards can't read a top-up as winnings
+- **Registration defense** — four layers on `/register`:
+  - honeypot field (bots that autofill it get a fake success)
+  - per-IP sliding-window rate limit (3 accounts/hour, runs before content
+    checks so junk attempts burn the budget)
+  - disposable-email domain blocklist
+  - **Cloudflare Turnstile** — active the moment `TURNSTILE_SECRET_KEY` /
+    `NEXT_PUBLIC_TURNSTILE_SITE_KEY` are set (fails closed when enabled);
+    ships dark until the CF widget key is created
+- **Ban enforcement** — banned accounts can't log in, and existing JWT
+  sessions are hollowed out on their next request (the jwt callback already
+  re-checked the DB per request; banned now invalidates like deleted).
+- 8 new tests (limiter window math, disposable matching, Turnstile
+  fail-closed/inert modes) — **170 total**.
+
+---
+
 ## [0.19.0] — 2026-07-15
 
 ### Added

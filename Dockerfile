@@ -23,6 +23,8 @@ COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
 # The prisma CLI requires the full @prisma scope (engines, get-platform, …)
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
+# Operator scripts (admin promotion via `docker exec blackjack node scripts/...`)
+COPY --from=builder /app/scripts ./scripts
 
 EXPOSE 7600
 
