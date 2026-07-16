@@ -5,6 +5,27 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the `VERSION` fi
 
 ---
 
+## [0.22.0] — 2026-07-16
+
+### Added
+- **Settle receipt in the result banner** — every wager that rode the round,
+  settled line by line: main game, each side bet (with the winning tier's
+  name), the **Dealer Bust bet** (the double confirmation — it was
+  toast-only before), the progressive jackpot, and a bold round total. The
+  banner's verdict (YOU WIN / HOUSE WINS) now reflects the WHOLE round, not
+  just the main game.
+- **Rolling win meter** — wins count up from zero with a filling gold bar.
+  Big wins (3× your stake back, or any jackpot) get the full celebration:
+  flash animation, ✨ BIG WIN banner, and layered coin-cascade sounds on top
+  of the fanfare. Losses keep their sound and get no meter.
+- **Card-counting panel v3** — a real needle gauge for the true count
+  (cold→hot color arc, sprung needle animation), a shoe-depletion donut
+  showing decks remaining, and the read spelled out at all times
+  (🔥 HOT — bet bigger / ❄️ COLD — table min / NEUTRAL). The whole panel
+  pulses green when the shoe runs hot.
+
+---
+
 ## [0.21.1] — 2026-07-16
 
 ### Added

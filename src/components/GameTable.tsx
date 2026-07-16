@@ -113,55 +113,106 @@ interface CountInfo {
 }
 
 /**
- * Hi-Lo count, visualized: color-coded running/true count, a hot–cold meter
- * for the true count, shoe depletion, and what the count means for your bet.
+ * Hi-Lo count, visualized (v3): a real needle gauge for the true count with
+ * cold→hot color zones, a shoe-depletion donut, and always-readable advice.
+ * The panel glows when the shoe runs hot — you can feel it from across the
+ * room, which is the point of a count you can SEE.
  */
 function CountPanel({ count }: { count: CountInfo }) {
   const tc = count.trueCount;
+  const rc = count.runningCount;
   const mood = tc >= 2 ? "hot" : tc <= -1 ? "cold" : "even";
-  const color =
-    mood === "hot" ? "text-emerald-300" : mood === "cold" ? "text-red-300" : "text-[var(--cream)]/70";
+  const moodColor = mood === "hot" ? "#34d399" : mood === "cold" ? "#f87171" : "#cbb98a";
   const advice =
-    mood === "hot"
-      ? "The shoe is rich in tens and aces — the book says bet bigger."
-      : mood === "cold"
-        ? "The shoe is rich in small cards — bet the table minimum."
-        : "Neutral shoe — flat-bet the minimum.";
-  const meterPct = ((Math.max(-5, Math.min(5, tc)) + 5) / 10) * 100;
-  const shoePct = Math.max(4, Math.min(100, (count.decksRemaining / 6) * 100));
+    mood === "hot" ? "HOT — bet bigger" : mood === "cold" ? "COLD — table min" : "NEUTRAL — flat bet";
+  const adviceIcon = mood === "hot" ? "🔥" : mood === "cold" ? "❄️" : "•";
+
+  // Needle: TC −5..+5 → −80°..+80°
+  const clamped = Math.max(-5, Math.min(5, tc));
+  const angle = (clamped / 5) * 80;
+
+  // Shoe donut: 6-deck shoe depletion (r=9 → circumference ≈ 56.5)
+  const shoeFrac = Math.max(0.04, Math.min(1, count.decksRemaining / 6));
+  const C = 2 * Math.PI * 9;
+
   return (
     <div
-      className="gold-ring flex items-center gap-2 rounded-full bg-black/40 px-3 py-1.5 font-mono text-[11px] tabular-nums"
-      title={`Hi-Lo: running count ${count.runningCount > 0 ? "+" : ""}${count.runningCount}, true count ${tc > 0 ? "+" : ""}${tc} (running ÷ ${count.decksRemaining} decks left). ${advice}`}
+      className={`gold-ring flex items-center gap-2.5 rounded-2xl bg-black/50 px-3 py-1 ${mood === "hot" ? "bj-count-hot" : ""}`}
+      title={`Hi-Lo: running count ${rc > 0 ? "+" : ""}${rc}; true count = running ÷ ${count.decksRemaining} decks left. High counts mean the shoe is rich in tens and aces.`}
     >
-      <span className={color}>
-        RC {count.runningCount > 0 ? "+" : ""}
-        {count.runningCount}
-      </span>
-      <span className="text-[var(--cream)]/40">·</span>
-      <span className={`font-bold ${color}`}>
-        TC {tc > 0 ? "+" : ""}
-        {tc}
-      </span>
-      <span className="relative h-1.5 w-16 overflow-hidden rounded-full bg-gradient-to-r from-red-500/70 via-slate-500/40 to-emerald-400/70">
-        <span
-          className="absolute top-0 h-full w-[3px] -translate-x-1/2 rounded-full bg-white shadow-[0_0_5px_rgba(255,255,255,0.9)]"
-          style={{ left: `${meterPct}%` }}
+      {/* True-count needle gauge */}
+      <svg width="66" height="38" viewBox="0 0 66 38" aria-label={`True count ${tc}`}>
+        <defs>
+          <linearGradient id="bj-tc-arc" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stopColor="#f87171" />
+            <stop offset="45%" stopColor="#64748b" />
+            <stop offset="60%" stopColor="#cbb98a" />
+            <stop offset="100%" stopColor="#34d399" />
+          </linearGradient>
+        </defs>
+        <path
+          d="M 6 33 A 27 27 0 0 1 60 33"
+          fill="none"
+          stroke="url(#bj-tc-arc)"
+          strokeWidth="5"
+          strokeLinecap="round"
+          opacity="0.85"
         />
-      </span>
-      <span className={`text-[10px] font-bold uppercase tracking-wider ${color}`}>{mood}</span>
-      <span
-        className="flex items-center gap-1 text-[var(--cream)]/50"
-        title={`${count.decksRemaining} of 6 decks left in the shoe`}
-      >
-        <span className="relative h-1.5 w-9 overflow-hidden rounded-full bg-black/70">
-          <span
-            className="absolute inset-y-0 left-0 rounded-full bg-[var(--gold)]/80"
-            style={{ width: `${shoePct}%` }}
-          />
+        {/* tick at TC 0 */}
+        <line x1="33" y1="4" x2="33" y2="9" stroke="#ffffff55" strokeWidth="1" />
+        <g style={{ transform: `rotate(${angle}deg)`, transformOrigin: "33px 33px", transition: "transform 600ms cubic-bezier(.3,1.4,.5,1)" }}>
+          <line x1="33" y1="33" x2="33" y2="10" stroke="#fff" strokeWidth="2" strokeLinecap="round" />
+          <circle cx="33" cy="33" r="3" fill="#fff" />
+        </g>
+        <text x="33" y="26" textAnchor="middle" fontSize="9" fontFamily="monospace" fontWeight="bold" fill={moodColor}>
+          {tc > 0 ? `+${tc}` : tc}
+        </text>
+      </svg>
+
+      {/* RC + shoe donut */}
+      <div className="flex flex-col items-center leading-none">
+        <span className="font-mono text-[11px] tabular-nums" style={{ color: moodColor }}>
+          RC {rc > 0 ? "+" : ""}
+          {rc}
         </span>
-        {count.decksRemaining}d
+        <span className="mt-1 flex items-center gap-1" title={`${count.decksRemaining} of 6 decks left in the shoe`}>
+          <svg width="22" height="22" viewBox="0 0 22 22">
+            <circle cx="11" cy="11" r="9" fill="none" stroke="#00000090" strokeWidth="3.5" />
+            <circle
+              cx="11"
+              cy="11"
+              r="9"
+              fill="none"
+              stroke="var(--gold)"
+              strokeWidth="3.5"
+              strokeLinecap="round"
+              strokeDasharray={`${C * shoeFrac} ${C}`}
+              transform="rotate(-90 11 11)"
+              style={{ transition: "stroke-dasharray 500ms ease" }}
+            />
+            <text x="11" y="14" textAnchor="middle" fontSize="7.5" fontFamily="monospace" fill="#f3e9d2">
+              {count.decksRemaining}
+            </text>
+          </svg>
+          <span className="font-mono text-[9px] text-[var(--cream)]/45">decks</span>
+        </span>
+      </div>
+
+      {/* the read, always visible */}
+      <span
+        className="rounded-lg px-2 py-1 text-[10px] font-bold uppercase tracking-wider"
+        style={{ color: moodColor, background: `${moodColor}1a`, border: `1px solid ${moodColor}40` }}
+      >
+        {adviceIcon} {advice}
       </span>
+
+      <style>{`
+        @keyframes bj-count-hot-pulse {
+          0%, 100% { box-shadow: 0 0 4px 0 rgba(52, 211, 153, 0.35); }
+          50% { box-shadow: 0 0 14px 2px rgba(52, 211, 153, 0.65); }
+        }
+        .bj-count-hot { animation: bj-count-hot-pulse 1.6s ease-in-out infinite; }
+      `}</style>
     </div>
   );
 }
@@ -514,6 +565,8 @@ export function GameTable() {
   const [trainer, setTrainer] = useState(false);
   const [trainerStats, setTrainerStats] = useState<TrainerStats>(EMPTY_TRAINER_STATS);
   const [jackpot, setJackpot] = useState<number | null>(null);
+  /** Progressive won on the CURRENT round — feeds the result receipt. */
+  const [wonJackpot, setWonJackpot] = useState(0);
   /** Per-seat opt-out for the strategy guide (master lightbulb still rules). */
   const [handHints, setHandHints] = useState<boolean[]>([true, true, true]);
   const [showSign, setShowSign] = useState(true);
@@ -694,6 +747,7 @@ export function GameTable() {
 
   /** The rarest moment in the club: Queen of Hearts pair + dealer blackjack. */
   function celebrateJackpot(amount: number) {
+    setWonJackpot(amount); // feeds the result receipt
     sounds.blackjack(0.2);
     sounds.coins(0.6);
     toast.success(
@@ -824,6 +878,7 @@ export function GameTable() {
   function newHand() {
     setRound(null);
     setPendingBet(0);
+    setWonJackpot(0);
   }
 
   const settled = round?.phase === "settled";
@@ -1242,6 +1297,8 @@ export function GameTable() {
             {settled && round && (
               <ResultBanner
                 net={round.netResult ?? 0}
+                round={round}
+                jackpotWon={wonJackpot}
                 onNext={newHand}
                 disabled={busy}
                 chips={chips ?? 0}
@@ -1373,30 +1430,155 @@ export function GameTable() {
   );
 }
 
+/** One line of the settle receipt. */
+function ReceiptRow({ label, value, hot }: { label: string; value: number; hot?: boolean }) {
+  return (
+    <div className="flex items-baseline justify-between gap-6 text-xs">
+      <span className={hot ? "font-bold text-[var(--gold-bright)]" : "text-[var(--cream)]/60"}>
+        {label}
+      </span>
+      <span
+        className={`font-mono tabular-nums ${
+          value > 0 ? "text-[var(--gold-bright)]" : value < 0 ? "text-red-300/85" : "text-[var(--cream)]/45"
+        }`}
+      >
+        {value > 0 ? `+${value.toLocaleString()}` : value.toLocaleString()}
+      </span>
+    </div>
+  );
+}
+
+/**
+ * Rolling win meter: counts the total up from zero with a filling gold bar.
+ * Big wins (3× your stake back, or a jackpot) get the full celebration —
+ * layered coin cascades on top of the win fanfare. Losses keep their sound
+ * and get no meter; the arcade warble is confirmation enough.
+ */
+function WinMeter({ total, big }: { total: number; big: boolean }) {
+  const [shown, setShown] = useState(0);
+  useEffect(() => {
+    if (big) {
+      sounds.sideBet(0.35);
+      sounds.coins(1.0);
+    }
+    const started = performance.now();
+    const dur = big ? 1600 : 1000;
+    let raf: number;
+    const step = (t: number) => {
+      const p = Math.min(1, (t - started) / dur);
+      const eased = 1 - Math.pow(1 - p, 3);
+      setShown(Math.round(total * eased));
+      if (p < 1) raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [total, big]);
+
+  const pct = total > 0 ? (shown / total) * 100 : 0;
+  return (
+    <div className={`w-56 ${big ? "bj-bigwin" : ""}`}>
+      <div className="text-center font-display text-2xl font-black tabular-nums gold-text">
+        +{shown.toLocaleString()}
+      </div>
+      <div className="mt-1 h-2 overflow-hidden rounded-full bg-black/50">
+        <div
+          className="h-full rounded-full bg-gradient-to-r from-[var(--gold)] to-amber-200"
+          style={{ width: `${pct}%`, boxShadow: "0 0 8px rgba(212,175,55,0.8)" }}
+        />
+      </div>
+      {big && (
+        <div className="mt-1 text-center text-[10px] font-bold uppercase tracking-[0.3em] text-amber-200">
+          ✨ Big win ✨
+        </div>
+      )}
+      <style>{`
+        @keyframes bj-bigwin-flash {
+          0%, 100% { filter: drop-shadow(0 0 4px rgba(212,175,55,0.5)); }
+          50% { filter: drop-shadow(0 0 16px rgba(212,175,55,0.95)); }
+        }
+        .bj-bigwin { animation: bj-bigwin-flash 900ms ease-in-out 3; }
+      `}</style>
+    </div>
+  );
+}
+
 function ResultBanner({
   net,
+  round,
+  jackpotWon,
   onNext,
   disabled,
   chips,
   onTip,
 }: {
   net: number;
+  round: ClientView;
+  jackpotWon: number;
   onNext: () => void;
   disabled: boolean;
   chips: number;
   onTip: (amount: number) => void;
 }) {
-  const title = net > 0 ? "YOU WIN" : net < 0 ? "HOUSE WINS" : "PUSH";
+  // The receipt: every wager that rode this round, settled line by line —
+  // the "did I actually win that?" double confirmation.
+  const sideRows: { label: string; value: number }[] = [];
+  const addSide = (name: string, results: { bet: number; payout: number; label: string }[]) => {
+    if (results.length === 0) return;
+    const netSide = results.reduce((n, r) => n + r.payout - r.bet, 0);
+    const hit = results.find((r) => r.payout > 0);
+    sideRows.push({
+      label: hit ? `${name} — ${hit.label}` : name,
+      value: netSide,
+    });
+  };
+  addSide("Perfect Pairs", round.hands.flatMap((h) => (h.pp ? [h.pp] : [])));
+  addSide("21+3", round.hands.flatMap((h) => (h.tp ? [h.tp] : [])));
+  addSide("Lucky Ladies", round.hands.flatMap((h) => (h.ll ? [h.ll] : [])));
+
+  const bustBet = round.bustBet ?? 0;
+  const bustNet = bustBet > 0 ? (round.bustPayout ?? 0) - bustBet : 0;
+  const total = net + sideRows.reduce((n, r) => n + r.value, 0) + bustNet + jackpotWon;
+  const hasReceipt = sideRows.length > 0 || bustBet > 0 || jackpotWon > 0;
+
+  const staked = round.staked || 1;
+  const bigWin = total > 0 && (jackpotWon > 0 || total >= staked * 3);
+  const title = total > 0 ? "YOU WIN" : total < 0 ? "HOUSE WINS" : "PUSH";
+
   return (
     <div className="result-banner mx-auto mt-3 flex flex-col items-center gap-2">
       <div className="font-display text-3xl font-black tracking-[0.15em]">
-        <span className={net > 0 ? "gold-text" : net < 0 ? "text-red-300/90" : "text-[var(--cream-dim)]"}>
+        <span className={total > 0 ? "gold-text" : total < 0 ? "text-red-300/90" : "text-[var(--cream-dim)]"}>
           {title}
         </span>
       </div>
-      <div className="text-sm tabular-nums text-[var(--cream)]/70">
-        {net > 0 ? `+${net.toLocaleString()} chips` : net < 0 ? `${net.toLocaleString()} chips` : "Your bet is returned"}
-      </div>
+
+      {total > 0 ? (
+        <WinMeter total={total} big={bigWin} />
+      ) : (
+        <div className="text-sm tabular-nums text-[var(--cream)]/70">
+          {total < 0 ? `${total.toLocaleString()} chips` : "Your bet is returned"}
+        </div>
+      )}
+
+      {hasReceipt && (
+        <div className="mt-1 w-56 space-y-1 rounded-xl bg-black/35 px-3.5 py-2.5 gold-ring">
+          <ReceiptRow label="Main game" value={net} />
+          {sideRows.map((r) => (
+            <ReceiptRow key={r.label} label={r.label} value={r.value} />
+          ))}
+          {bustBet > 0 && (
+            <ReceiptRow
+              label={bustNet > 0 ? "🔥 Dealer Bust bet — dealer BUSTED" : "🔥 Dealer Bust bet"}
+              value={bustNet}
+            />
+          )}
+          {jackpotWon > 0 && <ReceiptRow label="👑 PROGRESSIVE JACKPOT" value={jackpotWon} hot />}
+          <div className="border-t border-[var(--gold)]/20 pt-1">
+            <ReceiptRow label="Round total" value={total} hot />
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center gap-1.5 text-xs text-[var(--cream)]/50">
         <HandCoins className="h-3.5 w-3.5" />
         Tip the dealer

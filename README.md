@@ -1,6 +1,6 @@
 ﻿# ♠ Blackjack Club
 
-[![Version](https://img.shields.io/badge/version-0.21.1-blue)](./VERSION)
+[![Version](https://img.shields.io/badge/version-0.22.0-blue)](./VERSION)
 [![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
 [![Tests](https://img.shields.io/badge/tests-176%20passing-brightgreen)](./src/lib/blackjack/engine.test.ts)
 
@@ -102,6 +102,7 @@ tournaments, themes, and retention mechanics.
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 0.22.0 | 2026-07-16 | **Settle receipt** in the result banner (main game + every side bet + **Dealer Bust bet** + jackpot, line by line with a round total — the verdict now covers the whole round), a **rolling win meter** with big-win celebrations (losses untouched), and **card-counting v3**: true-count needle gauge, shoe donut, always-visible read, hot-shoe pulse. |
 | 0.21.1 | 2026-07-16 | Duo Table invite **emails live via Resend** — sends as `Blackjack Club <reply@minus-one-labs.com>`; Gmail SMTP fallback retained. |
 | 0.21.0 | 2026-07-16 | **Duo Table — first real multiplayer.** Invite a member (in-app bell + email, seat held 5 min, invites supersede), share one shoe with own chips/bets/side bets incl. the progressive, 30s turn clock with auto-stand, host kick/end controls, 1.5s polling. Engine grew per-seat wagers + hand ownership; every leaderboard/streak/achievement counts duo play per player. 176 tests. |
 | 0.20.1 | 2026-07-16 | Turnstile site key plumbed through the Docker build (build arg from host `.env`) — the human check is now live on `/register`. |
