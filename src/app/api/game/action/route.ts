@@ -16,6 +16,13 @@ import {
   settleLuckyLadiesPot,
 } from "@/lib/game";
 import { withHint } from "@/lib/blackjack/strategy";
+import {
+  earnedFromTrainer,
+  earnedThisSettle,
+  nextWinStreak,
+  type AchievementDef,
+} from "@/lib/achievements";
+import { awardAchievements } from "@/lib/game-achievements";
 
 const ACTIONS: PlayerAction[] = [
   "hit",
@@ -73,14 +80,15 @@ export async function POST(req: Request) {
 
   const { state: next, debit } = result;
 
-  if (debit > 0) {
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { chips: true },
-    });
-    if (!user || user.chips < debit) {
-      return NextResponse.json({ error: "Not enough chips" }, { status: 400 });
-    }
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { chips: true, winStreak: true, bestWinStreak: true },
+  });
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  if (debit > 0 && user.chips < debit) {
+    return NextResponse.json({ error: "Not enough chips" }, { status: 400 });
   }
 
   const settled = next.phase === "settled";
@@ -100,10 +108,22 @@ export async function POST(req: Request) {
     jackpotWon +
     (settled ? next.payoutTotal + (next.bustPayout ?? 0) : 0);
 
+  // Win streak: wins extend, losses reset, pushes carry (main game only)
+  const roundNet = settled ? netResult(next) : 0;
+  const newStreak = settled ? nextWinStreak(user.winStreak, roundNet) : user.winStreak;
+
   const [updated] = await prisma.$transaction([
     prisma.user.update({
       where: { id: userId },
-      data: { chips: { increment: chipDelta } },
+      data: {
+        chips: { increment: chipDelta },
+        ...(settled
+          ? {
+              winStreak: newStreak,
+              bestWinStreak: Math.max(user.bestWinStreak, newStreak),
+            }
+          : {}),
+      },
       select: { chips: true },
     }),
     prisma.round.update({
@@ -118,11 +138,19 @@ export async function POST(req: Request) {
     }),
   ]);
 
-  // Record the graded blind decision (non-critical — outside the game tx)
+  // Trophies + trainer bookkeeping happen after the game tx (non-critical)
+  const unlocked: AchievementDef[] = [];
+
+  // Record the graded blind decision
   if (bookPlay) {
     const correct = action === bookPlay;
     const existing = await prisma.trainerStat.findUnique({ where: { userId } });
     const streak = correct ? (existing?.streak ?? 0) + 1 : 0;
+    const stat = {
+      right: (existing?.right ?? 0) + (correct ? 1 : 0),
+      wrong: (existing?.wrong ?? 0) + (correct ? 0 : 1),
+      best: Math.max(existing?.best ?? 0, streak),
+    };
     await prisma.trainerStat.upsert({
       where: { userId },
       create: {
@@ -136,14 +164,33 @@ export async function POST(req: Request) {
         right: { increment: correct ? 1 : 0 },
         wrong: { increment: correct ? 0 : 1 },
         streak,
-        best: Math.max(existing?.best ?? 0, streak),
+        best: stat.best,
       },
     });
+    unlocked.push(...(await awardAchievements(userId, earnedFromTrainer(stat))));
+  }
+
+  if (settled) {
+    const roundsPlayed = await prisma.round.count({
+      where: { userId, status: "settled" },
+    });
+    const paidThisSettle =
+      next.payoutTotal + (next.bustPayout ?? 0) + jackpotWon;
+    const earned = earnedThisSettle({
+      state: next,
+      jackpotWon,
+      chipsAfter: updated.chips,
+      chipsBeforePayout: updated.chips - paidThisSettle,
+      winStreak: newStreak,
+      roundsPlayed,
+    });
+    unlocked.push(...(await awardAchievements(userId, earned)));
   }
 
   return NextResponse.json({
     chips: updated.chips,
     round: withHint(next, clientView(next)),
     ...(jackpotWon > 0 ? { jackpotWon } : {}),
+    ...(unlocked.length > 0 ? { unlocked } : {}),
   });
 }

@@ -35,6 +35,14 @@ interface TrainerStats {
   best: number;
 }
 
+/** Server-awarded achievement riding along on a bet/action response. */
+interface UnlockedAchievement {
+  slug: string;
+  name: string;
+  emoji: string;
+  description: string;
+}
+
 const EMPTY_TRAINER_STATS: TrainerStats = { right: 0, wrong: 0, streak: 0, best: 0 };
 
 function loadTrainerStats(): TrainerStats {
@@ -596,6 +604,7 @@ export function GameTable() {
         shuffled?: boolean;
         jackpot?: number;
         jackpotWon?: number;
+        unlocked?: UnlockedAchievement[];
       }>("/api/game/bet", {
         bet: pendingBet,
         hands: seats,
@@ -630,6 +639,7 @@ export function GameTable() {
         sounds.sideBet(dealt * 0.13 + 0.15);
       }
       if (r.round.phase === "settled") playResult(r.round, dealt * 0.13 + 0.3);
+      celebrateUnlocks(r.unlocked);
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
@@ -666,6 +676,20 @@ export function GameTable() {
     } finally {
       setBusy(false);
     }
+  }
+
+  /** Trophy unlock — one toast per achievement, staggered, with a fanfare. */
+  function celebrateUnlocks(unlocked: UnlockedAchievement[] | undefined) {
+    if (!unlocked?.length) return;
+    sounds.coins(0.9);
+    unlocked.forEach((a, i) => {
+      setTimeout(() => {
+        toast.success(`${a.emoji} Achievement unlocked — ${a.name}`, {
+          description: a.description,
+          duration: 9000,
+        });
+      }, 900 + i * 700);
+    });
   }
 
   /** The rarest moment in the club: Queen of Hearts pair + dealer blackjack. */
@@ -733,10 +757,12 @@ export function GameTable() {
     // Blind + trainer on → the server also grades it for Strategy Masters
     const blind = trainer && !hintVisible;
     try {
-      const r = await api<{ chips: number; round: ClientView; jackpotWon?: number }>(
-        "/api/game/action",
-        { action, blind }
-      );
+      const r = await api<{
+        chips: number;
+        round: ClientView;
+        jackpotWon?: number;
+        unlocked?: UnlockedAchievement[];
+      }>("/api/game/action", { action, blind });
       if (expected) gradeDecision(action, expected, reason, !hintVisible);
       applyResponse(r);
       if ((r.jackpotWon ?? 0) > 0) celebrateJackpot(r.jackpotWon!);
@@ -763,6 +789,7 @@ export function GameTable() {
           }
         }
       }
+      celebrateUnlocks(r.unlocked);
     } catch (e) {
       toast.error((e as Error).message);
     } finally {

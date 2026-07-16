@@ -41,6 +41,8 @@ interface RowData {
   valueClass?: string;
   /** Small middle detail (member-since, rounds played, decision volume). */
   detail?: string;
+  /** Achievements unlocked — rendered as a 🏆 chip after the name. */
+  trophies?: number;
 }
 
 function BoardList({
@@ -68,6 +70,11 @@ function BoardList({
         </span>
         <span className="flex-1 truncate font-display font-semibold text-[var(--cream)]/90">
           {r.name}
+          {(r.trophies ?? 0) > 0 && (
+            <span className="ml-2 rounded-full bg-black/30 px-1.5 py-0.5 text-[10px] font-semibold text-[var(--cream)]/60">
+              🏆 {r.trophies}
+            </span>
+          )}
           {isMe && (
             <span className="ml-2 rounded bg-[var(--gold)]/20 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[var(--gold-bright)]">
               you
@@ -248,6 +255,19 @@ export default async function LeaderboardPage({
       const vol = mine ? mine.right + mine.wrong : 0;
       callout = `Grade decisions with the trainer on and the guide hidden — ${vol} of ${MIN_DECISIONS_TO_RANK} banked so far.`;
     }
+  }
+
+  // Trophy chips: one grouped count for everyone actually shown
+  const shownIds = [...rows.map((r) => r.id), ...(meRow ? [meRow.id] : [])];
+  if (shownIds.length > 0) {
+    const counts = await prisma.achievement.groupBy({
+      by: ["userId"],
+      where: { userId: { in: shownIds } },
+      _count: true,
+    });
+    const trophyMap = new Map(counts.map((c) => [c.userId, c._count]));
+    for (const r of rows) r.trophies = trophyMap.get(r.id) ?? 0;
+    if (meRow) meRow.trophies = trophyMap.get(meRow.id) ?? 0;
   }
 
   return (

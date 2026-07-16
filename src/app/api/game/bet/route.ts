@@ -22,6 +22,8 @@ import {
 import { withHint } from "@/lib/blackjack/strategy";
 import { currentTableMinimum } from "@/lib/tableMinimum";
 import { currentPromo } from "@/lib/promotions";
+import { earnedThisSettle, nextWinStreak } from "@/lib/achievements";
+import { awardAchievements } from "@/lib/game-achievements";
 
 const VARIANTS: Variant[] = ["classic", "spanish21"];
 
@@ -167,10 +169,23 @@ export async function POST(req: Request) {
   const chipDelta =
     -debit + (sideBetPayout ?? 0) + jackpotWon + (settled ? state.payoutTotal : 0);
 
+  // Win streak: only rounds that settle on the deal (naturals/dealer BJ)
+  // move it here — everything else settles in the action route.
+  const roundNet = settled ? netResult(state) : 0;
+  const newStreak = settled ? nextWinStreak(user.winStreak, roundNet) : user.winStreak;
+
   const [updated] = await prisma.$transaction([
     prisma.user.update({
       where: { id: userId },
-      data: { chips: { increment: chipDelta } },
+      data: {
+        chips: { increment: chipDelta },
+        ...(settled
+          ? {
+              winStreak: newStreak,
+              bestWinStreak: Math.max(user.bestWinStreak, newStreak),
+            }
+          : {}),
+      },
       select: { chips: true },
     }),
     prisma.round.create({
@@ -186,11 +201,33 @@ export async function POST(req: Request) {
     }),
   ]);
 
+  // Deal-settled rounds (naturals, dealer blackjack) run trophy checks here;
+  // everything else earns at settle in the action route.
+  let unlocked: Awaited<ReturnType<typeof awardAchievements>> = [];
+  if (settled) {
+    const roundsPlayed = await prisma.round.count({
+      where: { userId, status: "settled" },
+    });
+    const paidThisSettle = (sideBetPayout ?? 0) + jackpotWon + state.payoutTotal;
+    unlocked = await awardAchievements(
+      userId,
+      earnedThisSettle({
+        state,
+        jackpotWon,
+        chipsAfter: updated.chips,
+        chipsBeforePayout: updated.chips - paidThisSettle,
+        winStreak: newStreak,
+        roundsPlayed,
+      })
+    );
+  }
+
   return NextResponse.json({
     chips: updated.chips,
     round: withHint(state, clientView(state)),
     shuffled: shuffled === true,
     jackpot,
     jackpotWon,
+    ...(unlocked.length > 0 ? { unlocked } : {}),
   });
 }

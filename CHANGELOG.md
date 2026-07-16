@@ -5,6 +5,44 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the `VERSION` fi
 
 ---
 
+## [0.19.0] — 2026-07-15
+
+### Added
+- **Achievements** — 20 trophies awarded server-side at settle time, from
+  "Welcome to the Club" (first round) to "Chip Millionaire" (1M stack),
+  "The Queen's Crown" (Lucky Ladies jackpot), "Nerves of Steel" (all-in win),
+  "Bust Prophet" (cash a Dealer Bust bet), "Golden Hour" (2:1 blackjack
+  during Happy Hour) and trainer trophies ("Book Smart" 25-streak,
+  "By the Book" 90%+ over 100 blind decisions). Catalog + pure earn-checks
+  in `src/lib/achievements.ts`; the DB stores only `(userId, slug,
+  unlockedAt)`. Unlocks ride along on the bet/action responses and land as
+  staggered golden toasts with a coin fanfare.
+- **Trophy Case on the profile** — full 20-trophy grid (locked ones dimmed
+  with how-to-earn hints), plus new **Win streak** (current · best) and
+  **Trophies** stat cards.
+- **Win-streak tracking** — `User.winStreak` / `bestWinStreak` maintained in
+  the settle transaction: wins extend, losses reset, pushes carry. Powers
+  the "Heating Up" (5) and "On Fire" (10) trophies.
+- **Trophy chips on every leaderboard row** — 🏆 count next to each name.
+- **Wild Card Club has sound** — the club's synthesized Web Audio kit now
+  voices `/wildcard`: deal riffle, card swishes for every play (bots too),
+  a color-call chime on wilds, a snap on skip/reverse/draw-2, penalty draws,
+  hand-win fanfare and a game-over warble. One central state-diff effect in
+  `useWildcard` catches every transition; a 🔊 topbar toggle shares the
+  club-wide mute switch.
+- `docs/ADMIN-CONSOLE.md` — full design for a `/admin` pit-boss console
+  (players, chip adjustments with audit log, round inspector, house
+  dashboard, jackpot override). Design only, by request — no code yet.
+- 13 new tests (achievement earn-checks, trainer thresholds, streak
+  transitions) — **162 total**.
+
+### Fixed
+- `/wildcard` hydration mismatch — the opening deal is random, so SSR and
+  client rendered different cards and React regenerated the whole tree on
+  every load. The table now renders after mount only.
+
+---
+
 ## [0.18.0] — 2026-07-15
 
 ### Added

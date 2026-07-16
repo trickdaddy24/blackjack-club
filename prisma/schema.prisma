@@ -19,13 +19,18 @@ model User {
   chips          Int       @default(10000)
   dealerTips     Int       @default(0)
   lastDailyBonus DateTime?
+  // Consecutive winning rounds (pushes don't break the run) — settle-time
+  // bookkeeping so streak achievements never need to scan history.
+  winStreak      Int       @default(0)
+  bestWinStreak  Int       @default(0)
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
-  accounts    Account[]
-  sessions    Session[]
-  rounds      Round[]
-  trainerStat TrainerStat?
+  accounts     Account[]
+  sessions     Session[]
+  rounds       Round[]
+  trainerStat  TrainerStat?
+  achievements Achievement[]
 }
 
 model Round {
@@ -64,6 +69,17 @@ model Jackpot {
   name      String   @id
   amount    Int
   updatedAt DateTime @updatedAt
+}
+
+// One row per unlocked achievement. The catalog (names, conditions, art)
+// lives in code (src/lib/achievements.ts) — the DB only records the unlock.
+model Achievement {
+  userId     String
+  slug       String
+  unlockedAt DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, slug])
 }
 
 model Account {

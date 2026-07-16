@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
+import { sounds } from "@/lib/sound";
 import type { Color } from "@/wildcard/engine/cards";
 import { COLOR_NAME, COLORS } from "@/wildcard/engine/cards";
 import { canPlay } from "@/wildcard/engine/rules";
@@ -16,6 +18,19 @@ const WC_VERSION = process.env.NEXT_PUBLIC_APP_VERSION ?? "0.12.0";
 export default function WildcardPage() {
   const g = useWildcard();
   const { state } = g;
+  // Shares the club-wide mute switch (same localStorage key as blackjack)
+  const [muted, setMutedState] = useState(false);
+  // The deal is random, so SSR and client produce different cards — render
+  // the table only after mount so hydration always matches.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMutedState(sounds.muted);
+    setMounted(true);
+  }, []);
+  const toggleMute = () => {
+    sounds.setMuted(!muted);
+    setMutedState(!muted);
+  };
   const top = topCard(state);
   const myHand = state.hands[HUMAN_SEAT];
   const canAct = g.humansTurn && !g.humanDrawnPending && !g.pendingWild;
@@ -24,6 +39,8 @@ export default function WildcardPage() {
     const c = myHand.find((x) => x.id === cardId)!;
     return canAct && canPlay(c, top.kind, state.activeColor);
   };
+
+  if (!mounted) return <div className="wildcard-app" />;
 
   return (
     <div className="wildcard-app">
@@ -40,6 +57,14 @@ export default function WildcardPage() {
             <span className="scores__target">to {state.targetScore}</span>
           </div>
           <div style={{ display: "flex", gap: 8 }}>
+            <button
+              className="topbar__new"
+              onClick={toggleMute}
+              title={muted ? "Unmute sounds" : "Mute sounds"}
+              aria-label={muted ? "Unmute sounds" : "Mute sounds"}
+            >
+              {muted ? "🔇" : "🔊"}
+            </button>
             <button className="topbar__new" onClick={g.restart}>New game</button>
             <Link className="topbar__new" href="/" style={{ textDecoration: "none" }}>♠ Club</Link>
           </div>

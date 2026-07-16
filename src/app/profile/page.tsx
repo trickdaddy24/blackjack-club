@@ -1,8 +1,9 @@
 import { redirect } from "next/navigation";
-import { Coins, TrendingUp, Layers, Trophy } from "lucide-react";
+import { Coins, TrendingUp, Layers, Trophy, Flame } from "lucide-react";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { TopBar } from "@/components/TopBar";
+import { ACHIEVEMENTS } from "@/lib/achievements";
 
 export const metadata = {
   title: "Your Record — Blackjack Club",
@@ -12,10 +13,16 @@ export default async function ProfilePage() {
   const session = await auth();
   if (!session?.user?.id) redirect("/login");
 
-  const [user, agg, wins, biggest] = await Promise.all([
+  const [user, agg, wins, biggest, trophies] = await Promise.all([
     prisma.user.findUnique({
       where: { id: session.user.id },
-      select: { name: true, chips: true, createdAt: true },
+      select: {
+        name: true,
+        chips: true,
+        createdAt: true,
+        winStreak: true,
+        bestWinStreak: true,
+      },
     }),
     prisma.round.aggregate({
       where: { userId: session.user.id, status: "settled" },
@@ -30,6 +37,10 @@ export default async function ProfilePage() {
       orderBy: { netResult: "desc" },
       select: { netResult: true },
     }),
+    prisma.achievement.findMany({
+      where: { userId: session.user.id },
+      select: { slug: true, unlockedAt: true },
+    }),
   ]);
 
   if (!user) redirect("/login");
@@ -43,6 +54,16 @@ export default async function ProfilePage() {
     { icon: Layers, label: "Hands played", value: hands.toLocaleString() },
     { icon: TrendingUp, label: "Win rate", value: hands > 0 ? `${winRate}%` : "—" },
     { icon: Trophy, label: "Biggest win", value: biggest ? `+${biggest.netResult.toLocaleString()}` : "—" },
+    {
+      icon: Flame,
+      label: "Win streak",
+      value: hands > 0 ? `${user.winStreak} · best ${user.bestWinStreak}` : "—",
+    },
+    {
+      icon: Trophy,
+      label: "Trophies",
+      value: `${trophies.length} / ${ACHIEVEMENTS.length}`,
+    },
   ];
 
   return (
@@ -62,7 +83,7 @@ export default async function ProfilePage() {
           </p>
         </div>
 
-        <div className="fade-up mt-8 grid grid-cols-2 gap-3 sm:grid-cols-4" style={{ animationDelay: "120ms" }}>
+        <div className="fade-up mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3" style={{ animationDelay: "120ms" }}>
           {stats.map(({ icon: Icon, label, value }) => (
             <div key={label} className="gold-ring rounded-xl bg-black/25 px-3 py-5 text-center">
               <Icon className="mx-auto mb-2 h-4 w-4 text-[var(--gold)]/70" />
@@ -74,9 +95,51 @@ export default async function ProfilePage() {
           ))}
         </div>
 
+        <TrophyCase unlocked={trophies} />
+
         <RecentHands userId={session.user.id} />
       </main>
     </div>
+  );
+}
+
+function TrophyCase({
+  unlocked,
+}: {
+  unlocked: { slug: string; unlockedAt: Date }[];
+}) {
+  const bySlug = new Map(unlocked.map((t) => [t.slug, t.unlockedAt]));
+  return (
+    <section className="fade-up mt-10" style={{ animationDelay: "180ms" }}>
+      <h2 className="mb-3 font-display text-sm font-bold uppercase tracking-[0.3em] text-[var(--cream)]/60">
+        Trophy Case
+      </h2>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        {ACHIEVEMENTS.map((a) => {
+          const at = bySlug.get(a.slug);
+          return (
+            <div
+              key={a.slug}
+              className={`gold-ring rounded-xl px-3 py-4 text-center ${
+                at ? "bg-[var(--gold)]/10" : "bg-black/25 opacity-45 grayscale"
+              }`}
+              title={a.description}
+            >
+              <div className="text-2xl leading-none">{a.emoji}</div>
+              <div className="mt-2 font-display text-sm font-bold gold-text">{a.name}</div>
+              <div className="mt-1 text-[11px] leading-snug text-[var(--cream)]/55">
+                {a.description}
+              </div>
+              <div className="mt-1.5 text-[10px] uppercase tracking-wider text-[var(--cream)]/40">
+                {at
+                  ? at.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+                  : "Locked"}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 

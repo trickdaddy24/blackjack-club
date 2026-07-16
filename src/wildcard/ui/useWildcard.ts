@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Card, Color } from "../engine/cards";
-import { isWild } from "../engine/cards";
+import { isNumber, isWild } from "../engine/cards";
+import { sounds } from "@/lib/sound";
 import { botChooseColor, botPlay } from "../engine/bots";
 import {
   HUMAN_SEAT, dealNextHand, drawCard, keepDrawn, newGame, playCard, playDrawn,
@@ -30,6 +31,52 @@ export function useWildcard() {
 
   // Reset the declare toggle whenever a new hand starts.
   useEffect(() => { setDeclareArmed(false); }, [state.handNumber]);
+
+  // Sound effects — every move (human AND bot) funnels through setState, so
+  // one central diff of consecutive states voices the whole table. Reuses the
+  // club's synthesized Web Audio kit and its shared mute switch.
+  const soundPrev = useRef(state);
+  useEffect(() => {
+    const prev = soundPrev.current;
+    soundPrev.current = state;
+    if (state === prev) return;
+
+    // Fresh hand hitting the felt — riffle covers the whole deal
+    if (state.handNumber !== prev.handNumber && state.phase === "playing") {
+      sounds.shuffle();
+      return;
+    }
+
+    if (state.phase === "gameOver" && prev.phase !== "gameOver") {
+      if (state.winner === HUMAN_SEAT) sounds.blackjack();
+      else sounds.lose();
+      return;
+    }
+    if (state.phase === "handComplete" && prev.phase === "playing") {
+      if (state.lastHandResult?.winner === HUMAN_SEAT) sounds.win();
+      else sounds.push();
+      return;
+    }
+    if (state.phase !== "playing") return;
+
+    // Cards drawn anywhere this transition (plain draws, +2/+4 penalties)
+    const drawn = state.hands.reduce(
+      (n, h, i) => n + Math.max(0, h.length - (prev.hands[i]?.length ?? 0)),
+      0
+    );
+
+    // A card hit the discard pile
+    if (state.discard.length > prev.discard.length) {
+      sounds.deal();
+      const top = state.discard[state.discard.length - 1];
+      if (isWild(top)) sounds.chip(0.08); // wild — color-call chime
+      else if (!isNumber(top)) sounds.flip(0.06); // skip/reverse/draw-2 snap
+      for (let i = 0; i < Math.min(drawn, 4); i++) sounds.deal(0.15 + i * 0.09);
+      return;
+    }
+
+    for (let i = 0; i < Math.min(drawn, 4); i++) sounds.deal(i * 0.09);
+  }, [state]);
 
   // Advance bots.
   useEffect(() => {
