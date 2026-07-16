@@ -22,14 +22,12 @@ it **significantly more fun and engaging** while keeping the play-money spirit.
    (format, scheduling, prize structure).
 5. **Head-to-head challenge** — "same 20 hands, same shoe" vs a friend; the
    deterministic engine makes identical shoes trivial.
-6. **Invite-a-friend multiplayer table** (Kendall 2026-07-16) — player 1
-   invites player 2 by email; invite lives 5 minutes or until canceled /
-   replaced with another user; both sit the SAME table/shoe. Feasible today:
-   engine is server-authoritative + multi-seat already; needs a Table entity
-   (shared shoe, per-USER hands, turn lock), SSE or polling for live sync,
-   an Invite row (expiresAt = +5min, cancel/supersede), email via SMTP
-   (Notifier pattern) + in-app fallback, and turn timers (auto-stand ~30s)
-   for walk-aways. Est. 2–3 evenings for 2-player. Grill the details first.
+6. **Invite-a-friend multiplayer table** ✅ *(v0.21.0 — Duo Table: 2 players,
+   members-only invites w/ 5-min hold + supersede, in-app bell + env-gated
+   email, 30s auto-stand clock, host kick/end, full side bets incl. the
+   progressive, per-player rounds/streaks/achievements. The Table/Invite
+   social layer is game-agnostic — Spades/Wild Card multiplayer = engine
+   port only.)*
 
 ### Deepening the game
 7. **Pro book (Illustrious 18)** — opt-in count deviations, graded separately.
