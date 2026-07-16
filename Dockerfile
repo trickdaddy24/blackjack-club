@@ -5,6 +5,11 @@ COPY package.json package-lock.json ./
 RUN npm ci
 
 COPY . .
+# NEXT_PUBLIC_* vars are inlined at build time, and .env is dockerignored —
+# the Turnstile site key must arrive as a build arg (compose passes it from
+# the host .env). The secret key stays runtime-only via env_file.
+ARG NEXT_PUBLIC_TURNSTILE_SITE_KEY=""
+ENV NEXT_PUBLIC_TURNSTILE_SITE_KEY=$NEXT_PUBLIC_TURNSTILE_SITE_KEY
 RUN npm run build
 
 FROM node:22-alpine

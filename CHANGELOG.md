@@ -5,6 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the `VERSION` fi
 
 ---
 
+## [0.20.1] — 2026-07-16
+
+### Fixed
+- **Turnstile site key now reaches the production build** — `.env` is
+  dockerignored, so the `NEXT_PUBLIC_*` inline never happened; the compose
+  file now passes `NEXT_PUBLIC_TURNSTILE_SITE_KEY` as a build arg
+  (interpolated from the host `.env`). Secret key stays runtime-only.
+  Turnstile is ACTIVE on /register as of this deploy.
+
+---
+
 ## [0.20.0] — 2026-07-16
 
 ### Added

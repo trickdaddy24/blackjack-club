@@ -1,6 +1,10 @@
 services:
   blackjack:
-    build: .
+    build:
+      context: .
+      args:
+        # compose interpolates this from the project .env at build time
+        NEXT_PUBLIC_TURNSTILE_SITE_KEY: ${NEXT_PUBLIC_TURNSTILE_SITE_KEY:-}
     container_name: blackjack
     restart: unless-stopped
     env_file: .env
