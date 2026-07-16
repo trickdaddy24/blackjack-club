@@ -23,6 +23,8 @@ import {
   type AchievementDef,
 } from "@/lib/achievements";
 import { awardAchievements } from "@/lib/game-achievements";
+import { settleEventFor } from "@/lib/quests";
+import { progressQuestsAtSettle } from "@/lib/quests-io";
 
 const ACTIONS: PlayerAction[] = [
   "hit",
@@ -185,6 +187,7 @@ export async function POST(req: Request) {
       roundsPlayed,
     });
     unlocked.push(...(await awardAchievements(userId, earned)));
+    await progressQuestsAtSettle(userId, settleEventFor(next));
   }
 
   return NextResponse.json({

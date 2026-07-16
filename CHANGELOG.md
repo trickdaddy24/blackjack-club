@@ -5,6 +5,29 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the `VERSION` fi
 
 ---
 
+## [0.23.0] — 2026-07-17
+
+### Added
+- **Daily quests** — three per Vegas day: Grinder's Shift (settle 5 rounds)
+  is always on the board, plus two rotating picks from an 8-quest catalog
+  (win 3, win 2 in a row, blackjack, side-bet hit, doubled win, duo round,
+  bust-bet call). Rewards (500–1,000 chips) pay the instant a quest
+  completes; progress advances on every settle — solo AND shared tables,
+  scoped per seat. Quest pills with live progress meters sit above the felt
+  (`QuestsBar`, 6s poll, completion toast + coins).
+- **Login streaks** — claiming the daily bonus on consecutive Vegas days
+  grows a streak that boosts the bonus **+250/day up to +1,750** (Midnight
+  Madness doubles the boosted total). Streak flame shown in the quest bar.
+- **Board champions** — when a daily/weekly leaderboard window closes, the
+  top qualified player is crowned automatically: **+2,500 daily /
+  +10,000 weekly**, the new 👑 Board Champion trophy (catalog is now 21),
+  and a champions strip on the leaderboard. No cron: the first board view
+  after the window closes triggers the crowning (idempotent, race-safe).
+- New `QuestProgress`/`BoardAward` tables, `User.loginStreak`; Vegas
+  calendar-key helpers in `lib/leaderboard.ts`; 8 new tests (**184 total**).
+
+---
+
 ## [0.22.0] — 2026-07-16
 
 ### Added

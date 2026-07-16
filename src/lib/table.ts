@@ -32,6 +32,8 @@ import {
 } from "@/lib/game";
 import { earnedThisSettle, nextWinStreak, type AchievementDef } from "@/lib/achievements";
 import { awardAchievements } from "@/lib/game-achievements";
+import { settleEventFor } from "@/lib/quests";
+import { progressQuestsAtSettle } from "@/lib/quests-io";
 
 export const TURN_SECONDS = 30;
 
@@ -206,6 +208,7 @@ async function awardBoth(
       roundsPlayed,
     });
     out.set(r.userId, await awardAchievements(r.userId, earned));
+    await progressQuestsAtSettle(r.userId, settleEventFor(state, r.owner));
   }
   return out;
 }

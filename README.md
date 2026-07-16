@@ -1,8 +1,8 @@
 ﻿# ♠ Blackjack Club
 
-[![Version](https://img.shields.io/badge/version-0.22.0-blue)](./VERSION)
+[![Version](https://img.shields.io/badge/version-0.23.0-blue)](./VERSION)
 [![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
-[![Tests](https://img.shields.io/badge/tests-176%20passing-brightgreen)](./src/lib/blackjack/engine.test.ts)
+[![Tests](https://img.shields.io/badge/tests-184%20passing-brightgreen)](./src/lib/blackjack/engine.test.ts)
 
 A play-money blackjack site in the spirit of Zynga Poker — real casino rules, persistent
 chip balances, daily free chips, and a dim, gold-on-felt "midnight table" aesthetic.
@@ -102,6 +102,7 @@ tournaments, themes, and retention mechanics.
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 0.23.0 | 2026-07-17 | **Daily quests** (3/day on the Vegas clock, instant chip rewards, live progress pills above the felt), **login streaks** boosting the daily bonus +250/day to +1,750, and **board champions** — daily +2,500 / weekly +10,000 crowned automatically when windows close, with a 👑 Board Champion trophy and champions strip. 184 tests. |
 | 0.22.0 | 2026-07-16 | **Settle receipt** in the result banner (main game + every side bet + **Dealer Bust bet** + jackpot, line by line with a round total — the verdict now covers the whole round), a **rolling win meter** with big-win celebrations (losses untouched), and **card-counting v3**: true-count needle gauge, shoe donut, always-visible read, hot-shoe pulse. |
 | 0.21.1 | 2026-07-16 | Duo Table invite **emails live via Resend** — sends as `Blackjack Club <reply@minus-one-labs.com>`; Gmail SMTP fallback retained. |
 | 0.21.0 | 2026-07-16 | **Duo Table — first real multiplayer.** Invite a member (in-app bell + email, seat held 5 min, invites supersede), share one shoe with own chips/bets/side bets incl. the progressive, 30s turn clock with auto-stand, host kick/end controls, 1.5s polling. Engine grew per-seat wagers + hand ownership; every leaderboard/streak/achievement counts duo play per player. 176 tests. |

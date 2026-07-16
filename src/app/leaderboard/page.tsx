@@ -10,6 +10,7 @@ import {
   vegasDayStart,
   vegasWeekStart,
 } from "@/lib/leaderboard";
+import { ensureChampions, latestChampions } from "@/lib/champions";
 
 export const metadata = {
   title: "Leaderboard — Blackjack Club",
@@ -129,6 +130,11 @@ export default async function LeaderboardPage({
 
   const { board: boardParam } = await searchParams;
   const board: Board = (TABS.find((t) => t.id === boardParam)?.id ?? "stacks") as Board;
+
+  // Crown the just-closed windows (lazy, idempotent) and fetch the reigning
+  // champions for the strip
+  await ensureChampions();
+  const champions = await latestChampions();
 
   let rows: RowData[] = [];
   let meRow: RowData | null = null;
@@ -300,6 +306,32 @@ export default async function LeaderboardPage({
             </Link>
           ))}
         </nav>
+
+        {(champions.daily || champions.weekly) && (
+          <p
+            className="fade-up mt-4 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-center text-xs text-[var(--cream)]/60"
+            style={{ animationDelay: "75ms" }}
+          >
+            {champions.daily && (
+              <span>
+                👑 Yesterday&apos;s champion:{" "}
+                <span className="font-semibold text-[var(--gold-bright)]">
+                  {champions.daily.name}
+                </span>{" "}
+                +{champions.daily.amount.toLocaleString()}
+              </span>
+            )}
+            {champions.weekly && (
+              <span>
+                🏆 Last week:{" "}
+                <span className="font-semibold text-[var(--gold-bright)]">
+                  {champions.weekly.name}
+                </span>{" "}
+                +{champions.weekly.amount.toLocaleString()}
+              </span>
+            )}
+          </p>
+        )}
 
         {callout && (
           <p

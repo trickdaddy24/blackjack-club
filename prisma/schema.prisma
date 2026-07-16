@@ -23,6 +23,8 @@ model User {
   // bookkeeping so streak achievements never need to scan history.
   winStreak      Int       @default(0)
   bestWinStreak  Int       @default(0)
+  // Consecutive Vegas days with a claimed daily bonus — boosts the bonus.
+  loginStreak    Int       @default(0)
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
@@ -125,6 +127,34 @@ model AdminAction {
   createdAt DateTime @default(now())
 
   @@index([createdAt])
+}
+
+// Daily-quest progress: one row per player per Vegas day per quest. The
+// catalog and rotation live in code (src/lib/quests.ts); rewards are paid
+// the moment `done` flips.
+model QuestProgress {
+  userId   String
+  day      String // Vegas date key, "2026-07-16"
+  slug     String
+  progress Int     @default(0)
+  done     Boolean @default(false)
+
+  @@id([userId, day, slug])
+  @@index([day])
+}
+
+// Board-champion payouts: one row per closed window per board (amount 0 =
+// evaluated, nobody qualified). Awarded lazily by whoever views the boards
+// first after the window closes.
+model BoardAward {
+  id          String   @id @default(cuid())
+  board       String // "daily" | "weekly"
+  windowStart DateTime
+  userId      String?
+  amount      Int
+  createdAt   DateTime @default(now())
+
+  @@unique([board, windowStart])
 }
 
 // One row per unlocked achievement. The catalog (names, conditions, art)

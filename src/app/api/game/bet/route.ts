@@ -24,6 +24,8 @@ import { currentTableMinimum } from "@/lib/tableMinimum";
 import { currentPromo } from "@/lib/promotions";
 import { earnedThisSettle, nextWinStreak } from "@/lib/achievements";
 import { awardAchievements } from "@/lib/game-achievements";
+import { settleEventFor } from "@/lib/quests";
+import { progressQuestsAtSettle } from "@/lib/quests-io";
 
 const VARIANTS: Variant[] = ["classic", "spanish21"];
 
@@ -220,6 +222,7 @@ export async function POST(req: Request) {
         roundsPlayed,
       })
     );
+    await progressQuestsAtSettle(userId, settleEventFor(state));
   }
 
   return NextResponse.json({

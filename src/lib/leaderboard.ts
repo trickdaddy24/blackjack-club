@@ -61,3 +61,20 @@ export function vegasWeekStart(now: Date = new Date()): Date {
   const { y, m, d } = vegasParts(back);
   return vegasMidnightUTC(y, m, d);
 }
+
+/** Today's Vegas calendar date as a stable key, e.g. "2026-07-16". */
+export function vegasDayKey(now: Date = new Date()): string {
+  const { y, m, d } = vegasParts(now);
+  return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+}
+
+/** Midnight opening YESTERDAY's Vegas day (the just-closed daily window). */
+export function previousVegasDayStart(now: Date = new Date()): Date {
+  // 12h before today's midnight is safely inside yesterday, any DST shift
+  return vegasDayStart(new Date(vegasDayStart(now).getTime() - DAY_MS / 2));
+}
+
+/** Monday midnight opening LAST week (the just-closed weekly window). */
+export function previousVegasWeekStart(now: Date = new Date()): Date {
+  return vegasWeekStart(new Date(vegasWeekStart(now).getTime() - DAY_MS / 2));
+}
