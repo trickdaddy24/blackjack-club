@@ -509,7 +509,11 @@ interface TableState {
   tableMin?: TableMin;
   dealerTips?: number;
   jackpot?: number;
+  winStreak?: number;
 }
+
+/** Chip stack catches fire at this many wins in a row. */
+const FIRE_STREAK = 5;
 
 async function api<T>(path: string, body?: unknown): Promise<T> {
   const res = await fetch(path, {
@@ -547,6 +551,8 @@ function playResult(view: ClientView, delay: number) {
 
 export function GameTable() {
   const [chips, setChips] = useState<number | null>(null);
+  /** Server-tracked consecutive round wins — ≥5 sets the chip stack on fire. */
+  const [winStreak, setWinStreak] = useState(0);
   const [bonusAvailable, setBonusAvailable] = useState(false);
   const [round, setRound] = useState<ClientView | null>(null);
   const [pendingBet, setPendingBet] = useState(0);
@@ -605,6 +611,7 @@ export function GameTable() {
     api<TableState>("/api/game/state")
       .then((s) => {
         setChips(s.chips);
+        if (typeof s.winStreak === "number") setWinStreak(s.winStreak);
         setBonusAvailable(s.bonusAvailable);
         setRound(s.round);
         if (s.tableMin) setTableMin(s.tableMin);
@@ -622,15 +629,19 @@ export function GameTable() {
       .finally(() => setLoading(false));
   }, []);
 
-  const applyResponse = useCallback((r: { chips: number; round: ClientView }) => {
-    setChips(r.chips);
-    setRound(r.round);
-    setCount({
-      runningCount: r.round.runningCount,
-      trueCount: r.round.trueCount,
-      decksRemaining: r.round.decksRemaining,
-    });
-  }, []);
+  const applyResponse = useCallback(
+    (r: { chips: number; round: ClientView; winStreak?: number }) => {
+      setChips(r.chips);
+      setRound(r.round);
+      if (typeof r.winStreak === "number") setWinStreak(r.winStreak);
+      setCount({
+        runningCount: r.round.runningCount,
+        trueCount: r.round.trueCount,
+        decksRemaining: r.round.decksRemaining,
+      });
+    },
+    []
+  );
 
   async function tipDealer(amount: number) {
     setBusy(true);
@@ -891,14 +902,54 @@ export function GameTable() {
     <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col px-3 pb-6 xl:max-w-6xl xl:flex-row xl:items-stretch xl:gap-5">
       <div className="flex w-full min-w-0 flex-1 flex-col">
       <PromoBanner />
-      {/* chips HUD */}
+      {/* chips HUD — on fire while a 5+ win streak is alive */}
       <div className="mb-3 flex items-center justify-between">
-        <div className="gold-ring flex items-center gap-2 rounded-full bg-black/40 px-4 py-1.5">
-          <Coins className="h-4 w-4 text-[var(--gold-bright)]" />
-          <span className="font-display text-lg font-bold gold-text tabular-nums">
+        <div
+          className={`gold-ring flex items-center gap-2 rounded-full bg-black/40 px-4 py-1.5 ${
+            winStreak >= FIRE_STREAK ? "bj-chips-fire" : ""
+          }`}
+          title={
+            winStreak >= FIRE_STREAK
+              ? `${winStreak} wins in a row — you're on fire! (a loss puts it out)`
+              : undefined
+          }
+        >
+          {winStreak >= FIRE_STREAK ? (
+            <span className="bj-fire-flame text-base leading-none">🔥</span>
+          ) : (
+            <Coins className="h-4 w-4 text-[var(--gold-bright)]" />
+          )}
+          <span
+            className={`font-display text-lg font-bold tabular-nums ${
+              winStreak >= FIRE_STREAK ? "bj-fire-text" : "gold-text"
+            }`}
+          >
             {loading || chips === null ? "—" : chips.toLocaleString()}
           </span>
           <span className="text-xs uppercase tracking-widest text-[var(--cream-dim)]/60">chips</span>
+          {winStreak >= FIRE_STREAK && (
+            <span className="rounded-full bg-orange-500/20 px-1.5 text-[10px] font-bold text-orange-300 tabular-nums">
+              {winStreak}🔥
+            </span>
+          )}
+          <style>{`
+            @keyframes bj-chips-flames {
+              0%, 100% { box-shadow: 0 0 6px 1px rgba(251,146,60,.55), 0 -2px 12px 2px rgba(239,68,68,.3); }
+              50% { box-shadow: 0 0 16px 4px rgba(251,146,60,.85), 0 -4px 22px 5px rgba(239,68,68,.5); }
+            }
+            .bj-chips-fire { border-color: rgba(251,146,60,.7) !important; animation: bj-chips-flames 1.1s ease-in-out infinite; }
+            @keyframes bj-flame-flicker {
+              0%, 100% { transform: scale(1) rotate(-3deg); }
+              30% { transform: scale(1.18) rotate(3deg); }
+              60% { transform: scale(0.95) rotate(-2deg); }
+            }
+            .bj-fire-flame { display: inline-block; animation: bj-flame-flicker 700ms ease-in-out infinite; }
+            @keyframes bj-fire-hue {
+              0%, 100% { color: #fbbf24; text-shadow: 0 0 8px rgba(251,146,60,.8); }
+              50% { color: #fb923c; text-shadow: 0 0 14px rgba(239,68,68,.9); }
+            }
+            .bj-fire-text { animation: bj-fire-hue 1.3s ease-in-out infinite; }
+          `}</style>
         </div>
 
         <div className="flex items-center gap-2">

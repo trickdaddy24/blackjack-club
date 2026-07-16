@@ -70,7 +70,12 @@ function BoardList({
           <RankBadge rank={rank} />
         </span>
         <span className="flex-1 truncate font-display font-semibold text-[var(--cream)]/90">
-          {r.name}
+          <Link
+            href={isMe ? "/profile" : `/player/${r.id}`}
+            className="underline-offset-4 hover:text-[var(--gold-bright)] hover:underline"
+          >
+            {r.name}
+          </Link>
           {(r.trophies ?? 0) > 0 && (
             <span className="ml-2 rounded-full bg-black/30 px-1.5 py-0.5 text-[10px] font-semibold text-[var(--cream)]/60">
               🏆 {r.trophies}

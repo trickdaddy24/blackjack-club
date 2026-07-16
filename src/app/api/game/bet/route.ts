@@ -231,6 +231,7 @@ export async function POST(req: Request) {
     shuffled: shuffled === true,
     jackpot,
     jackpotWon,
+    ...(settled ? { winStreak: newStreak } : {}),
     ...(unlocked.length > 0 ? { unlocked } : {}),
   });
 }

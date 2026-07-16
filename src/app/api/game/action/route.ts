@@ -193,6 +193,7 @@ export async function POST(req: Request) {
   return NextResponse.json({
     chips: updated.chips,
     round: withHint(next, clientView(next)),
+    ...(settled ? { winStreak: newStreak } : {}),
     ...(jackpotWon > 0 ? { jackpotWon } : {}),
     ...(unlocked.length > 0 ? { unlocked } : {}),
   });

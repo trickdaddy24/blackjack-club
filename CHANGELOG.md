@@ -5,6 +5,31 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the `VERSION` fi
 
 ---
 
+## [0.24.0] — 2026-07-17
+
+### Added
+- **🔥 Fire-streak chips** (Kendall's call) — 5 wins in a row sets the chip
+  stack ablaze: flickering flame, pulsing amber glow on the count, and a
+  live streak badge. Stays lit until a loss puts it out. The streak is the
+  server-tracked `winStreak` (pushes carry, losses reset).
+- **Public player pages** — click any name on the leaderboards →
+  `/player/[id]`: stats, best streak, champion titles, unlocked trophies,
+  and (when you've shared a duo table) **your head-to-head record** against
+  them. Members-only; own name routes to your profile.
+- **Rivalries** — duo-table head-to-head records (W–L over shared rounds)
+  on your profile, built by pairing the per-player round rows each shared
+  settle writes. Winning a shared round = the better total (main + side).
+- **Hand replay** — every row in Recent Hands expands into the full round:
+  dealer and player cards, totals, outcomes, side-bet results, bust bet.
+  Parsed server-side from the stored round state — the shoe never ships.
+  Duo rounds are badged 👥.
+- **Bankroll sparkline** — cumulative net over your last 100 rounds, gold
+  when you're up, red when the shoe's been cruel.
+- **Roadmap now tracked as GitHub issues** — 14 issues labeled
+  `phase:big-build` / `phase:fresh-idea` / `phase:quick-win`.
+
+---
+
 ## [0.23.0] — 2026-07-17
 
 ### Added
