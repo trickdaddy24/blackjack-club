@@ -5,6 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the `VERSION` fi
 
 ---
 
+## [0.21.1] — 2026-07-16
+
+### Added
+- **Invite emails are LIVE via Resend** — `lib/email.ts` now prefers Resend
+  (`RESEND_API_KEY` + `EMAIL_FROM`, plain fetch, no SDK) and sends as
+  **Blackjack Club &lt;reply@minus-one-labs.com&gt;** (domain verified in the
+  Minus One Labs Resend team). Gmail SMTP remains as fallback; with neither
+  configured invites stay in-app only.
+
+---
+
 ## [0.21.0] — 2026-07-16
 
 ### Added
