@@ -5,6 +5,36 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the `VERSION` fi
 
 ---
 
+## [0.27.0] — 2026-07-17
+
+### Added
+- **🎰 Vegas property daily bonus** — pick one of six Vegas-style properties
+  once per Vegas day for a surprise cash payout, alongside (not replacing)
+  the existing flat daily bonus: **Circus Circus** (safe & flat 750-950),
+  **MGM Grand** (standard 500-1,300), **Bellagio** (500-1,100, 5% chance of
+  a 2,000 Fountain Show), **Caesars Palace** (wide spread 100-1,700),
+  **Wynn** (mostly 300-900, 5% shot at a 5,000 Penthouse jackpot), **The
+  Sphere** (250-1,450, 8% chance of an Encore double-up). Ranges are tuned
+  so every property lands near the same ~850-950 expected value — the pick
+  is a risk-shape choice, not a strictly-better option.
+- `User.lastPropertyPick` gates one claim per Vegas day; the claim itself
+  is CAS-guarded (`updateMany` on the known prior value) against a
+  double-tap racing two requests.
+- `PropertyBonusBar` mounted on `/play` above the felt (not inside
+  `GameTable` — no WIP dance needed), card-pick UI with a reveal panel on
+  claim.
+- `lib/property-bonus.ts` pure engine (catalog + weighted roll, 8 new
+  vitest tests).
+- 203 tests. Verified: real HTTP login + claim against the dev server
+  (exact chip delta matched the granted amount), day-gating flips
+  correctly after claim, double-claim same day correctly 429s, unknown
+  property 400s, 8-way concurrent claim race confirmed exactly one win.
+  Playwright-style manual pass in Chrome: card grid renders, pick →
+  reveal → toast, "claimed today" persists across reload with the real
+  balance reflected.
+
+---
+
 ## [0.26.0] — 2026-07-17
 
 ### Added
