@@ -28,6 +28,9 @@ model User {
   // Last Vegas day a property-pick bonus was claimed — independent of, and
   // stacks alongside, the flat daily bonus above.
   lastPropertyPick DateTime?
+  // Highest VIP tier already credited (see lib/vip.ts) — lets the lazy
+  // check in vip-io.ts pay the one-time tier-up bonus exactly once.
+  vipTier          Int       @default(0)
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 

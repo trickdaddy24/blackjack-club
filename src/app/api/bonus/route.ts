@@ -5,6 +5,7 @@ import { DAILY_BONUS, getActiveRound, RESCUE_CHIPS } from "@/lib/game";
 import { currentTableMinimum } from "@/lib/tableMinimum";
 import { currentPromo } from "@/lib/promotions";
 import { vegasDayKey } from "@/lib/leaderboard";
+import { tierByNumber } from "@/lib/vip";
 
 /** +250 per consecutive claim day past the first, capped at +1,750. */
 const STREAK_BOOST_PER_DAY = 250;
@@ -37,7 +38,10 @@ export async function POST() {
 
     // Midnight Madness doubles the whole thing while it runs
     const madness = currentPromo()?.id === "midnight-madness";
-    const granted = (DAILY_BONUS + boost) * (madness ? 2 : 1);
+    const vipBoostPct = tierByNumber(user.vipTier).dailyBonusBoostPct;
+    const granted = Math.round(
+      (DAILY_BONUS + boost) * (1 + vipBoostPct / 100) * (madness ? 2 : 1)
+    );
     const updated = await prisma.user.update({
       where: { id: userId },
       data: { chips: { increment: granted }, lastDailyBonus: now, loginStreak: streak },
@@ -49,6 +53,7 @@ export async function POST() {
       type: "daily",
       streak,
       boost,
+      vipBoostPct,
       ...(madness ? { promo: "midnight-madness" } : {}),
     });
   }

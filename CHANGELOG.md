@@ -5,6 +5,31 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the `VERSION` fi
 
 ---
 
+## [0.28.0] — 2026-07-17
+
+### Added
+- **⭐ VIP tiers** — Member → Silver (100 rounds) → Gold (500) → Platinum
+  (2,000) → Diamond (5,000) → Seven Stars (15,000), based on lifetime
+  settled rounds played (table time, not luck). Each tier boosts the flat
+  daily bonus (+5% to +50%, stacking with the existing login-streak boost
+  and Midnight Madness) and pays a one-time tier-up bonus (500 to 50,000)
+  the instant a player crosses a threshold.
+- No cron: `lib/vip-io.ts` lazily checks lifetime rounds against
+  `User.vipTier` on every `/api/vip` poll and claims the tier-up via a CAS
+  `updateMany` (same pattern as Hot Seat / the property bonus) — race-safe,
+  verified with 8 concurrent polls landing exactly one award.
+- `VipStatusBar` on `/play` above the felt shows the current tier badge and
+  progress to the next one; toasts + a coin sound the moment a tier-up
+  lands.
+- `lib/vip.ts` pure tier catalog (6 new vitest tests).
+- 212 tests. Verified: real HTTP tier-up against the dev server (exact
+  chip delta), idempotent re-poll (no double-pay), VIP-boosted daily bonus
+  matched the expected math exactly (2,500 × 1.05 = 2,625 at Silver),
+  8-way concurrency race, and a live Chrome pass showing the tier-up toast
+  and the persistent status pill with correct round-count progress.
+
+---
+
 ## [0.27.0] — 2026-07-17
 
 ### Added
