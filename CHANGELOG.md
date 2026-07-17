@@ -5,6 +5,35 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the `VERSION` fi
 
 ---
 
+## [0.30.0] — 2026-07-17
+
+### Added
+- **🔑 Forgot password** — self-service reset flow, prompted by an admin
+  console question ("can admin check a user's email") that surfaced there
+  was no reset path at all, only a manual SSH+DB workaround.
+  `/forgot-password` takes an email, always returns the same generic
+  message regardless of whether it matched an account (no enumeration),
+  and — when a match exists and isn't banned — mails a reset link via the
+  existing Resend infra (`lib/email.ts`, now factored around a shared
+  `sendEmail()` core so invite and reset emails share one Resend/SMTP
+  transport instead of duplicating it). `/reset-password?token=...` sets a
+  new password (same complexity rules and strength meter as registration).
+  In dev, with no Resend key configured, the raw link is logged
+  server-side instead of mailed — that branch never fires in prod.
+- **`PasswordResetToken`** table: the raw token rides the email link and is
+  never stored — only its sha256 digest (`lib/reset-token.ts`) — so a DB
+  leak alone can't be used to reset accounts. Single-use (`usedAt`) and
+  expires in 1 hour.
+- Reset requests are rate-limited per IP (5/hour, `resetRequestLimiter`)
+  reusing the same `SlidingWindowLimiter` registration already uses.
+- "Forgot password?" link added next to the password field on `/login`.
+- 233 tests (8 new for token generation/hashing/expiry). Verified end to
+  end in a live browser pass: request → dev-log link → reset → new
+  password signs in successfully → reusing the same (now-consumed) token
+  is correctly rejected without touching the account again.
+
+---
+
 ## [0.29.0] — 2026-07-17
 
 ### Added

@@ -1,8 +1,8 @@
 ﻿# ♠ Blackjack Club
 
-[![Version](https://img.shields.io/badge/version-0.29.0-blue)](./VERSION)
+[![Version](https://img.shields.io/badge/version-0.30.0-blue)](./VERSION)
 [![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
-[![Tests](https://img.shields.io/badge/tests-225%20passing-brightgreen)](./src/lib/blackjack/engine.test.ts)
+[![Tests](https://img.shields.io/badge/tests-233%20passing-brightgreen)](./src/lib/blackjack/engine.test.ts)
 
 A play-money blackjack site in the spirit of Zynga Poker — real casino rules, persistent
 chip balances, daily free chips, and a dim, gold-on-felt "midnight table" aesthetic.
@@ -102,6 +102,7 @@ tournaments, themes, and retention mechanics.
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 0.30.0 | 2026-07-17 | **🔑 Forgot password** — self-service email-based reset flow. `/forgot-password` → emailed link (Resend, same infra as Duo invites) → `/reset-password`. Single-use, 1-hour-expiring, sha256-hashed tokens; generic response either way so the flow can't be used to enumerate accounts; rate-limited per IP. |
 | 0.29.0 | 2026-07-17 | **🎟️ Match-play vouchers** — return after 6+ hours away and your next main-game win (within 2 hours) is doubled, up to +10,000 bonus. Fully automatic, once per Vegas day, live countdown badge in the top bar. |
 | 0.28.0 | 2026-07-17 | **⭐ VIP tiers** — Member → Silver → Gold → Platinum → Diamond → Seven Stars, based on lifetime rounds played. Each tier boosts the flat daily bonus (+5% to +50%) and pays a one-time tier-up bonus (500 to 50,000) the instant you cross a threshold. Status pill above the felt shows progress to the next tier. |
 | 0.27.0 | 2026-07-17 | **🎰 Vegas property daily bonus** — pick one of 6 Vegas properties (Circus Circus, MGM Grand, Bellagio, Caesars Palace, Wynn, The Sphere) once per Vegas day for a surprise cash payout, alongside the existing flat daily bonus. Same-ish expected value across all 6, different risk shape per property (safe/flat vs. wide-spread vs. rare-jackpot). CAS-guarded against double-claims. 203 tests. |

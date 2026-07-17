@@ -9,8 +9,11 @@ import { validatePasswordComplexity } from "@/lib/password";
 import {
   isDisposableEmail,
   registerLimiter,
+  resetRequestLimiter,
   verifyTurnstile,
 } from "@/lib/registration-guard";
+import { generateRawToken, hashToken, isTokenExpired, RESET_TOKEN_TTL_MS } from "@/lib/reset-token";
+import { emailEnabled, sendPasswordResetEmail } from "@/lib/email";
 
 /** Client IP behind Cloudflare → Traefik → Next. */
 async function clientIp(): Promise<string> {
@@ -104,6 +107,83 @@ export async function loginWithCredentials(formData: FormData) {
 
 export async function logout() {
   await signOut({ redirectTo: "/" });
+}
+
+// A generic response regardless of whether the email matched an account —
+// leaking existence would let anyone enumerate registered players.
+const GENERIC_RESET_RESPONSE = {
+  success: true,
+  message: "If an account exists for that email, a reset link is on its way.",
+};
+
+export async function requestPasswordReset(formData: FormData) {
+  const email = formData.get("email") as string;
+  if (!email) {
+    return { error: "Email is required" };
+  }
+
+  const ip = await clientIp();
+  if (!resetRequestLimiter.allow(ip, Date.now())) {
+    return { error: "Too many reset requests from this connection — try again later" };
+  }
+
+  const user = await prisma.user.findUnique({ where: { email } });
+  if (!user || user.role === "banned") {
+    return GENERIC_RESET_RESPONSE;
+  }
+
+  const raw = generateRawToken();
+  await prisma.passwordResetToken.create({
+    data: {
+      userId: user.id,
+      tokenHash: hashToken(raw),
+      expiresAt: new Date(Date.now() + RESET_TOKEN_TTL_MS),
+    },
+  });
+
+  const resetUrl = `${process.env.AUTH_URL}/reset-password?token=${raw}`;
+  const expiresMinutes = RESET_TOKEN_TTL_MS / 60_000;
+  if (emailEnabled()) {
+    await sendPasswordResetEmail({ to: email, resetUrl, expiresMinutes });
+  } else {
+    // Dev convenience only — in prod, Resend is configured, so this branch
+    // never fires and the raw link never touches the server log.
+    console.log(`[password reset] email not configured — link for ${email}: ${resetUrl}`);
+  }
+
+  return GENERIC_RESET_RESPONSE;
+}
+
+export async function resetPassword(formData: FormData) {
+  const token = formData.get("token") as string;
+  const password = formData.get("password") as string;
+  const confirmPassword = formData.get("confirmPassword") as string;
+
+  if (!token || !password) {
+    return { error: "Missing reset token or password" };
+  }
+  if (password !== confirmPassword) {
+    return { error: "Passwords do not match" };
+  }
+  const complexityError = validatePasswordComplexity(password);
+  if (complexityError) {
+    return { error: complexityError };
+  }
+
+  const row = await prisma.passwordResetToken.findUnique({
+    where: { tokenHash: hashToken(token) },
+  });
+  if (!row || row.usedAt || isTokenExpired(row.expiresAt)) {
+    return { error: "This reset link is invalid or has expired — request a new one" };
+  }
+
+  const hashed = await bcrypt.hash(password, 12);
+  await prisma.$transaction([
+    prisma.user.update({ where: { id: row.userId }, data: { password: hashed } }),
+    prisma.passwordResetToken.update({ where: { id: row.id }, data: { usedAt: new Date() } }),
+  ]);
+
+  return { success: true };
 }
 
 export async function loginWithGoogle() {

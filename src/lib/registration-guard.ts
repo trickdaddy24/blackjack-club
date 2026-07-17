@@ -72,6 +72,11 @@ export class SlidingWindowLimiter {
 // requests in the standalone server (one container in prod).
 export const registerLimiter = new SlidingWindowLimiter(3, 60 * 60 * 1000);
 
+// 5 password-reset requests per IP per hour — generous enough for a
+// legitimate user retrying a typo'd email, tight enough to block using the
+// endpoint as an email bomb.
+export const resetRequestLimiter = new SlidingWindowLimiter(5, 60 * 60 * 1000);
+
 export function turnstileEnabled(): boolean {
   return Boolean(process.env.TURNSTILE_SECRET_KEY);
 }
