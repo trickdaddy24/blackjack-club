@@ -129,6 +129,25 @@ model AdminAction {
   @@index([createdAt])
 }
 
+// Counting Gym drill: server-issued card sequence + truth; the row is the
+// grade record. cardsJson ships to the client (it must render them) — the
+// personal-stats tradeoff is accepted for Phase 1, like the trainer's
+// blind attestation.
+model GymDrill {
+  id        String   @id @default(cuid())
+  userId    String
+  level     String
+  speedMs   Int
+  count     Int
+  cardsJson String
+  answer    Int // true Hi-Lo running count
+  submitted Int?
+  correct   Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+}
+
 // Daily-quest progress: one row per player per Vegas day per quest. The
 // catalog and rotation live in code (src/lib/quests.ts); rewards are paid
 // the moment `done` flips.

@@ -25,6 +25,7 @@ export const QUESTS: QuestDef[] = [
   { slug: "double-1", name: "Press It", emoji: "⚡", description: "Win a hand you doubled.", target: 1, reward: 750, kind: "count" },
   { slug: "duo-1", name: "Bring a Friend", emoji: "👥", description: "Settle a round at a shared table.", target: 1, reward: 1000, kind: "count" },
   { slug: "bust-1", name: "Call the Bust", emoji: "🔮", description: "Win a Dealer Bust bet.", target: 1, reward: 1000, kind: "count" },
+  { slug: "gym-1", name: "Hit the Gym", emoji: "💪", description: "Complete a counting drill in the Gym.", target: 1, reward: 500, kind: "count" },
 ];
 
 const BY_SLUG = new Map(QUESTS.map((q) => [q.slug, q]));
@@ -52,6 +53,8 @@ export interface SettleEvent {
   doubledWin: boolean;
   duo: boolean;
   bustWin: boolean;
+  /** A Gym drill (not a table round) — table-only quests must ignore it. */
+  gym?: boolean;
 }
 
 const WON = (o: string | null) => o === "win" || o === "blackjack" || o === "even-money";
@@ -79,11 +82,13 @@ export function settleEventFor(state: RoundState, owner?: number): SettleEvent {
 export function advanceQuest(def: QuestDef, prev: number, ev: SettleEvent): number {
   switch (def.slug) {
     case "play-5":
-      return prev + 1;
+      // Table rounds only — a gym drill is not a settled hand
+      return ev.gym ? prev : prev + 1;
     case "win-3":
       return ev.won ? prev + 1 : prev;
     case "run-2":
-      return ev.won ? prev + 1 : 0;
+      // Gym drills must not break a live win run either
+      return ev.gym ? prev : ev.won ? prev + 1 : 0;
     case "natural-1":
       return ev.blackjack ? prev + 1 : prev;
     case "side-1":
@@ -94,7 +99,20 @@ export function advanceQuest(def: QuestDef, prev: number, ev: SettleEvent): numb
       return ev.duo ? prev + 1 : prev;
     case "bust-1":
       return ev.bustWin ? prev + 1 : prev;
+    case "gym-1":
+      return ev.gym ? prev + 1 : prev;
     default:
       return prev;
   }
 }
+
+/** The pseudo-event a completed Gym drill emits into the quest engine. */
+export const GYM_EVENT: SettleEvent = {
+  won: false,
+  blackjack: false,
+  sideWin: false,
+  doubledWin: false,
+  duo: false,
+  bustWin: false,
+  gym: true,
+};

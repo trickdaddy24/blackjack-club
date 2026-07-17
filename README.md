@@ -1,8 +1,8 @@
 ﻿# ♠ Blackjack Club
 
-[![Version](https://img.shields.io/badge/version-0.24.0-blue)](./VERSION)
+[![Version](https://img.shields.io/badge/version-0.25.0-blue)](./VERSION)
 [![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
-[![Tests](https://img.shields.io/badge/tests-184%20passing-brightgreen)](./src/lib/blackjack/engine.test.ts)
+[![Tests](https://img.shields.io/badge/tests-189%20passing-brightgreen)](./src/lib/blackjack/engine.test.ts)
 
 A play-money blackjack site in the spirit of Zynga Poker — real casino rules, persistent
 chip balances, daily free chips, and a dim, gold-on-felt "midnight table" aesthetic.
@@ -102,6 +102,7 @@ tournaments, themes, and retention mechanics.
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 0.25.0 | 2026-07-17 | **🏋️ Counting Gym** — speed-flash Hi-Lo drills at 5 difficulty levels from a real 6-deck shoe, server-graded, +250 for the first perfect each day, Fresh Legs & Eagle Eyes trophies, Hit the Gym daily quest. Phases 2–5 tracked on issue #3. 189 tests. |
 | 0.24.0 | 2026-07-17 | **🔥 Fire-streak chips** (5 wins in a row ignites the stack until a loss), **public player pages** with head-to-head duo records from leaderboard names, **rivalries** + **hand replays** + **bankroll sparkline** on the profile. Roadmap moved to labeled GitHub issues. |
 | 0.23.0 | 2026-07-17 | **Daily quests** (3/day on the Vegas clock, instant chip rewards, live progress pills above the felt), **login streaks** boosting the daily bonus +250/day to +1,750, and **board champions** — daily +2,500 / weekly +10,000 crowned automatically when windows close, with a 👑 Board Champion trophy and champions strip. 184 tests. |
 | 0.22.0 | 2026-07-16 | **Settle receipt** in the result banner (main game + every side bet + **Dealer Bust bet** + jackpot, line by line with a round total — the verdict now covers the whole round), a **rolling win meter** with big-win celebrations (losses untouched), and **card-counting v3**: true-count needle gauge, shoe donut, always-visible read, hot-shoe pulse. |

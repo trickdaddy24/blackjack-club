@@ -38,6 +38,8 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { slug: "book-smart-25", name: "Book Smart", emoji: "📖", description: "Make 25 correct blind decisions in a row with the trainer on." },
   { slug: "by-the-book", name: "By the Book", emoji: "🎓", description: "Hold 90%+ blind accuracy over 100+ graded decisions." },
   { slug: "board-champion", name: "Board Champion", emoji: "👑", description: "Top a daily or weekly leaderboard when the window closes." },
+  { slug: "counting-rookie", name: "Fresh Legs", emoji: "💪", description: "Complete your first drill in the Counting Gym." },
+  { slug: "counting-ace", name: "Eagle Eyes", emoji: "🦅", description: "Nail a perfect drill at Pro or Wizard speed." },
 ];
 
 const BY_SLUG = new Map(ACHIEVEMENTS.map((a) => [a.slug, a]));

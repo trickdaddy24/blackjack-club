@@ -6,7 +6,7 @@ const { auth } = NextAuth(authConfig);
 
 // /admin also role-checks server-side (404 for non-admins) — this just sends
 // anonymous visitors to login like any other member page.
-const PROTECTED_PREFIXES = ["/play", "/profile", "/admin", "/player"];
+const PROTECTED_PREFIXES = ["/play", "/profile", "/admin", "/player", "/gym"];
 
 export default auth((req) => {
   const { pathname } = req.nextUrl;

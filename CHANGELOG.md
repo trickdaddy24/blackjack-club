@@ -5,6 +5,26 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the `VERSION` fi
 
 ---
 
+## [0.25.0] — 2026-07-17
+
+### Added
+- **🏋️ Counting Gym (Phase 1)** at `/gym` — speed-flash Hi-Lo drills. Cards
+  flash from a fresh 6-deck shoe at five difficulty levels (Rookie 12 @
+  1.4s → Wizard 52 @ 0.35s); call the running count at the end and the
+  server grades it (it issued the cards and holds the truth). First perfect
+  drill each Vegas day pays **+250 chips**; lifetime drills/accuracy/best
+  level shown in the gym.
+- Two new trophies: **Fresh Legs** (first drill) and **Eagle Eyes** (perfect
+  at Pro or Wizard) — the case is now 23.
+- **Hit the Gym** joins the daily-quest rotation. Gym drills deliberately
+  don't count as table rounds — they can't advance Grinder's Shift or break
+  a live Back to Back run.
+- Gym link in the top bar; 5 new tests (**189 total**).
+- Phases 2–5 (deck countdown, true-count school, public board, count-along
+  quizzes at the live table) tracked on GitHub issue #3.
+
+---
+
 ## [0.24.0] — 2026-07-17
 
 ### Added
