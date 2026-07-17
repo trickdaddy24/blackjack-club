@@ -116,6 +116,21 @@ model Jackpot {
   updatedAt DateTime @updatedAt
 }
 
+// Random surprise bonus dropped on a currently-active player, Vegas
+// "hot seat" style. Single global row (id "global"); nextDropAt is a
+// CAS mutex — whichever request's updateMany claims it runs the draw.
+// last* fields are the most recent drop, broadcast to every client via
+// /api/game/state so winners get a toast and everyone else gets the
+// social-proof nudge.
+model HotSeatDrop {
+  id             String    @id
+  nextDropAt     DateTime
+  lastWinnerId   String?
+  lastWinnerName String?
+  lastAmount     Int?
+  lastAwardedAt  DateTime?
+}
+
 // Audit trail for the pit-boss console — every mutating admin action writes
 // a row. detail is JSON ({amount, reason, before, after, ...}).
 model AdminAction {

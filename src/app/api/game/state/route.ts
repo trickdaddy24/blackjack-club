@@ -5,6 +5,7 @@ import { clientView } from "@/lib/blackjack/engine";
 import { withHint } from "@/lib/blackjack/strategy";
 import { getActiveRound, getLuckyLadiesJackpot, parseRoundState } from "@/lib/game";
 import { currentTableMinimum } from "@/lib/tableMinimum";
+import { getHotSeatState, maybeTriggerHotSeat } from "@/lib/hotseat-io";
 
 export async function GET() {
   const session = await auth();
@@ -39,6 +40,10 @@ export async function GET() {
     roundView = withHint(state, clientView(state));
   }
 
+  // Fire-and-forget-ish: almost always a no-op read, occasionally the poll
+  // that claims and pays out a drop. Never throws — see hotseat-io.ts.
+  await maybeTriggerHotSeat();
+
   return NextResponse.json({
     chips: user.chips,
     name: user.name,
@@ -48,5 +53,6 @@ export async function GET() {
     dealerTips: user.dealerTips,
     winStreak: user.winStreak,
     jackpot: await getLuckyLadiesJackpot(),
+    hotSeat: await getHotSeatState(),
   });
 }

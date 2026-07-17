@@ -5,6 +5,31 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the `VERSION` fi
 
 ---
 
+## [0.26.0] — 2026-07-17
+
+### Added
+- **🔥 Hot Seat drops** — a random surprise bonus lands on one currently-active
+  player every 4–12 minutes: 300–900 chips normally, a rare (5%) 2,000–3,000
+  "blaze" jackpot. No cron job — a global singleton row (`HotSeatDrop`) holds
+  a `nextDropAt` clock, and whichever player's poll lands after it elapses
+  claims the draw via a CAS `updateMany` (same optimistic-concurrency pattern
+  as the shared table's turn enforcement); losers of the race no-op. The
+  active pool is anyone with an open round or a round settled in the last 3
+  minutes, fleet-wide (not scoped to `/play`).
+- **`HotSeatWatcher`** mounted in `TopBar` (any authenticated page, not just
+  the table) polls `/api/hotseat` every 8s so the clock keeps advancing and
+  every client hears about a drop. Winner gets a celebratory toast + coin
+  sound; everyone else gets a social-proof nudge ("X just caught the Hot
+  Seat!").
+- `lib/hotseat.ts` pure engine (interval/amount/winner-index rolls, 6 new
+  vitest tests) + `lib/hotseat-io.ts` for the trigger/broadcast IO, mirroring
+  the `champions.ts` lazy-idempotent-award pattern.
+- 195 tests. Verified: real HTTP login + poll against the dev server (exact
+  chip delta matched the awarded amount), 8-way concurrent race against the
+  same forced-due clock confirmed exactly one award landed.
+
+---
+
 ## [0.25.0] — 2026-07-17
 
 ### Added
