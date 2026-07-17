@@ -4,6 +4,7 @@ import { auth } from "@/auth";
 import { logout } from "@/lib/actions";
 import { InviteBell } from "@/components/InviteBell";
 import { HotSeatWatcher } from "@/components/HotSeatWatcher";
+import { VoucherBadge } from "@/components/VoucherBadge";
 
 export async function TopBar() {
   const session = await auth();
@@ -35,6 +36,7 @@ export async function TopBar() {
               <span className="hidden sm:inline">Duo</span>
             </Link>
             <InviteBell />
+            <VoucherBadge />
             <HotSeatWatcher userId={session.user.id} />
             <Link
               href="/gym"

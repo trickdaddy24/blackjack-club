@@ -31,6 +31,11 @@ model User {
   // Highest VIP tier already credited (see lib/vip.ts) — lets the lazy
   // check in vip-io.ts pay the one-time tier-up bonus exactly once.
   vipTier          Int       @default(0)
+  // Match-play voucher (lib/voucher.ts): non-null + in the future means an
+  // active "double your next win" window is running. lastVoucherGrantedAt
+  // persists past expiry/consumption — it's the one-per-Vegas-day guard.
+  voucherExpiresAt    DateTime?
+  lastVoucherGrantedAt DateTime?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 

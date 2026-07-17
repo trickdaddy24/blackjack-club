@@ -5,6 +5,36 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the `VERSION` fi
 
 ---
 
+## [0.29.0] — 2026-07-17
+
+### Added
+- **🎟️ Match-play vouchers** — a "welcome back" mechanic from a `/grill-me`
+  design session. Return to the table after 6+ hours away (measured from
+  your last settled round, no new presence field needed) and you're handed
+  a voucher: the next main-game round that actually wins (side bets and
+  jackpots untouched) gets doubled, up to a +10,000 bonus. A loss or push
+  doesn't burn it — it just keeps waiting for a real win or lets the
+  2-hour window expire. Fully automatic, no toggle. Capped at one grant
+  per Vegas day so it can't be farmed by repeated logout/login. Stacks
+  freely with Happy Hour's 2:1 naturals boost — the bonus cap already
+  bounds the combined risk.
+- No cron: `/api/voucher` lazily grants via a CAS `updateMany` (same
+  pattern as Hot Seat / the property bonus / VIP tiers) — race-safe,
+  verified with 8 concurrent polls landing exactly one grant. Consumption
+  happens inline inside the existing bet/action settle transactions, so
+  the doubled payout lands in the same instant as the win itself.
+- `VoucherBadge` in `TopBar`, fleet-wide, with a live per-second countdown
+  — visible on every page, not just `/play`, so the urgency doesn't
+  disappear when browsing the leaderboard.
+- `lib/voucher.ts` pure engine (13 new vitest tests).
+- 225 tests. Verified: real HTTP grant (exact chip-delta math on the
+  doubled win), per-round confirmation that losses/pushes don't consume it
+  while the next actual win does, 8-way concurrency race, and a live
+  Chrome pass showing the badge render and its countdown ticking down in
+  real time.
+
+---
+
 ## [0.28.0] — 2026-07-17
 
 ### Added

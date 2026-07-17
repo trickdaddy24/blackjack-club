@@ -26,6 +26,7 @@ import { earnedThisSettle, nextWinStreak } from "@/lib/achievements";
 import { awardAchievements } from "@/lib/game-achievements";
 import { settleEventFor } from "@/lib/quests";
 import { progressQuestsAtSettle } from "@/lib/quests-io";
+import { isVoucherActive, voucherBonusFor } from "@/lib/voucher";
 
 const VARIANTS: Variant[] = ["classic", "spanish21"];
 
@@ -167,14 +168,19 @@ export async function POST(req: Request) {
         )
       : { won: 0, pot: await getLuckyLadiesJackpot() };
 
-  // Side-bet winnings are paid on the spot, in the same transaction as the deal
-  const chipDelta =
-    -debit + (sideBetPayout ?? 0) + jackpotWon + (settled ? state.payoutTotal : 0);
-
   // Win streak: only rounds that settle on the deal (naturals/dealer BJ)
   // move it here — everything else settles in the action route.
   const roundNet = settled ? netResult(state) : 0;
   const newStreak = settled ? nextWinStreak(user.winStreak, roundNet) : user.winStreak;
+
+  // Match-play voucher: doubles (capped) a main-game win, consumed here —
+  // a loss/push doesn't touch it, it just keeps waiting.
+  const voucherBonus =
+    settled && isVoucherActive(user.voucherExpiresAt) ? voucherBonusFor(roundNet) : 0;
+
+  // Side-bet winnings are paid on the spot, in the same transaction as the deal
+  const chipDelta =
+    -debit + (sideBetPayout ?? 0) + jackpotWon + voucherBonus + (settled ? state.payoutTotal : 0);
 
   const [updated] = await prisma.$transaction([
     prisma.user.update({
@@ -187,6 +193,7 @@ export async function POST(req: Request) {
               bestWinStreak: Math.max(user.bestWinStreak, newStreak),
             }
           : {}),
+        ...(voucherBonus > 0 ? { voucherExpiresAt: null } : {}),
       },
       select: { chips: true },
     }),
@@ -233,5 +240,6 @@ export async function POST(req: Request) {
     jackpotWon,
     ...(settled ? { winStreak: newStreak } : {}),
     ...(unlocked.length > 0 ? { unlocked } : {}),
+    ...(voucherBonus > 0 ? { voucherBonus } : {}),
   });
 }

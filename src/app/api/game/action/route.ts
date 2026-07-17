@@ -25,6 +25,7 @@ import {
 import { awardAchievements } from "@/lib/game-achievements";
 import { settleEventFor } from "@/lib/quests";
 import { progressQuestsAtSettle } from "@/lib/quests-io";
+import { isVoucherActive, voucherBonusFor } from "@/lib/voucher";
 
 const ACTIONS: PlayerAction[] = [
   "hit",
@@ -84,7 +85,7 @@ export async function POST(req: Request) {
 
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { chips: true, winStreak: true, bestWinStreak: true },
+    select: { chips: true, winStreak: true, bestWinStreak: true, voucherExpiresAt: true },
   });
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -103,16 +104,22 @@ export async function POST(req: Request) {
     ({ won: jackpotWon } = await settleLuckyLadiesPot(0, true));
   }
 
+  // Win streak: wins extend, losses reset, pushes carry (main game only)
+  const roundNet = settled ? netResult(next) : 0;
+  const newStreak = settled ? nextWinStreak(user.winStreak, roundNet) : user.winStreak;
+
+  // Match-play voucher: doubles (capped) a main-game win, consumed here —
+  // a loss/push doesn't touch it, it just keeps waiting.
+  const voucherBonus =
+    settled && isVoucherActive(user.voucherExpiresAt) ? voucherBonusFor(roundNet) : 0;
+
   // A settled round also pays out any riding Dealer Bust bet (side-bet
   // accounting: excluded from payoutTotal, credited here)
   const chipDelta =
     -debit +
     jackpotWon +
+    voucherBonus +
     (settled ? next.payoutTotal + (next.bustPayout ?? 0) : 0);
-
-  // Win streak: wins extend, losses reset, pushes carry (main game only)
-  const roundNet = settled ? netResult(next) : 0;
-  const newStreak = settled ? nextWinStreak(user.winStreak, roundNet) : user.winStreak;
 
   const [updated] = await prisma.$transaction([
     prisma.user.update({
@@ -125,6 +132,7 @@ export async function POST(req: Request) {
               bestWinStreak: Math.max(user.bestWinStreak, newStreak),
             }
           : {}),
+        ...(voucherBonus > 0 ? { voucherExpiresAt: null } : {}),
       },
       select: { chips: true },
     }),
@@ -196,5 +204,6 @@ export async function POST(req: Request) {
     ...(settled ? { winStreak: newStreak } : {}),
     ...(jackpotWon > 0 ? { jackpotWon } : {}),
     ...(unlocked.length > 0 ? { unlocked } : {}),
+    ...(voucherBonus > 0 ? { voucherBonus } : {}),
   });
 }
