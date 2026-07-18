@@ -4,6 +4,7 @@ import { Coins, Gift, Volume2, VolumeX } from "lucide-react";
 import type { Card, ClientView, PlayerAction } from "../../src/lib/blackjack/engine";
 import { sounds } from "../../src/lib/sound";
 import * as game from "./localGame";
+import { FULL_SITE_URL } from "./UpgradeBanner";
 
 const CHIP_VALUES = [5, 25, 100, 500, 1000] as const;
 const { MIN_BET, MAX_BET } = game;
@@ -66,6 +67,28 @@ function playResult(view: ClientView, delay: number) {
   }
 }
 
+// Same "big win" bar the full app's WinMeter uses: 3x staked, or a natural.
+// Fires independent of the upgrade banner's dismiss state — a rare,
+// well-earned moment is worth a nudge even if the passive banner was
+// already closed for this visit.
+const UPGRADE_NUDGES = [
+  "wins like that trigger real Hot Seat drops on the full club",
+  "that kind of run builds VIP tier fast on the full club",
+  "imagine that plus a free Vegas property pick every day",
+  "on the full club, a run like that could double on a match-play voucher",
+];
+
+function maybeNudgeUpgrade(view: ClientView) {
+  const bigWin = (view.netResult ?? 0) >= Math.max(1, view.staked) * 3;
+  const natural = view.hands.some((h) => h.outcome === "blackjack");
+  if (!bigWin && !natural) return;
+  const msg = UPGRADE_NUDGES[Math.floor(Math.random() * UPGRADE_NUDGES.length)];
+  toast(`🔥 ${msg}`, {
+    action: { label: "Play free →", onClick: () => window.open(FULL_SITE_URL, "_blank") },
+    duration: 6000,
+  });
+}
+
 export function GameTable() {
   const [chips, setChips] = useState<number>(0);
   const [bonusAvailable, setBonusAvailable] = useState(false);
@@ -92,7 +115,10 @@ export function GameTable() {
       setRound(r.round);
       const dealt = seats * 2 + 2;
       for (let i = 0; i < dealt; i++) sounds.deal(i * 0.13);
-      if (r.round.phase === "settled") playResult(r.round, dealt * 0.13 + 0.3);
+      if (r.round.phase === "settled") {
+        playResult(r.round, dealt * 0.13 + 0.3);
+        maybeNudgeUpgrade(r.round);
+      }
     } catch (e) {
       toast.error((e as Error).message);
     }
@@ -110,6 +136,7 @@ export function GameTable() {
       if (settled) {
         sounds.flip(newCards * 0.13);
         playResult(r.round, newCards * 0.13 + 0.35);
+        maybeNudgeUpgrade(r.round);
       }
     } catch (e) {
       toast.error((e as Error).message);

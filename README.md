@@ -1,6 +1,6 @@
 ﻿# ♠ Blackjack Club
 
-[![Version](https://img.shields.io/badge/version-0.31.0-blue)](./VERSION)
+[![Version](https://img.shields.io/badge/version-0.32.0-blue)](./VERSION)
 [![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
 [![Tests](https://img.shields.io/badge/tests-243%20passing-brightgreen)](./src/lib/blackjack/engine.test.ts)
 
@@ -102,6 +102,7 @@ tournaments, themes, and retention mechanics.
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 0.32.0 | 2026-07-18 | **Static demo funnel fix** (blackjack.minus-one-labs.com) — the upgrade banner was dismissible *forever* after one click and pitched stale features; now it's session-scoped (reappears on your next visit) with copy that names what's actually live (Hot Seat, VIP tiers, property bonus, vouchers), plus a new milestone toast on a natural or big win. Footer link brightened from near-invisible. |
 | 0.31.0 | 2026-07-17 | **♠ Spades: clearer bids + Jokers variant** — each seat's bid is now its own prominent pill (was buried in small muted text; West/East were also silently hidden behind the card-back fans — fixed). New Jokers toggle: 🃏 Big & Little Joker swap in for 2♣/2♦ as the two highest trumps, above the A♠, with full bot AI awareness. |
 | 0.30.0 | 2026-07-17 | **🔑 Forgot password** — self-service email-based reset flow. `/forgot-password` → emailed link (Resend, same infra as Duo invites) → `/reset-password`. Single-use, 1-hour-expiring, sha256-hashed tokens; generic response either way so the flow can't be used to enumerate accounts; rate-limited per IP. |
 | 0.29.0 | 2026-07-17 | **🎟️ Match-play vouchers** — return after 6+ hours away and your next main-game win (within 2 hours) is doubled, up to +10,000 bonus. Fully automatic, once per Vegas day, live countdown badge in the top bar. |

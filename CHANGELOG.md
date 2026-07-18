@@ -5,6 +5,34 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the `VERSION` fi
 
 ---
 
+## [0.32.0] — 2026-07-18
+
+### Fixed
+- **Static demo (blackjack.minus-one-labs.com) barely promoted the full
+  club** — direct feedback after shipping four retention features to the
+  full app in a row. Root cause: the upgrade banner used `localStorage`
+  for its dismiss flag, so ONE reflex click on first visit hid it forever,
+  on every future visit, with no other path back except a low-contrast
+  footer link. Its copy also only pitched Spanish 21/bots/the counter —
+  features from months ago, not anything shipped this week.
+- Dismiss now uses `sessionStorage` — closing the banner quiets it for
+  that visit only; it reappears next time the tab/session is fresh.
+- Copy rotates through what's actually live right now: chips that don't
+  follow you (the demo's real weakness vs. the full site), Hot Seat
+  drops, VIP tiers, the Vegas property bonus, match-play vouchers.
+- New milestone nudge: a natural blackjack or a 3x+ win (same bar the
+  full app's WinMeter uses for "BIG WIN") fires a one-off toast pointing
+  at the full club — independent of whether the passive banner was
+  already dismissed, since a rare good moment is worth a nudge either way.
+- Footer link brightened from 30%-opacity (nearly invisible) to a bold
+  gold link.
+- Verified: fresh session shows the banner with a rotated pitch; dismiss
+  + same-tab reload correctly stays hidden; a brand-new tab correctly
+  shows it again with a different pitch; the milestone-nudge boolean
+  logic verified against natural/big-win/ordinary-win/loss/push cases.
+
+---
+
 ## [0.31.0] — 2026-07-17
 
 ### Added

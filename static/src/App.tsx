@@ -28,7 +28,7 @@ export function App() {
         <span>No purchases, no payouts — just cards.</span>
         <a
           href={FULL_SITE_URL}
-          className="underline-offset-4 hover:text-[var(--gold-bright)] hover:underline"
+          className="font-semibold text-[var(--gold-bright)]/80 underline-offset-4 hover:text-[var(--gold-bright)] hover:underline"
         >
           Play the full club ♠
         </a>
