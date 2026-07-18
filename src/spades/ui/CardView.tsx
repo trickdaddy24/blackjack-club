@@ -1,5 +1,5 @@
 import type { Card } from "../engine/cards";
-import { cardLabel, isRed } from "../engine/cards";
+import { cardLabel, isJoker, isRed } from "../engine/cards";
 
 const RANK_LABEL: Record<number, string> = {
   2: "2", 3: "3", 4: "4", 5: "5", 6: "6", 7: "7", 8: "8", 9: "9", 10: "10",
@@ -18,18 +18,24 @@ export function CardView({
   /** Mark a card that is trump despite its printed suit (a promoted deuce). */
   trump?: boolean;
 }) {
+  const joker = isJoker(card);
   const red = isRed(card);
   const cls = [
     "card",
     small ? "card--sm" : "",
-    red ? "card--red" : "card--black",
+    joker ? "card--joker" : red ? "card--red" : "card--black",
     onClick && !disabled ? "card--btn" : "",
     playable ? "card--playable" : "",
     disabled ? "card--dim" : "",
     trump ? "card--trump" : "",
   ].filter(Boolean).join(" ");
 
-  const inner = (
+  const inner = joker ? (
+    <>
+      <span className="card__jokerglyph" aria-hidden>🃏</span>
+      <span className="card__jokerlabel">{card.rank === 21 ? "BIG" : "LIL"}</span>
+    </>
+  ) : (
     <>
       {trump && <span className="card__trump" aria-hidden>♠</span>}
       <span className="card__rank">{RANK_LABEL[card.rank]}</span>

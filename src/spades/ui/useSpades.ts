@@ -95,11 +95,18 @@ export function useSpades() {
     setState((s) => newGame(Math.random, DEFAULT_TARGET, rules ?? s.rules));
   }, []);
 
-  // Toggle "deuces high" — starts a new game since it changes the whole deck's
-  // trump structure mid-stream.
-  const setDeucesHigh = useCallback((on: boolean) => {
-    restart({ deucesHigh: on });
-  }, [restart]);
+  // Toggle a single rule and start a new game (both variants change deck
+  // composition/trump structure mid-stream). Uses the setState updater form
+  // to merge onto the LATEST rules — restart()'s plain-object form can't do
+  // that safely since its useCallback closure would otherwise go stale.
+  const toggleRule = useCallback((patch: Partial<SpadesRules>) => {
+    setHeldTrick(null);
+    prevCompleted.current = 0;
+    setState((s) => newGame(Math.random, DEFAULT_TARGET, { ...s.rules, ...patch }));
+  }, []);
+
+  const setDeucesHigh = useCallback((on: boolean) => toggleRule({ deucesHigh: on }), [toggleRule]);
+  const setJokers = useCallback((on: boolean) => toggleRule({ jokers: on }), [toggleRule]);
 
   // What to render in the trick area: the held trick during a hold, else live.
   const displayTrick = heldTrick ? heldTrick.cards : state.currentTrick;
@@ -107,6 +114,6 @@ export function useSpades() {
 
   return {
     state, humansTurn, holding, displayTrick, trickWinnerSeat,
-    bid, play, nextHand, restart, setDeucesHigh,
+    bid, play, nextHand, restart, setDeucesHigh, setJokers,
   };
 }

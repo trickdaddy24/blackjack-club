@@ -1,5 +1,5 @@
 import type { Card, Suit, SpadesRules } from "./cards";
-import { effSuit, isTrump, trumpRank, STANDARD_RULES } from "./cards";
+import { effSuit, isJoker, isTrump, trumpRank, STANDARD_RULES } from "./cards";
 import { leadSuit, legalPlays } from "./rules";
 import type { Bid, GameState, PlayedCard, Seat } from "./types";
 import { teamOf } from "./types";
@@ -7,7 +7,8 @@ import { teamOf } from "./types";
 // Heuristic bot — no LLM. Bids from expected winners, then plays with a handful
 // of durable Spades principles: win cheap, cover your partner, set the enemy,
 // dump losers, and hunt a bidder who's set themselves a Nil. All suit/rank logic
-// is trump-aware, so it adapts when "deuces high" promotes the 2s to top trumps.
+// is trump-aware, so it adapts when "deuces high" promotes the 2s to top trumps,
+// or when Jokers are in the deck as the two highest trumps.
 
 // ── Bidding ──────────────────────────────────────────────────────────────────
 
@@ -22,9 +23,11 @@ export function botBid(hand: Card[], rules: SpadesRules = STANDARD_RULES): Bid {
   return { tricks, blind: false };
 }
 
-/** Group a hand by *effective* suit, so promoted deuces sit with the spades. */
+/** Group a hand by *effective* suit, so promoted deuces (and jokers) sit
+ *  with the spades. JOKER never actually gets populated — effSuit() always
+ *  maps a joker to "S" — but Record<Suit, ...> needs the key regardless. */
 function bySuit(hand: Card[], rules: SpadesRules): Record<Suit, Card[]> {
-  const m: Record<Suit, Card[]> = { C: [], D: [], H: [], S: [] };
+  const m: Record<Suit, Card[]> = { C: [], D: [], H: [], S: [], JOKER: [] };
   for (const c of hand) m[effSuit(c, rules)].push(c);
   for (const s of ["C", "D", "H", "S"] as Suit[]) {
     m[s].sort((a, b) => s === "S"
@@ -45,7 +48,8 @@ export function estimateTricks(hand: Card[], rules: SpadesRules = STANDARD_RULES
   // length wins low spades late.
   const spades = suits.S;
   for (const c of spades) {
-    if (isHotDeuce(c, rules)) est += 1;   // promoted deuce = a top trump
+    if (isJoker(c)) est += 1;             // Joker = a guaranteed trick
+    else if (isHotDeuce(c, rules)) est += 1;   // promoted deuce = a top trump
     else if (c.rank === 14) est += 1;     // A♠
     else if (c.rank === 13) est += 0.9;   // K♠
     else if (c.rank === 12) est += 0.7;   // Q♠

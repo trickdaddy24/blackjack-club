@@ -19,10 +19,11 @@ const TRICK_POS: Record<Seat, string> = { 0: "trick__s", 1: "trick__w", 2: "tric
 export default function SpadesPage() {
   const {
     state, humansTurn, holding, displayTrick, trickWinnerSeat,
-    bid, play, nextHand, restart, setDeucesHigh,
+    bid, play, nextHand, restart, setDeucesHigh, setJokers,
   } = useSpades();
 
   const deucesHigh = state.rules.deucesHigh;
+  const jokers = state.rules.jokers;
   const isPromotedDeuce = (c: Card) => deucesHigh && c.rank === 2 && c.suit !== "S";
 
   const myHand = handSorted(state, HUMAN_SEAT);
@@ -55,6 +56,14 @@ export default function SpadesPage() {
                 onChange={(e) => setDeucesHigh(e.target.checked)}
               />
               <span>Deuces high</span>
+            </label>
+            <label className="ruletoggle" title="Big Joker and Little Joker replace 2♣/2♦ as the two highest trumps, above the A♠. Changing this starts a new game.">
+              <input
+                type="checkbox"
+                checked={jokers}
+                onChange={(e) => setJokers(e.target.checked)}
+              />
+              <span>Jokers</span>
             </label>
             <button className="topbar__new" onClick={() => restart()}>New game</button>
             <Link className="topbar__new" href="/" style={{ textDecoration: "none" }}>♠ Club</Link>
@@ -108,7 +117,8 @@ export default function SpadesPage() {
 
         <footer className="foot">
           Partnership Spades · Nil · Blind Nil · to {state.targetScore}
-          {deucesHigh && " · Deuces high (2♠ 2♥ 2♣ 2♦ are top trumps)"} ·{" "}
+          {deucesHigh && " · Deuces high (2♠ 2♥ 2♣ 2♦ are top trumps)"}
+          {jokers && " · Jokers (🃏 Big & Little are the top trumps, above the A♠)"} ·{" "}
           <Link href="/play">Blackjack ♠♥♦♣</Link>
         </footer>
       </div>

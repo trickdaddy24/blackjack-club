@@ -5,6 +5,37 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the `VERSION` fi
 
 ---
 
+## [0.31.0] — 2026-07-17
+
+### Added
+- **♠ Spades Jokers variant** — 🃏 Big Joker and Little Joker swap in for
+  2♣/2♦, keeping the deck at 52 and every hand at 13. Both are permanent
+  trump, ranked above everything (Big Joker=21 > Little Joker=20 > A♠=14,
+  above promoted deuces too if Deuces High is also on). New top-bar toggle
+  alongside Deuces High; changing it starts a new game, same as Deuces
+  High. Bot AI is joker-aware: correctly values a joker as a guaranteed
+  trick when bidding, and the existing Nil-disqualification check already
+  caught jokers for free (their rank is high enough to trip the same "any
+  spade Q or higher" guard). `/rules/spades` documents the new variant.
+- 10 new vitest tests for the joker card model — Spades had zero test
+  coverage before this (focused new coverage, not a retroactive full
+  suite).
+
+### Fixed
+- **Bid clarity** — each seat's bid is now its own prominent pill (gold,
+  bold, color-coded for Nil/Blind Nil/busted-Nil/contract-made), not a
+  small muted text fragment sharing a line with the trick count.
+- **West/East bid pills were invisible** — a pre-existing z-index gap let
+  the opponent card-back fans (`.oppcards--w`/`--e`) paint over the seat
+  badges for two of the four seats. Fixed with an explicit `z-index` on
+  the seat containers.
+- ⚠️ Noted but NOT fixed (pre-existing, out of scope): `/spades` has the
+  same latent SSR/client hydration mismatch already documented for
+  `/wildcard` — the initial deal's random seed differs between server and
+  client render. React recovers automatically; cosmetic only.
+
+---
+
 ## [0.30.0] — 2026-07-17
 
 ### Added

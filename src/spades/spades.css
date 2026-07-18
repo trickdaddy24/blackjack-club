@@ -50,7 +50,10 @@
 
 /* Table */
 .spades-app .table { position: relative; flex: 1; margin: 14px; border-radius: 200px / 130px; background: radial-gradient(120% 120% at 50% 40%, var(--felt) 0%, var(--felt-2) 100%); border: 10px solid var(--rail); box-shadow: inset 0 0 60px rgba(0, 0, 0, 0.5), 0 20px 50px rgba(0, 0, 0, 0.4); min-height: 440px; }
-.spades-app .table__n, .spades-app .table__s, .spades-app .table__w, .spades-app .table__e { position: absolute; }
+/* z-index above .oppcards — the West/East seat badges sit close enough to
+   the card-back fans (oppcards--w/--e) that DOM order alone let the fans
+   paint over the bid pill, making bids unreadable for those two seats. */
+.spades-app .table__n, .spades-app .table__s, .spades-app .table__w, .spades-app .table__e { position: absolute; z-index: 2; }
 .spades-app .table__n { top: 10px; left: 50%; transform: translateX(-50%); }
 .spades-app .table__s { bottom: 10px; left: 50%; transform: translateX(-50%); }
 .spades-app .table__w { left: 12px; top: 50%; transform: translateY(-50%); }
@@ -61,8 +64,25 @@
 .spades-app .seat__name { font-weight: 700; }
 .spades-app .seat--t0 .seat__name { color: var(--t0); }
 .spades-app .seat--t1 .seat__name { color: var(--t1); }
-.spades-app .seat__stat { display: flex; gap: 8px; justify-content: center; font-size: 11px; color: var(--muted); }
-.spades-app .seat__won { color: var(--ink); }
+.spades-app .seat__won { font-size: 11px; color: var(--muted); }
+.spades-app .seat__bidpill {
+  display: inline-block;
+  margin: 3px 0;
+  padding: 1px 10px;
+  border-radius: 999px;
+  font-weight: 800;
+  font-size: 14px;
+  background: rgba(242, 193, 78, 0.16);
+  color: var(--sp-gold);
+  border: 1px solid rgba(242, 193, 78, 0.4);
+}
+.spades-app .seat__bidpill--empty { background: transparent; color: var(--muted); border-color: var(--line); font-weight: 400; font-size: 11px; }
+.spades-app .seat__bidpill--nil, .spades-app .seat__bidpill--blindnil {
+  background: rgba(239, 125, 125, 0.18); color: #ff9b9b; border-color: rgba(239, 125, 125, 0.5);
+}
+.spades-app .seat__bidpill--blindnil { box-shadow: 0 0 0 2px rgba(239, 125, 125, 0.25); }
+.spades-app .seat__bidpill--busted { background: rgba(239, 125, 125, 0.35); color: #fff; border-color: #ef7d7d; }
+.spades-app .seat__bidpill--made { background: rgba(90, 200, 140, 0.2); color: #7be0a8; border-color: rgba(90, 200, 140, 0.5); }
 
 .spades-app .oppcards { position: absolute; }
 .spades-app .oppcards--n { top: 54px; left: 50%; transform: translateX(-50%); }
@@ -99,6 +119,11 @@
 .spades-app .card--sm .card__suit { font-size: 15px; }
 .spades-app .card--red { color: var(--card-red); }
 .spades-app .card--black { color: var(--card-black); }
+.spades-app .card--joker { color: var(--sp-gold); background: linear-gradient(160deg, #fffdf5, #fbeec2); }
+.spades-app .card__jokerglyph { font-size: 22px; line-height: 1; }
+.spades-app .card--sm .card__jokerglyph { font-size: 16px; }
+.spades-app .card__jokerlabel { font-size: 9px; letter-spacing: 0.08em; font-weight: 800; }
+.spades-app .card--sm .card__jokerlabel { font-size: 7px; }
 .spades-app .card--back { background: repeating-linear-gradient(45deg, #2b3a67, #2b3a67 6px, #24325a 6px, #24325a 12px); border: 1px solid #3b4b7a; }
 .spades-app .card--btn { cursor: pointer; padding: 0; transition: transform 0.12s, box-shadow 0.12s; }
 .spades-app .card--playable { outline: 2px solid var(--sp-gold); }

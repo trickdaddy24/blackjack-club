@@ -74,16 +74,32 @@ export function BidPanel({ onBid, canBlindNil }: { onBid: (b: Bid) => void; canB
   );
 }
 
-/** Per-seat status chip: name, bid, tricks taken so far. */
+/** Per-seat status chip: name, bid (its own prominent pill), tricks taken so far.
+ *  The pill also flags two live signals: a Nil bidder who's already busted
+ *  (took a trick), or a normal bidder who's already locked in their contract. */
 export function SeatBadge({ state, seat, active }: { state: GameState; seat: Seat; active: boolean }) {
   const team = teamOf(seat);
+  const bid = state.bids[seat];
+  const won = state.tricksWon[seat];
+  const inPlay = state.phase === "playing";
+  const nilBusted = inPlay && bid && bid.tricks === 0 && won > 0;
+  const bidMade = inPlay && bid && bid.tricks > 0 && won >= bid.tricks;
+  const bidClass = !bid
+    ? "seat__bidpill--empty"
+    : nilBusted
+      ? "seat__bidpill--busted"
+      : bidMade
+        ? "seat__bidpill--made"
+        : bid.tricks === 0
+          ? bid.blind ? "seat__bidpill--blindnil" : "seat__bidpill--nil"
+          : "";
   return (
     <div className={`seat seat--t${team} ${active ? "seat--active" : ""}`}>
       <div className="seat__name">{SEAT_NAME[seat]}</div>
-      <div className="seat__stat">
-        <span className="seat__bid">bid {bidLabel(state.bids[seat])}</span>
-        <span className="seat__won">{state.tricksWon[seat]} won</span>
+      <div className={`seat__bidpill ${bidClass}`} title={nilBusted ? "Nil busted — took a trick" : bidMade ? "Contract made" : undefined}>
+        {bidLabel(bid)}
       </div>
+      <div className="seat__won">{won} won</div>
     </div>
   );
 }

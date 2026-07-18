@@ -90,6 +90,17 @@ export default function SpadesRulesPage() {
           </p>
         </Section>
 
+        <Section title="Jokers Variant" delay={340}>
+          <p>
+            Flip the Jokers toggle and the <strong>🃏 Big Joker and Little Joker</strong>{" "}
+            swap in for 2♣ and 2♦, keeping the deck at 52 and every hand at 13. Both are
+            permanent trump, ranked above everything else — even a promoted deuce if
+            you&apos;ve got both variants running at once:{" "}
+            <strong>Big Joker &gt; Little Joker &gt; A♠</strong> on down. A joker in hand
+            is basically a guaranteed trick — and a guaranteed no on Nil.
+          </p>
+        </Section>
+
         <p className="fade-up mt-8 text-center text-xs" style={{ animationDelay: "380ms" }}>
           <Link href="/rules" className="text-[var(--cream)]/40 underline-offset-2 hover:text-[var(--gold-bright)] hover:underline">
             ← all house rules

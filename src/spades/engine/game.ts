@@ -41,7 +41,7 @@ export function newGame(
 
 /** Deal a new hand and enter the bidding phase. Bidding starts left of dealer. */
 export function startHand(state: GameState, rng: () => number = Math.random): GameState {
-  const hands = deal(rng);
+  const hands = deal(rng, state.rules);
   return {
     ...state,
     phase: "bidding",
