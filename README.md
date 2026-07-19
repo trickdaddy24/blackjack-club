@@ -1,8 +1,8 @@
 ﻿# ♠ Blackjack Club
 
-[![Version](https://img.shields.io/badge/version-0.34.0-blue)](./VERSION)
+[![Version](https://img.shields.io/badge/version-0.35.0-blue)](./VERSION)
 [![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
-[![Tests](https://img.shields.io/badge/tests-263%20passing-brightgreen)](./src/lib/blackjack/engine.test.ts)
+[![Tests](https://img.shields.io/badge/tests-270%20passing-brightgreen)](./src/lib/blackjack/engine.test.ts)
 
 A play-money blackjack site in the spirit of Zynga Poker — real casino rules, persistent
 chip balances, daily free chips, and a dim, gold-on-felt "midnight table" aesthetic.
@@ -102,6 +102,7 @@ tournaments, themes, and retention mechanics.
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 0.35.0 | 2026-07-19 | **🎡 Chip wheel** (issue #8) — a free daily spin, weighted toward small payouts with one rare jackpot slice, alongside the flat daily bonus and the property-pick bonus. Real canvas wheel animation (adapted from the Roulette wheel) spins to a server-rolled result — no client-side chance, the wheel just reveals what already happened. |
 | 0.34.0 | 2026-07-19 | **Hydration fixes (issue #13, part 1)** — `/spades` and `/roulette` now mount-gate their table render, same fix already applied to `/wildcard`. Verified the actual root causes: Spades' random deal and Roulette's `localStorage`-loaded balance/history both previously guaranteed an SSR/client mismatch on nearly every load; neither reproduces now. |
 | 0.33.0 | 2026-07-19 | **🁢 New — Dominoes** — the Club's fourth side game. Basic Draw Dominoes, double-6 set, heads-up vs a bot with a simple shed-heavy-tiles heuristic. Highest double leads, draw-till-playable when stuck, single round to a block or empty hand. No login, no chips database — same anonymous pattern as Spades/Roulette/Wild Card. From a full `/grill-me` design session. |
 | 0.32.0 | 2026-07-18 | **Static demo funnel fix** (blackjack.minus-one-labs.com) — the upgrade banner was dismissible *forever* after one click and pitched stale features; now it's session-scoped (reappears on your next visit) with copy that names what's actually live (Hot Seat, VIP tiers, property bonus, vouchers), plus a new milestone toast on a natural or big win. Footer link brightened from near-invisible. |

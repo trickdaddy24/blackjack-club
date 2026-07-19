@@ -3,6 +3,7 @@ import { GameTable } from "@/components/GameTable";
 import { QuestsBar } from "@/components/QuestsBar";
 import { PropertyBonusBar } from "@/components/PropertyBonusBar";
 import { VipStatusBar } from "@/components/VipStatusBar";
+import { ChipWheelBar } from "@/components/ChipWheelBar";
 
 export const metadata = {
   title: "The Table — Blackjack Club",
@@ -15,6 +16,7 @@ export default function PlayPage() {
       <VipStatusBar />
       <QuestsBar />
       <PropertyBonusBar />
+      <ChipWheelBar />
       <GameTable />
     </div>
   );

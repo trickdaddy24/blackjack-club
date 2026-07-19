@@ -5,6 +5,31 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the `VERSION` fi
 
 ---
 
+## [0.35.0] — 2026-07-19
+
+### Added
+- **🎡 Chip wheel** (GH #8) — a free daily spin, alongside the flat daily
+  bonus and the property-pick bonus (three independent daily claims now,
+  each with its own flavor). Unlike the property bonus (pick a card, own
+  payout curve), this is a single wheel with no choice: 20 segments,
+  weighted toward small payouts via repetition (6× 150, 5× 300, 4× 450,
+  3× 750, 1× 1,500, 1× 7,500 jackpot) rather than a weighted-random roll —
+  a classic wheel-of-fortune trick that keeps the roll itself a plain
+  uniform pick.
+- Server rolls first, then the wheel animates to reveal what was already
+  decided — same server-authoritative-then-animate pattern the Roulette
+  wheel already uses. `ChipWheel`'s canvas rendering and spin-to-target
+  animation math are adapted directly from `roulette/ui/Wheel.tsx`
+  (identical easing/rotation logic, restyled for chip segments).
+- CAS-guarded claim (`updateMany` on the known prior `lastChipWheelSpin`
+  value), same no-cron pattern as the property bonus and VIP tiers.
+- `ChipWheelBar` on `/play`, independent of `GameTable`.
+- 7 new vitest tests. Verified: real HTTP spin matched the wheel's visual
+  landing position exactly to the announced reward (450 chips, confirmed
+  against the DB), 8-way concurrent spin race landed exactly one win.
+
+---
+
 ## [0.34.0] — 2026-07-19
 
 ### Fixed
