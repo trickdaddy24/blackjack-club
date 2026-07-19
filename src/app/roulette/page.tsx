@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { CHIP_DENOMS } from "@/roulette/engine/game";
 import { pocketColor } from "@/roulette/engine/wheel";
 import type { WheelKind } from "@/roulette/engine/types";
@@ -24,6 +25,13 @@ export default function RoulettePage() {
   const r = useRoulette();
   const { state, staked } = r;
   const canSpin = staked > 0 && !state.spinning;
+
+  // Initial state is loaded from localStorage (persisted balance/history),
+  // which isn't available during SSR — render the table only after mount so
+  // hydration always matches (same fix already applied to Wild Card, v0.19.0).
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  if (!mounted) return <div className="roulette-app" />;
 
   return (
     <div className="roulette-app">

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import type { Card } from "@/spades/engine/cards";
 import { cardId } from "@/spades/engine/cards";
 import { HUMAN_SEAT, handSorted } from "@/spades/engine/game";
@@ -25,6 +26,13 @@ export default function SpadesPage() {
   const deucesHigh = state.rules.deucesHigh;
   const jokers = state.rules.jokers;
   const isPromotedDeuce = (c: Card) => deucesHigh && c.rank === 2 && c.suit !== "S";
+
+  // The deal is random, so SSR and client would produce different hands —
+  // render the table only after mount so hydration always matches (same
+  // fix already applied to Wild Card, v0.19.0).
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  if (!mounted) return <div className="spades-app" />;
 
   const myHand = handSorted(state, HUMAN_SEAT);
   const canPlay = (c: Card) =>

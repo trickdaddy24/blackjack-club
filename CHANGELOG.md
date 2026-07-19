@@ -5,6 +5,40 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the `VERSION` fi
 
 ---
 
+## [0.34.0] — 2026-07-19
+
+### Fixed
+- **`/spades` and `/roulette` hydration mismatches** (GH #13, part 1 of 2 —
+  the promo-banner countdown item is investigated separately below).
+  Applied the same mount-gate fix already proven on `/wildcard` (v0.19.0):
+  render an empty placeholder until `useEffect` confirms the client has
+  mounted, then swap in the real table.
+  - **Spades'** root cause: `useState(() => newGame())` deals a random
+    hand during the initial render, which runs on both the server and the
+    client's pre-hydration pass — two independent `Math.random()` calls
+    essentially never agree, so this mismatched on nearly every load.
+  - **Roulette's** root cause was different: `useState(load)` reads
+    `localStorage` directly in its lazy initializer. SSR has no
+    `localStorage` and falls back to a fresh $1,000 game; a returning
+    player's client render loads their real persisted balance/history —
+    guaranteed to mismatch whenever there was any prior session.
+  - Verified both against their actual failure modes: Spades reloaded
+    fresh three times in a row (previously reproduced virtually every
+    load); Roulette had a bet placed and settled (balance $1,000 → $995,
+    persisted to `localStorage`) then reloaded — the exact scenario that
+    guaranteed a mismatch before now hydrates clean.
+- **Promo-banner countdown mismatch (GH #13, part 2)** — investigated, not
+  changed. `PromoBanner` (in `GameTable.tsx`) already renders `null` until
+  a `useEffect` populates live status client-side, which is the same
+  protective pattern as the fixes above — traced this back to the
+  component's original v0.16.0 commit and it was written this way from
+  day one. Found no code path where promo status is computed outside that
+  gate. Left as-is rather than invent a fix for a defect that couldn't be
+  reproduced or located in the current code; worth revisiting only if it
+  resurfaces with a reproduction case.
+
+---
+
 ## [0.33.0] — 2026-07-19
 
 ### Added
