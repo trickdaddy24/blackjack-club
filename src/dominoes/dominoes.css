@@ -1,0 +1,86 @@
+/* Dominoes game styles, fully scoped under .dominoes-app so nothing leaks
+ * into the Blackjack app's Tailwind. Mirrors the Spades/Wild Card dark-felt
+ * + gold aesthetic. */
+
+.dominoes-app {
+  --bg: #0b1020;
+  --felt: #123b2b;
+  --ink: #e8ecf4;
+  --muted: #93a0b8;
+  --gold: #f2c14e;
+  --tile-bg: #fbfbfd;
+  --tile-ink: #1c2230;
+  --line: rgba(255, 255, 255, 0.1);
+
+  color: var(--ink);
+  font: 15px/1.4 ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif;
+  background: var(--bg);
+  min-height: 100vh;
+}
+.dominoes-app *, .dominoes-app *::before, .dominoes-app *::after { box-sizing: border-box; }
+
+.dominoes-app .dapp { display: flex; flex-direction: column; min-height: 100vh; max-width: 900px; margin: 0 auto; }
+
+/* Top bar */
+.dominoes-app .dtopbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 10px 16px; border-bottom: 1px solid var(--line); }
+.dominoes-app .dbrand { font-weight: 800; letter-spacing: 0.02em; display: flex; align-items: baseline; gap: 6px; }
+.dominoes-app .dbrand span { color: var(--gold); }
+.dominoes-app .dver { font-size: 11px; font-weight: 400; color: var(--muted); }
+.dominoes-app .dtopbar__actions { display: flex; align-items: center; gap: 8px; }
+.dominoes-app .dtopbar__btn { background: rgba(255, 255, 255, 0.06); border: 1px solid var(--line); color: var(--ink); border-radius: 8px; padding: 6px 12px; font-size: 13px; cursor: pointer; display: inline-flex; align-items: center; }
+.dominoes-app .dtopbar__btn:hover { border-color: var(--gold); color: var(--gold); }
+
+/* Status strip */
+.dominoes-app .dstatus { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; font-size: 13px; color: var(--muted); }
+.dominoes-app .dstatus__msg { font-weight: 700; color: var(--gold); }
+
+/* Board */
+.dominoes-app .dboard { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 24px; padding: 16px; background: radial-gradient(ellipse at center, var(--felt), #0a2018); margin: 0 12px; border-radius: 16px; min-height: 260px; }
+.dominoes-app .dboard__backs { display: flex; gap: -10px; }
+.dominoes-app .dboard__backs .domino--back { margin-left: -18px; }
+.dominoes-app .dboard__backs .domino--back:first-child { margin-left: 0; }
+.dominoes-app .dline { display: flex; align-items: center; gap: 3px; overflow-x: auto; max-width: 100%; padding: 8px; }
+
+/* Draw / end-pick prompts */
+.dominoes-app .ddraw, .dominoes-app .dendpick { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 8px 16px; font-size: 13px; color: var(--muted); }
+.dominoes-app .dbigbtn { background: linear-gradient(180deg, var(--gold), #c99a2e); color: #1a1508; font-weight: 800; border: none; border-radius: 10px; padding: 10px 22px; cursor: pointer; font-size: 14px; }
+.dominoes-app .dbigbtn:hover { filter: brightness(1.08); }
+.dominoes-app .dbigbtn--sm { padding: 6px 14px; font-size: 13px; }
+
+/* Hand rack */
+.dominoes-app .dhand { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px; padding: 16px; }
+
+/* Footer */
+.dominoes-app .dfoot { text-align: center; font-size: 12px; color: var(--muted); padding: 14px; }
+.dominoes-app .dfoot a { color: var(--gold); text-decoration: none; }
+.dominoes-app .dfoot a:hover { text-decoration: underline; }
+
+/* Result modal */
+.dominoes-app .dmodal { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.6); display: flex; align-items: center; justify-content: center; z-index: 50; }
+.dominoes-app .dmodal__card { background: #131a2e; border: 1px solid var(--line); border-radius: 16px; padding: 28px 32px; text-align: center; min-width: 280px; }
+.dominoes-app .dmodal__title { font-size: 22px; font-weight: 800; margin: 0 0 6px; }
+.dominoes-app .dmodal__sub { color: var(--muted); font-size: 13px; margin: 0 0 16px; }
+.dominoes-app .dmodal__pips { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--ink); margin-bottom: 20px; }
+
+/* ---- Domino tile ---- */
+.dominoes-app .domino { display: flex; align-items: center; justify-content: center; background: var(--tile-bg); border: 1px solid rgba(0, 0, 0, 0.25); border-radius: 6px; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.35); user-select: none; padding: 4px; }
+.dominoes-app .domino--h { flex-direction: row; width: 68px; height: 34px; gap: 3px; }
+.dominoes-app .domino--v { flex-direction: column; width: 34px; height: 68px; gap: 3px; }
+.dominoes-app .domino--v.domino--double { flex-direction: row; width: 68px; height: 34px; }
+.dominoes-app .domino--sm.domino--h { width: 52px; height: 26px; }
+.dominoes-app .domino--sm.domino--v { width: 26px; height: 52px; }
+.dominoes-app .domino__divider { background: rgba(0, 0, 0, 0.25); flex-shrink: 0; }
+.dominoes-app .domino--h .domino__divider, .dominoes-app .domino--v.domino--double .domino__divider { width: 1px; height: 70%; }
+.dominoes-app .domino--v:not(.domino--double) .domino__divider { height: 1px; width: 70%; }
+.dominoes-app .domino--back { background: repeating-linear-gradient(45deg, #2b3a67, #2b3a67 5px, #24325a 5px, #24325a 10px); border: 1px solid #3b4b7a; width: 34px; height: 68px; border-radius: 6px; }
+.dominoes-app .domino--btn { cursor: pointer; transition: transform 0.12s, box-shadow 0.12s; }
+.dominoes-app .domino--btn:hover:not(:disabled) { transform: translateY(-6px); box-shadow: 0 8px 16px rgba(0, 0, 0, 0.5); }
+.dominoes-app .domino--playable { outline: 2px solid var(--gold); }
+.dominoes-app .domino--dim { opacity: 0.4; }
+.dominoes-app .domino:disabled { cursor: default; }
+
+/* Pip face — 3x3 dot grid per half */
+.dominoes-app .pipface { display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr); gap: 2px; width: 24px; height: 24px; flex-shrink: 0; }
+.dominoes-app .pipface--sm { width: 18px; height: 18px; }
+.dominoes-app .pip { border-radius: 50%; background: transparent; }
+.dominoes-app .pip--on { background: var(--tile-ink); }

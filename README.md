@@ -1,8 +1,8 @@
 ﻿# ♠ Blackjack Club
 
-[![Version](https://img.shields.io/badge/version-0.32.0-blue)](./VERSION)
+[![Version](https://img.shields.io/badge/version-0.33.0-blue)](./VERSION)
 [![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
-[![Tests](https://img.shields.io/badge/tests-243%20passing-brightgreen)](./src/lib/blackjack/engine.test.ts)
+[![Tests](https://img.shields.io/badge/tests-263%20passing-brightgreen)](./src/lib/blackjack/engine.test.ts)
 
 A play-money blackjack site in the spirit of Zynga Poker — real casino rules, persistent
 chip balances, daily free chips, and a dim, gold-on-felt "midnight table" aesthetic.
@@ -102,6 +102,7 @@ tournaments, themes, and retention mechanics.
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 0.33.0 | 2026-07-19 | **🁢 New — Dominoes** — the Club's fourth side game. Basic Draw Dominoes, double-6 set, heads-up vs a bot with a simple shed-heavy-tiles heuristic. Highest double leads, draw-till-playable when stuck, single round to a block or empty hand. No login, no chips database — same anonymous pattern as Spades/Roulette/Wild Card. From a full `/grill-me` design session. |
 | 0.32.0 | 2026-07-18 | **Static demo funnel fix** (blackjack.minus-one-labs.com) — the upgrade banner was dismissible *forever* after one click and pitched stale features; now it's session-scoped (reappears on your next visit) with copy that names what's actually live (Hot Seat, VIP tiers, property bonus, vouchers), plus a new milestone toast on a natural or big win. Footer link brightened from near-invisible. |
 | 0.31.0 | 2026-07-17 | **♠ Spades: clearer bids + Jokers variant** — each seat's bid is now its own prominent pill (was buried in small muted text; West/East were also silently hidden behind the card-back fans — fixed). New Jokers toggle: 🃏 Big & Little Joker swap in for 2♣/2♦ as the two highest trumps, above the A♠, with full bot AI awareness. |
 | 0.30.0 | 2026-07-17 | **🔑 Forgot password** — self-service email-based reset flow. `/forgot-password` → emailed link (Resend, same infra as Duo invites) → `/reset-password`. Single-use, 1-hour-expiring, sha256-hashed tokens; generic response either way so the flow can't be used to enumerate accounts; rate-limited per IP. |

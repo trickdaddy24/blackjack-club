@@ -5,6 +5,43 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the `VERSION` fi
 
 ---
 
+## [0.33.0] — 2026-07-19
+
+### Added
+- **🁢 Dominoes** — the Club's fourth side game, from a full `/grill-me`
+  design session (9 questions, every branch locked with a recommendation).
+  Basic Draw Dominoes, double-6 set (28 tiles), heads-up vs one bot: 7
+  tiles dealt each, 14 in the boneyard. Highest double in either hand
+  leads (falling back to the single highest-pip tile if neither hand has
+  a double); can't play → draw from the boneyard until you can or it's
+  empty, then pass; two passes in a row blocks the round, lowest pips
+  wins. Doubles play like a normal tile (matches both ends), no spinner
+  branching. Single round only — no running score, no redeal loop.
+- Bot plays a simple heuristic: sheds its heaviest tiles and doubles
+  first when it has a choice of legal plays. No hand-reading, no
+  deliberate blocking.
+- `src/dominoes/engine/` + `src/dominoes/ui/` mirrors the Spades/Roulette/
+  Wild Card architecture exactly: fully anonymous, no login, no chips
+  database, not in `middleware.ts`'s protected list. New `/dominoes`
+  route + lobby promo card. Built mount-gated from the start (`if
+  (!mounted) return ...`) to avoid the SSR/client hydration mismatch
+  already documented as a latent bug on `/spades` and `/roulette`.
+- Proper pip-dot tile rendering (3×3 dot grid per half, standard domino
+  layout for 0–6) rather than plain numbers.
+- 20 new vitest tests covering the full engine: deck composition, opener
+  selection (both the double and no-double-fallback paths), legal moves,
+  play/draw/pass/block transitions, and the bot heuristic. Caught and
+  fixed two real bugs during testing: a copy-paste in the opening-tile
+  board setup that ignored non-double orientation, and `pickOpener`
+  leaking its internal ranking field into the public return value.
+- Verified end to end in a live Chrome session: full game played out from
+  deal to a genuine block (bot won on lower pips, 10 vs 12), exercising
+  every state transition including the human draw loop, the bot's own
+  multi-draw loop, the end-picker UI for tiles playable at both ends, and
+  the horizontal-scroll board once the line outgrew the container.
+
+---
+
 ## [0.32.0] — 2026-07-18
 
 ### Fixed
