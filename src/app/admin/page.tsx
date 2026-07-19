@@ -78,6 +78,14 @@ export default async function AdminPage({
               <Link href="/admin/audit" className="text-[var(--gold-bright)] underline-offset-4 hover:underline">
                 view the log
               </Link>
+              {" · "}
+              <Link href="/admin/rounds" className="text-[var(--gold-bright)] underline-offset-4 hover:underline">
+                round inspector
+              </Link>
+              {" · "}
+              <Link href="/admin/house" className="text-[var(--gold-bright)] underline-offset-4 hover:underline">
+                house
+              </Link>
             </p>
           </div>
         </div>

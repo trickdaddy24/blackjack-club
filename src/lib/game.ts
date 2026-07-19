@@ -56,6 +56,14 @@ export async function settleLuckyLadiesPot(
   });
 }
 
+/** Pit-boss force-promo override row, or null (nothing has ever been set). */
+export async function getPromoOverride() {
+  return prisma.promoOverride.findUnique({
+    where: { id: "global" },
+    select: { promoId: true, expiresAt: true },
+  });
+}
+
 export async function getActiveRound(userId: string) {
   return prisma.round.findFirst({
     where: { userId, status: { not: "settled" } },

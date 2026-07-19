@@ -3,12 +3,15 @@
 Design document for the pit-boss console at `/admin`. Requested 2026-07-15
 ("no code, but admin console for BJ").
 
-> **Status (v0.20.0, 2026-07-16):** slice 1 SHIPPED — players page (search,
-> audited chip adjust, ban/unban, trophy grant/revoke), signals cards, bulk
-> purge, `/admin/audit`, `scripts/promote-admin.js`, plus registration
-> defense (honeypot / rate limit / disposable blocklist / Turnstile).
-> Still open from this doc: round inspector (`/admin/rounds`), house
-> dashboard (`/admin/house`, jackpot override, force-promo).
+> **Status (v0.36.0, 2026-07-19):** slices 1 & 2 SHIPPED. Slice 1: players
+> page (search, audited chip adjust, ban/unban, trophy grant/revoke),
+> signals cards, bulk purge, `/admin/audit`, `scripts/promote-admin.js`,
+> plus registration defense (honeypot / rate limit / disposable blocklist /
+> Turnstile). Slice 2: round inspector (`/admin/rounds` — filterable,
+> read-only, shares its replay with the profile page) and house dashboard
+> (`/admin/house` — Vegas-clock P&L, Lucky Ladies pot override, force-promo
+> via a `PromoOverride` DB flag with expiry, wired into every payout path).
+> Everything from this doc is now built.
 
 ## Why
 

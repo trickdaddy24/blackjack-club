@@ -16,6 +16,8 @@ const ACTION_LABELS: Record<string, string> = {
   "achievement-grant": "🏆 Trophy granted",
   "achievement-revoke": "🗑️ Trophy revoked",
   purge: "🧹 Purge",
+  "jackpot-set": "🎰 Jackpot set",
+  "promo-force": "🔥 Promo forced",
 };
 
 export default async function AuditPage() {
@@ -53,7 +55,15 @@ export default async function AuditPage() {
           <p className="mt-1 text-sm text-[var(--cream)]/50">
             Last 100 console actions ·{" "}
             <Link href="/admin" className="text-[var(--gold-bright)] underline-offset-4 hover:underline">
-              back to players
+              players
+            </Link>
+            {" · "}
+            <Link href="/admin/rounds" className="text-[var(--gold-bright)] underline-offset-4 hover:underline">
+              round inspector
+            </Link>
+            {" · "}
+            <Link href="/admin/house" className="text-[var(--gold-bright)] underline-offset-4 hover:underline">
+              house
             </Link>
           </p>
         </div>

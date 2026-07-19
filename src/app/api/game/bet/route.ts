@@ -14,6 +14,7 @@ import {
   getActiveRound,
   getLuckyLadiesJackpot,
   getPreviousCarry,
+  getPromoOverride,
   MAX_BET,
   MAX_SIDE_BET,
   roundStatus,
@@ -21,7 +22,7 @@ import {
 } from "@/lib/game";
 import { withHint } from "@/lib/blackjack/strategy";
 import { currentTableMinimum } from "@/lib/tableMinimum";
-import { currentPromo } from "@/lib/promotions";
+import { effectivePromo } from "@/lib/promotions";
 import { earnedThisSettle, nextWinStreak } from "@/lib/achievements";
 import { awardAchievements } from "@/lib/game-achievements";
 import { settleEventFor } from "@/lib/quests";
@@ -143,6 +144,7 @@ export async function POST(req: Request) {
   }
 
   const carry = await getPreviousCarry(userId);
+  const promo = effectivePromo(await getPromoOverride());
   const { state, debit, shuffled, sideBetPayout } = startRound(bet, {
     previousShoe: carry?.shoe ?? null,
     previousVariant: carry?.variant,
@@ -153,7 +155,7 @@ export async function POST(req: Request) {
     perfectPairs: pp,
     twentyOnePlusThree: tp,
     luckyLadies: ll,
-    promo: currentPromo()?.id ?? null,
+    promo: promo?.id ?? null,
   });
   const settled = state.phase === "settled";
 

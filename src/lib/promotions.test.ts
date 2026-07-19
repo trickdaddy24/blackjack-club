@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { currentPromo, promoStatus, PROMO_SCHEDULE } from "./promotions";
+import { currentPromo, effectivePromo, promoStatus, PROMO_SCHEDULE } from "./promotions";
 
 // July dates → PDT (UTC-7), so "-07:00" offsets pin the Vegas clock exactly.
 const pt = (time: string) => new Date(`2026-07-15T${time}:00-07:00`);
@@ -43,6 +43,28 @@ describe("promoStatus", () => {
     expect(s.active).toBeNull();
     expect(s.next.id).toBe("midnight-madness");
     expect(s.startsInMinutes).toBe(240);
+  });
+});
+
+describe("effectivePromo", () => {
+  it("falls back to the schedule with no override", () => {
+    expect(effectivePromo(null, pt("12:00"))).toBeNull();
+    expect(effectivePromo(null, pt("17:30"))?.id).toBe("happy-hour");
+  });
+
+  it("falls back to the schedule once the override has expired", () => {
+    const override = { promoId: "happy-hour", expiresAt: pt("11:00") };
+    expect(effectivePromo(override, pt("12:00"))).toBeNull();
+  });
+
+  it("forces a quiet-floor promo to run while unexpired", () => {
+    const override = { promoId: "happy-hour", expiresAt: pt("13:00") };
+    expect(effectivePromo(override, pt("12:00"))?.id).toBe("happy-hour");
+  });
+
+  it("overrides one scheduled promo with another", () => {
+    const override = { promoId: "midnight-madness", expiresAt: pt("18:00") };
+    expect(effectivePromo(override, pt("17:30"))?.id).toBe("midnight-madness");
   });
 });
 

@@ -5,6 +5,36 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the `VERSION` fi
 
 ---
 
+## [0.36.0] — 2026-07-19
+
+### Added
+- **🕵️ Admin console slice 2: round inspector + house dashboard** (GH #14) —
+  the second half of docs/ADMIN-CONSOLE.md.
+  - `/admin/rounds` — round inspector: recent settled rounds, filterable by
+    player, Vegas-clock window (today/week/all time), and a minimum |net|
+    threshold. Rows expand into a hand replay — the same `Replay`/`MiniCard`
+    components the profile page uses, now shared via `HandReplay.tsx`.
+    Read-only by design; rounds are never edited here.
+  - `/admin/house` — house dashboard: today/week house P&L (inverse of
+    player net), rounds dealt, active players, and biggest win, all on the
+    same Vegas-clock windows as the leaderboards. Plus a Lucky Ladies pot
+    override ("set pot") and a promo calendar with a **force-promo**
+    override — a server-side flag with an expiry, not a code change. The
+    override is now checked everywhere a round is dealt (solo and duo
+    tables, the midnight-bonus doubler) so forcing Happy Hour actually pays
+    2:1 naturals early.
+  - New `/api/admin/rounds` (GET), `/api/admin/jackpot` (POST), and
+    `/api/admin/promo` (POST) routes — same admin-gated, audited-with-a-
+    typed-reason pattern as every other console mutation.
+
+### Fixed
+- A handful of legacy rounds carry `stateJson: "{}"` (a pre-engine-format
+  stub) instead of a real `RoundState`. The round inspector's "all time"
+  window hit one and crashed with `cards is not iterable`; the profile
+  page's hand replay had the same latent bug. Both now treat anything
+  missing the dealer/hand arrays as unreplayable, same as an unparseable
+  row.
+
 ## [0.35.0] — 2026-07-19
 
 ### Added

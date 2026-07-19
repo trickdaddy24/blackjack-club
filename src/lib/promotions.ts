@@ -60,6 +60,26 @@ export function currentPromo(now: Date = new Date()): Promotion | null {
   return PROMO_SCHEDULE.find((p) => hour >= p.from && hour < p.to) ?? null;
 }
 
+export interface PromoOverrideRecord {
+  promoId: string | null;
+  expiresAt: Date | null;
+}
+
+/**
+ * The promo that actually governs payouts right now: an unexpired pit-boss
+ * override wins, otherwise the schedule. Pure so it's cheap to unit-test —
+ * callers fetch the override row themselves and pass it in.
+ */
+export function effectivePromo(
+  override: PromoOverrideRecord | null,
+  now: Date = new Date()
+): Promotion | null {
+  if (override?.promoId && override.expiresAt && override.expiresAt.getTime() > now.getTime()) {
+    return PROMO_SCHEDULE.find((p) => p.id === override.promoId) ?? currentPromo(now);
+  }
+  return currentPromo(now);
+}
+
 export interface PromoStatus {
   /** Active promo, or null. */
   active: Promotion | null;

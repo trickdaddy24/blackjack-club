@@ -22,10 +22,11 @@ import {
   type PlayerAction,
   type RoundState,
 } from "@/lib/blackjack/engine";
-import { currentPromo } from "@/lib/promotions";
+import { effectivePromo } from "@/lib/promotions";
 import { currentTableMinimum } from "@/lib/tableMinimum";
 import {
   getLuckyLadiesJackpot,
+  getPromoOverride,
   MAX_BET,
   MAX_SIDE_BET,
   settleLuckyLadiesPot,
@@ -296,6 +297,7 @@ async function dealTableRound(
 ): Promise<{ table: Table; unlocked: Map<string, AchievementDef[]> }> {
   const hostSides = parseSides(table.hostSideJson);
   const guestSides = parseSides(table.guestSideJson);
+  const promo = effectivePromo(await getPromoOverride());
   const stakes: [number, number] = [
     table.hostBet + sideTotal(hostSides),
     table.guestBet + sideTotal(guestSides),
@@ -312,7 +314,7 @@ async function dealTableRound(
       seats: 2,
       seatBets: [table.hostBet, table.guestBet],
       seatSideBets: [hostSides, guestSides],
-      promo: currentPromo()?.id ?? null,
+      promo: promo?.id ?? null,
     });
   } catch (err) {
     if (err instanceof IllegalActionError) throw new TableError(err.message);

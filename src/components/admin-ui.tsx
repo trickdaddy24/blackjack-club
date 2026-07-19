@@ -9,7 +9,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { ACHIEVEMENTS } from "@/lib/achievements";
 
-async function adminPost(path: string, body: unknown): Promise<unknown> {
+export async function adminPost(path: string, body: unknown): Promise<unknown> {
   const res = await fetch(path, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -20,9 +20,9 @@ async function adminPost(path: string, body: unknown): Promise<unknown> {
   return data;
 }
 
-const inputCls =
+export const inputCls =
   "w-full rounded-lg border border-[var(--gold)]/25 bg-black/40 px-2.5 py-1.5 text-sm text-[var(--cream)] placeholder:text-[var(--cream)]/30 focus:outline-none focus:border-[var(--gold)]/60";
-const btnCls =
+export const btnCls =
   "rounded-lg border border-[var(--gold)]/30 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider text-[var(--cream)]/70 hover:bg-[var(--gold)]/15 hover:text-[var(--cream)] transition-colors";
 
 type Panel = "chips" | "role" | "trophy" | null;

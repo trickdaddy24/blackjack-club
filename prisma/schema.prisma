@@ -146,6 +146,17 @@ model Jackpot {
   updatedAt DateTime @updatedAt
 }
 
+// Pit-boss "force promo" override — a server-side flag with expiry, not a
+// code change (docs/ADMIN-CONSOLE.md). Single global row (id "global").
+// promoId null or expiresAt in the past = no override; PROMO_SCHEDULE runs
+// normally. Every currentPromo() call site that gates real payouts checks
+// this alongside the schedule.
+model PromoOverride {
+  id        String    @id
+  promoId   String?
+  expiresAt DateTime?
+}
+
 // Random surprise bonus dropped on a currently-active player, Vegas
 // "hot seat" style. Single global row (id "global"); nextDropAt is a
 // CAS mutex — whichever request's updateMany claims it runs the draw.

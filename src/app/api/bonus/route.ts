@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { DAILY_BONUS, getActiveRound, RESCUE_CHIPS } from "@/lib/game";
+import { DAILY_BONUS, getActiveRound, getPromoOverride, RESCUE_CHIPS } from "@/lib/game";
 import { currentTableMinimum } from "@/lib/tableMinimum";
-import { currentPromo } from "@/lib/promotions";
+import { effectivePromo } from "@/lib/promotions";
 import { vegasDayKey } from "@/lib/leaderboard";
 import { tierByNumber } from "@/lib/vip";
 
@@ -37,7 +37,8 @@ export async function POST() {
     const boost = Math.min(streak - 1, STREAK_BOOST_CAP_DAYS) * STREAK_BOOST_PER_DAY;
 
     // Midnight Madness doubles the whole thing while it runs
-    const madness = currentPromo()?.id === "midnight-madness";
+    const override = await getPromoOverride();
+    const madness = effectivePromo(override, now)?.id === "midnight-madness";
     const vipBoostPct = tierByNumber(user.vipTier).dailyBonusBoostPct;
     const granted = Math.round(
       (DAILY_BONUS + boost) * (1 + vipBoostPct / 100) * (madness ? 2 : 1)
