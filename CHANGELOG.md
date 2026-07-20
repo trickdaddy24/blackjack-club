@@ -5,6 +5,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the `VERSION` fi
 
 ---
 
+## [0.37.1] — 2026-07-19
+
+### Added
+- `scripts/set-admin-password.js` — shell-only companion to
+  `promote-admin.js` for setting an admin account's password. The console's
+  "Set PW" control (v0.37.0) refuses admin targets on purpose, so this
+  covers a locked-out admin the same way promotion already required shell
+  access instead of a UI control. Takes a pre-computed bcrypt hash rather
+  than a raw password, since the standalone Docker image only ships
+  `@prisma/client`, not `bcryptjs`.
+
+---
+
 ## [0.37.0] — 2026-07-19
 
 ### Added
