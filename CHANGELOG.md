@@ -5,6 +5,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the `VERSION` fi
 
 ---
 
+## [0.37.0] — 2026-07-19
+
+### Added
+- **🔑 Admin-set password** — a pit boss can now set a player's password
+  directly from the console (new "Set PW" action next to ±Chips/Ban/🏆),
+  for players who can't reach their registered email to use the normal
+  reset-link flow. Same admin-gated, audited-with-a-typed-reason pattern as
+  every other console mutation; enforces the standard password-complexity
+  rule and burns any outstanding self-serve reset token for that user.
+  Admin accounts can't be targeted from this control. The audit log records
+  only the reason, never the new password.
+
+---
+
 ## [0.36.0] — 2026-07-19
 
 ### Added

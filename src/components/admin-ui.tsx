@@ -25,7 +25,7 @@ export const inputCls =
 export const btnCls =
   "rounded-lg border border-[var(--gold)]/30 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider text-[var(--cream)]/70 hover:bg-[var(--gold)]/15 hover:text-[var(--cream)] transition-colors";
 
-type Panel = "chips" | "role" | "trophy" | null;
+type Panel = "chips" | "role" | "trophy" | "password" | null;
 
 export function PlayerActions({
   userId,
@@ -43,10 +43,14 @@ export function PlayerActions({
   const [reason, setReason] = useState("");
   const [slug, setSlug] = useState(ACHIEVEMENTS[0].slug);
   const [grant, setGrant] = useState(true);
+  const [password, setPassword] = useState("");
+  const [confirmPw, setConfirmPw] = useState("");
 
   const toggle = (p: Panel) => {
     setPanel((cur) => (cur === p ? null : p));
     setReason("");
+    setPassword("");
+    setConfirmPw("");
   };
 
   async function run(fn: () => Promise<void>) {
@@ -75,6 +79,7 @@ export function PlayerActions({
           {banned ? "Unban" : "Ban"}
         </button>
         <button className={btnCls} onClick={() => toggle("trophy")}>🏆</button>
+        <button className={btnCls} onClick={() => toggle("password")}>🔑 Set PW</button>
       </div>
 
       {panel === "chips" && (
@@ -174,6 +179,53 @@ export function PlayerActions({
               run(async () => {
                 await adminPost(`/api/admin/users/${userId}/achievements`, { slug, grant, reason });
                 toast.success(`${grant ? "Granted" : "Revoked"} ${slug} for ${name}`);
+              })
+            }
+          >
+            Apply
+          </button>
+        </div>
+      )}
+
+      {panel === "password" && (
+        <div className="mt-2 space-y-1.5 rounded-xl bg-black/30 p-2.5">
+          <p className="text-[11px] text-[var(--cream)]/45">
+            For players who can&apos;t reach their registered email. Share the new password with{" "}
+            {name} out of band.
+          </p>
+          <input
+            type="password"
+            className={inputCls}
+            placeholder="New password (min 8 chars, 2+ character types)"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            aria-label={`New password for ${name}`}
+          />
+          <input
+            type="password"
+            className={inputCls}
+            placeholder="Confirm password"
+            value={confirmPw}
+            onChange={(e) => setConfirmPw(e.target.value)}
+            aria-label={`Confirm new password for ${name}`}
+          />
+          <input
+            className={inputCls}
+            placeholder="Reason (required, audited)"
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            aria-label="Reason for password reset"
+          />
+          <button
+            className={btnCls}
+            disabled={busy}
+            onClick={() =>
+              run(async () => {
+                if (password !== confirmPw) {
+                  throw new Error("Passwords do not match");
+                }
+                await adminPost(`/api/admin/users/${userId}/password`, { password, reason });
+                toast.success(`Password set for ${name}`);
               })
             }
           >

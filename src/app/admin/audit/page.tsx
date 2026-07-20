@@ -13,6 +13,7 @@ export const dynamic = "force-dynamic";
 const ACTION_LABELS: Record<string, string> = {
   "chips-adjust": "💰 Chips adjusted",
   "role-set": "🚫 Role changed",
+  "password-reset": "🔑 Password reset",
   "achievement-grant": "🏆 Trophy granted",
   "achievement-revoke": "🗑️ Trophy revoked",
   purge: "🧹 Purge",
