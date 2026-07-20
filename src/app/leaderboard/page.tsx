@@ -148,12 +148,16 @@ export default async function LeaderboardPage({
   let callout: string | null = null;
 
   if (board === "stacks") {
-    subtitle = "The club's biggest chip stacks — all time";
-    const [top, me] = await Promise.all([
+    subtitle = `The club's biggest chip stacks — all time (${MIN_ROUNDS_TO_RANK}+ rounds to qualify)`;
+    const [candidates, roundCounts, me] = await Promise.all([
       prisma.user.findMany({
         orderBy: [{ chips: "desc" }, { createdAt: "asc" }],
-        take: TOP_N,
         select: { id: true, name: true, chips: true, createdAt: true },
+      }),
+      prisma.round.groupBy({
+        by: ["userId"],
+        where: { status: "settled" },
+        _count: true,
       }),
       prisma.user.findUnique({
         where: { id: userId },
@@ -161,16 +165,24 @@ export default async function LeaderboardPage({
       }),
     ]);
     if (!me) redirect("/login");
-    const toRow = (u: typeof top[number]): RowData => ({
+    const roundsByUser = new Map(roundCounts.map((r) => [r.userId, r._count]));
+    const qualified = candidates.filter(
+      (u) => (roundsByUser.get(u.id) ?? 0) >= MIN_ROUNDS_TO_RANK
+    );
+    const toRow = (u: (typeof candidates)[number]): RowData => ({
       id: u.id,
       name: u.name ?? "Player",
       value: u.chips.toLocaleString(),
       detail: `since ${u.createdAt.toLocaleDateString("en-US", { month: "short", year: "numeric" })}`,
     });
-    rows = top.map(toRow);
-    if (!top.some((u) => u.id === userId)) {
-      myRank = (await prisma.user.count({ where: { chips: { gt: me.chips } } })) + 1;
-      meRow = toRow(me);
+    rows = qualified.slice(0, TOP_N).map(toRow);
+    const myIdx = qualified.findIndex((u) => u.id === userId);
+    if (myIdx >= TOP_N) {
+      myRank = myIdx + 1;
+      meRow = toRow(qualified[myIdx]);
+    } else if (myIdx === -1) {
+      const mine = roundsByUser.get(userId) ?? 0;
+      callout = `You've played ${mine} of the ${MIN_ROUNDS_TO_RANK} rounds needed to rank High Rollers.`;
     }
   } else if (board === "today" || board === "week") {
     const start = board === "today" ? vegasDayStart() : vegasWeekStart();

@@ -3,15 +3,28 @@ import { Crown, Spade, Heart, Diamond, Club, CircleDot, Layers, Dice5 } from "lu
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { TopBar } from "@/components/TopBar";
+import { MIN_ROUNDS_TO_RANK } from "@/lib/leaderboard";
 
 export default async function LobbyPage() {
   const session = await auth();
 
-  const leaders = await prisma.user.findMany({
-    orderBy: { chips: "desc" },
-    take: 5,
-    select: { id: true, name: true, chips: true },
-  });
+  // Raw chip stack, but only for players who've actually put in the rounds —
+  // otherwise free daily-claim chips alone can out-rank real players.
+  const [candidates, roundCounts] = await Promise.all([
+    prisma.user.findMany({
+      orderBy: { chips: "desc" },
+      select: { id: true, name: true, chips: true },
+    }),
+    prisma.round.groupBy({
+      by: ["userId"],
+      where: { status: "settled" },
+      _count: true,
+    }),
+  ]);
+  const roundsByUser = new Map(roundCounts.map((r) => [r.userId, r._count]));
+  const leaders = candidates
+    .filter((u) => (roundsByUser.get(u.id) ?? 0) >= MIN_ROUNDS_TO_RANK)
+    .slice(0, 5);
 
   return (
     <div className="flex min-h-screen flex-col">

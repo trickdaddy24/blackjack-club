@@ -5,6 +5,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the `VERSION` fi
 
 ---
 
+## [0.39.1] — 2026-07-20
+
+### Fixed
+- **High Rollers leaderboard farming** — both the homepage widget and the
+  `/leaderboard?board=stacks` tab sorted by raw chip balance with no
+  qualification floor, unlike Today/Week/Strategy Masters (all of which
+  require `MIN_ROUNDS_TO_RANK` settled rounds). A QA/smoke-test account was
+  climbing to the top purely from free daily-claim bonuses (daily bonus,
+  property-pick, chip wheel) with a single real round ever played. Both
+  boards now require 10+ settled rounds to rank, same as the other boards,
+  with a callout on the full leaderboard page showing progress toward
+  qualifying.
+
 ## [0.39.0] — 2026-07-20
 
 ### Added
