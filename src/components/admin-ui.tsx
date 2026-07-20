@@ -8,6 +8,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { ACHIEVEMENTS } from "@/lib/achievements";
+import { sounds } from "@/lib/sound";
 
 export async function adminPost(path: string, body: unknown): Promise<unknown> {
   const res = await fetch(path, {
@@ -60,6 +61,7 @@ export function PlayerActions({
       setPanel(null);
       router.refresh();
     } catch (e) {
+      sounds.adminWarn();
       toast.error((e as Error).message);
     } finally {
       setBusy(false);
@@ -117,6 +119,7 @@ export function PlayerActions({
               run(async () => {
                 const d = Number(delta);
                 await adminPost(`/api/admin/users/${userId}/chips`, { delta: d, reason });
+                sounds.adminConfirm();
                 toast.success(`${name}: chips ${d > 0 ? "+" : ""}${d.toLocaleString()}`);
               })
             }
@@ -144,6 +147,8 @@ export function PlayerActions({
                   role: banned ? "user" : "banned",
                   reason,
                 });
+                if (banned) sounds.adminConfirm();
+                else sounds.adminWarn();
                 toast.success(`${name} ${banned ? "unbanned" : "BANNED"}`);
               })
             }
@@ -189,6 +194,7 @@ export function PlayerActions({
             onClick={() =>
               run(async () => {
                 await adminPost(`/api/admin/users/${userId}/achievements`, { slug, grant, reason });
+                sounds.adminConfirm();
                 toast.success(`${grant ? "Granted" : "Revoked"} ${slug} for ${name}`);
               })
             }
@@ -236,6 +242,7 @@ export function PlayerActions({
                   throw new Error("Passwords do not match");
                 }
                 await adminPost(`/api/admin/users/${userId}/password`, { password, reason });
+                sounds.adminLock();
                 toast.success(`Password set for ${name}`);
               })
             }
@@ -284,9 +291,11 @@ export function PurgePanel() {
               days: Number(days),
               reason,
             })) as { deleted: number };
+            sounds.adminWarn();
             toast.success(`Purged ${r.deleted} zero-play account${r.deleted === 1 ? "" : "s"}`);
             router.refresh();
           } catch (e) {
+            sounds.adminWarn();
             toast.error((e as Error).message);
           } finally {
             setBusy(false);

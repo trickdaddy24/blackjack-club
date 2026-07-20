@@ -5,6 +5,23 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the `VERSION` fi
 
 ---
 
+## [0.39.0] — 2026-07-20
+
+### Added
+- **Admin nav button** — a 🛡️ Admin link appears in the `TopBar` for
+  `role: "admin"` sessions, jumping straight to `/admin`. Uses
+  `session.user.role`, already re-fetched from the DB on every request by
+  the jwt callback — no extra query.
+- **Pit Boss console sounds** — the admin console had zero audio before
+  this; it now gets three small, deliberately non-casino tones (Web Audio
+  synthesis, same pattern as the game's sound.ts) distinct from every
+  gameplay sound: a neutral confirm ding on routine successful mutations
+  (chip adjust, unban, trophy grant/revoke), a stern low buzz on
+  serious/punitive actions (ban, purge) and on any failed mutation, and
+  two mechanical ticks on a credential change (Set PW).
+
+---
+
 ## [0.38.0] — 2026-07-19
 
 ### Added

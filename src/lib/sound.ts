@@ -207,6 +207,28 @@ class Sounds {
     this.tone(900, { type: "triangle", delay: delay + 1.05, dur: 0.06, vol: 0.2 });
   }
 
+  /** Pit Boss console — neutral confirm ding for a routine successful
+   *  mutation (chip adjust, unban, trophy grant/revoke). Deliberately not
+   *  a casino sound — clean two-note UI tone, not a chip clink or arpeggio. */
+  adminConfirm(delay = 0) {
+    this.tone(880, { type: "sine", delay, dur: 0.08, vol: 0.22 });
+    this.tone(1174.66, { type: "sine", delay: delay + 0.07, dur: 0.12, vol: 0.18 });
+  }
+
+  /** Pit Boss console — stern low buzz for a serious/punitive action
+   *  (ban, purge) or a failed mutation. Short and blunt, not the dramatic
+   *  one-second `lose()` warble used at the game table. */
+  adminWarn(delay = 0) {
+    this.tone(220, { type: "square", delay, dur: 0.16, vol: 0.16, glideTo: 150 });
+  }
+
+  /** Pit Boss console — two quick mechanical ticks, for a credential
+   *  change (Set PW). Evokes a lock turning, not a chip or card sound. */
+  adminLock(delay = 0) {
+    this.tone(1800, { type: "square", delay, dur: 0.02, vol: 0.18 });
+    this.tone(1400, { type: "square", delay: delay + 0.09, dur: 0.03, vol: 0.16 });
+  }
+
   /** Bonus chips — little coin cascade. */
   coins(delay = 0) {
     for (let i = 0; i < 6; i++) {

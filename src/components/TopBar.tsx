@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Dumbbell, HelpCircle, Spade, LogOut, Trophy, User, Users } from "lucide-react";
+import { Dumbbell, HelpCircle, Shield, Spade, LogOut, Trophy, User, Users } from "lucide-react";
 import { auth } from "@/auth";
 import { logout } from "@/lib/actions";
 import { InviteBell } from "@/components/InviteBell";
@@ -37,6 +37,16 @@ export async function TopBar() {
             </Link>
             <InviteBell />
             <VoucherBadge />
+            {session.user.role === "admin" && (
+              <Link
+                href="/admin"
+                className="flex items-center gap-1.5 uppercase tracking-widest text-red-300/80 hover:text-red-200 transition-colors"
+                title="Pit Boss Console"
+              >
+                <Shield className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Admin</span>
+              </Link>
+            )}
             <HotSeatWatcher userId={session.user.id} />
             <Link
               href="/gym"
