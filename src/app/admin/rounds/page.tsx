@@ -18,17 +18,18 @@ const inputCls =
 export default async function RoundsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; window?: string; minNet?: string }>;
+  searchParams: Promise<{ q?: string; window?: string; minNet?: string; userId?: string }>;
 }) {
   const adminId = await requireAdmin();
   if (!adminId) notFound(); // 404, not 403 — the console stays invisible
 
-  const { q, window: windowParam, minNet: minNetParam } = await searchParams;
+  const { q, window: windowParam, minNet: minNetParam, userId } = await searchParams;
   const window = windowParam === "week" || windowParam === "all" ? windowParam : "today";
   const minNet = minNetParam ? Number(minNetParam) : undefined;
 
   const rounds = await findRounds({
     q,
+    userId,
     window,
     minNet: minNet != null && Number.isFinite(minNet) && minNet > 0 ? minNet : undefined,
   });
@@ -60,6 +61,15 @@ export default async function RoundsPage({
             </Link>
           </p>
         </div>
+
+        {userId && (
+          <p className="fade-up mt-4 text-sm text-[var(--cream)]/50" style={{ animationDelay: "40ms" }}>
+            Filtered to {rounds[0]?.userName ?? "one player"} ·{" "}
+            <Link href="/admin/rounds" className="text-[var(--gold-bright)] underline-offset-4 hover:underline">
+              clear filter
+            </Link>
+          </p>
+        )}
 
         <form
           className="fade-up mt-6 flex flex-wrap items-center gap-2"
@@ -104,7 +114,7 @@ export default async function RoundsPage({
               <div className="flex w-full flex-wrap items-center justify-between gap-3 px-5 py-2.5 text-sm">
                 <span className="min-w-0">
                   <Link
-                    href={`/player/${r.userId}`}
+                    href={`/admin/users/${r.userId}`}
                     className="font-display font-semibold text-[var(--cream)]/90 underline-offset-4 hover:text-[var(--gold-bright)] hover:underline"
                   >
                     {r.userName}

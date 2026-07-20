@@ -6,8 +6,10 @@ import type { RoundState } from "@/lib/blackjack/engine";
 // never edited here (see docs/ADMIN-CONSOLE.md: "read-only by design").
 
 export interface RoundFilters {
-  /** Search by player name/email. */
+  /** Search by player name/email. Ignored when userId is set. */
   q?: string;
+  /** Exact player match — takes priority over the fuzzy q search. */
+  userId?: string;
   /** Settled-window on the Vegas clock. */
   window?: "today" | "week" | "all";
   /** Only rounds whose |net| is at least this many chips. */
@@ -45,7 +47,11 @@ export async function findRounds(filters: RoundFilters): Promise<AdminRound[]> {
     where: {
       status: "settled",
       ...(since ? { createdAt: { gte: since } } : {}),
-      ...(q ? { user: { OR: [{ name: { contains: q } }, { email: { contains: q } }] } } : {}),
+      ...(filters.userId
+        ? { userId: filters.userId }
+        : q
+          ? { user: { OR: [{ name: { contains: q } }, { email: { contains: q } }] } }
+          : {}),
     },
     orderBy: { createdAt: "desc" },
     take: fetchTake,

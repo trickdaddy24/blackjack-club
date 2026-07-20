@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { TopBar } from "@/components/TopBar";
 import { ACHIEVEMENTS } from "@/lib/achievements";
 import { rivalRecords } from "@/lib/rivals";
+import { getPlayerStats } from "@/lib/player-stats";
 
 export const metadata = {
   title: "Player — Blackjack Club",
@@ -37,19 +38,8 @@ export default async function PlayerPage({
   });
   if (!player || player.role === "banned") notFound();
 
-  const [agg, wins, biggest, trophies, titles, myRivals] = await Promise.all([
-    prisma.round.aggregate({
-      where: { userId: id, status: "settled" },
-      _count: true,
-    }),
-    prisma.round.count({
-      where: { userId: id, status: "settled", netResult: { gt: 0 } },
-    }),
-    prisma.round.findFirst({
-      where: { userId: id, status: "settled", netResult: { gt: 0 } },
-      orderBy: { netResult: "desc" },
-      select: { netResult: true },
-    }),
+  const [stats, trophies, titles, myRivals] = await Promise.all([
+    getPlayerStats(id),
     prisma.achievement.findMany({
       where: { userId: id },
       select: { slug: true },
@@ -58,16 +48,18 @@ export default async function PlayerPage({
     rivalRecords(session.user.id),
   ]);
 
-  const hands = agg._count;
-  const winRate = hands > 0 ? Math.round((wins / hands) * 100) : 0;
   const unlocked = new Set(trophies.map((t) => t.slug));
   const versus = myRivals.find((r) => r.userId === id) ?? null;
 
-  const stats = [
+  const statCards = [
     { icon: Coins, label: "Chip stack", value: player.chips.toLocaleString() },
-    { icon: Layers, label: "Hands played", value: hands.toLocaleString() },
-    { icon: TrendingUp, label: "Win rate", value: hands > 0 ? `${winRate}%` : "—" },
-    { icon: Trophy, label: "Biggest win", value: biggest ? `+${biggest.netResult.toLocaleString()}` : "—" },
+    { icon: Layers, label: "Hands played", value: stats.hands.toLocaleString() },
+    { icon: TrendingUp, label: "Win rate", value: stats.hands > 0 ? `${stats.winRate}%` : "—" },
+    {
+      icon: Trophy,
+      label: "Biggest win",
+      value: stats.biggestWin != null ? `+${stats.biggestWin.toLocaleString()}` : "—",
+    },
     { icon: Flame, label: "Best streak", value: String(player.bestWinStreak) },
     { icon: Crown, label: "Champion titles", value: String(titles) },
   ];
@@ -104,7 +96,7 @@ export default async function PlayerPage({
         )}
 
         <div className="fade-up mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3" style={{ animationDelay: "120ms" }}>
-          {stats.map(({ icon: Icon, label, value }) => (
+          {statCards.map(({ icon: Icon, label, value }) => (
             <div key={label} className="gold-ring rounded-xl bg-black/25 px-3 py-5 text-center">
               <Icon className="mx-auto mb-2 h-4 w-4 text-[var(--gold)]/70" />
               <div className="font-display text-xl font-bold gold-text tabular-nums">{value}</div>

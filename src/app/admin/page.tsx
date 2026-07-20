@@ -129,7 +129,12 @@ export default async function AdminPage({
               <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
                 <div className="min-w-0 flex-1">
                   <div className="truncate font-display font-semibold text-[var(--cream)]/90">
-                    {p.name ?? "Player"}
+                    <Link
+                      href={`/admin/users/${p.id}`}
+                      className="underline-offset-4 hover:text-[var(--gold-bright)] hover:underline"
+                    >
+                      {p.name ?? "Player"}
+                    </Link>
                     {p.role !== "user" && (
                       <span
                         className={`ml-2 rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${

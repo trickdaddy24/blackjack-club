@@ -5,6 +5,41 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the `VERSION` fi
 
 ---
 
+## [0.38.0] — 2026-07-19
+
+### Added
+- **Admin player profile** — every player is now clickable from the Pit
+  Boss console (`/admin/users/[id]`), unlike the public `/player/[id]`
+  page it deliberately does NOT reuse: banned players render fine here
+  instead of 404ing, since inspecting a banned account is the whole point.
+  Shows an identity header (email/role/join date), the ±Chips/Ban/🏆/🔑
+  action controls, the player's last 20 rounds with replay (reusing the
+  round inspector's `findRounds`, now with an exact `userId` filter
+  instead of relying on fuzzy name matching), and a targeted slice of the
+  audit log — every admin action ever taken against this specific account,
+  not the global last-100 feed.
+  - Ban and Set PW are disabled (with an explanatory tooltip) when viewing
+    an admin account, matching what the API already enforces server-side —
+    turns a confusing error toast into an upfront disabled state.
+  - Player names are now links: on the `/admin` list, in the round
+    inspector, on the house dashboard's biggest-win callout, and both the
+    actor and target in the audit log — all repointed at the new admin
+    route instead of the public one.
+  - Round inspector accepts `?userId=` for exact-match deep links (used by
+    the profile's "see full history" link), with a "filtered to X · clear
+    filter" banner.
+
+### Changed
+- Extracted `getPlayerStats()` — the hands/win-rate/biggest-win
+  aggregation was duplicated across `/profile` and `/player/[id]`; both
+  now share one `lib/player-stats.ts` helper, with the admin profile as a
+  third caller.
+- Extracted `ADMIN_ACTION_LABELS` out of the audit page into `lib/admin.ts`
+  so the admin profile's moderation-history section renders the same
+  labels without a second copy of the map.
+
+---
+
 ## [0.37.1] — 2026-07-19
 
 ### Added

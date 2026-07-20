@@ -5,6 +5,19 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 
+// Shared by /admin/audit (global feed) and /admin/users/[id] (per-player
+// slice) — one label map so the two views never drift apart.
+export const ADMIN_ACTION_LABELS: Record<string, string> = {
+  "chips-adjust": "💰 Chips adjusted",
+  "role-set": "🚫 Role changed",
+  "achievement-grant": "🏆 Trophy granted",
+  "achievement-revoke": "🗑️ Trophy revoked",
+  purge: "🧹 Purge",
+  "jackpot-set": "🎰 Jackpot set",
+  "promo-force": "🔥 Promo forced",
+  "password-reset": "🔑 Password reset",
+};
+
 /** Session user id when the requester is an admin, else null. */
 export async function requireAdmin(): Promise<string | null> {
   const session = await auth();

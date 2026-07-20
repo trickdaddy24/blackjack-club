@@ -8,6 +8,7 @@ import { ACHIEVEMENTS } from "@/lib/achievements";
 import { rivalRecords } from "@/lib/rivals";
 import type { RoundState } from "@/lib/blackjack/engine";
 import { Replay } from "@/components/HandReplay";
+import { getPlayerStats } from "@/lib/player-stats";
 
 export const metadata = {
   title: "Your Record — Blackjack Club",
@@ -17,7 +18,7 @@ export default async function ProfilePage() {
   const session = await auth();
   if (!session?.user?.id) redirect("/login");
 
-  const [user, agg, wins, biggest, trophies] = await Promise.all([
+  const [user, stats, trophies] = await Promise.all([
     prisma.user.findUnique({
       where: { id: session.user.id },
       select: {
@@ -28,19 +29,7 @@ export default async function ProfilePage() {
         bestWinStreak: true,
       },
     }),
-    prisma.round.aggregate({
-      where: { userId: session.user.id, status: "settled" },
-      _count: true,
-      _sum: { netResult: true },
-    }),
-    prisma.round.count({
-      where: { userId: session.user.id, status: "settled", netResult: { gt: 0 } },
-    }),
-    prisma.round.findFirst({
-      where: { userId: session.user.id, status: "settled", netResult: { gt: 0 } },
-      orderBy: { netResult: "desc" },
-      select: { netResult: true },
-    }),
+    getPlayerStats(session.user.id),
     prisma.achievement.findMany({
       where: { userId: session.user.id },
       select: { slug: true, unlockedAt: true },
@@ -49,15 +38,13 @@ export default async function ProfilePage() {
 
   if (!user) redirect("/login");
 
-  const hands = agg._count;
-  const net = agg._sum.netResult ?? 0;
-  const winRate = hands > 0 ? Math.round((wins / hands) * 100) : 0;
+  const { hands, winRate, biggestWin, lifetimeNet: net } = stats;
 
-  const stats = [
+  const statCards = [
     { icon: Coins, label: "Chip stack", value: user.chips.toLocaleString() },
     { icon: Layers, label: "Hands played", value: hands.toLocaleString() },
     { icon: TrendingUp, label: "Win rate", value: hands > 0 ? `${winRate}%` : "—" },
-    { icon: Trophy, label: "Biggest win", value: biggest ? `+${biggest.netResult.toLocaleString()}` : "—" },
+    { icon: Trophy, label: "Biggest win", value: biggestWin != null ? `+${biggestWin.toLocaleString()}` : "—" },
     {
       icon: Flame,
       label: "Win streak",
@@ -88,7 +75,7 @@ export default async function ProfilePage() {
         </div>
 
         <div className="fade-up mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3" style={{ animationDelay: "120ms" }}>
-          {stats.map(({ icon: Icon, label, value }) => (
+          {statCards.map(({ icon: Icon, label, value }) => (
             <div key={label} className="gold-ring rounded-xl bg-black/25 px-3 py-5 text-center">
               <Icon className="mx-auto mb-2 h-4 w-4 text-[var(--gold)]/70" />
               <div className="font-display text-xl font-bold gold-text tabular-nums">{value}</div>

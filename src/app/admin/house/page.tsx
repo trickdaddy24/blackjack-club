@@ -50,7 +50,7 @@ function WindowCard({
           <span>
             biggest win{" "}
             <Link
-              href={`/player/${biggestWin.userId}`}
+              href={`/admin/users/${biggestWin.userId}`}
               className="text-[var(--gold-bright)] underline-offset-4 hover:underline"
             >
               {biggestWin.userName}

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/admin";
+import { requireAdmin, ADMIN_ACTION_LABELS } from "@/lib/admin";
 import { TopBar } from "@/components/TopBar";
 
 export const metadata = {
@@ -9,17 +9,6 @@ export const metadata = {
 };
 
 export const dynamic = "force-dynamic";
-
-const ACTION_LABELS: Record<string, string> = {
-  "chips-adjust": "💰 Chips adjusted",
-  "role-set": "🚫 Role changed",
-  "password-reset": "🔑 Password reset",
-  "achievement-grant": "🏆 Trophy granted",
-  "achievement-revoke": "🗑️ Trophy revoked",
-  purge: "🧹 Purge",
-  "jackpot-set": "🎰 Jackpot set",
-  "promo-force": "🔥 Promo forced",
-};
 
 export default async function AuditPage() {
   const adminId = await requireAdmin();
@@ -87,11 +76,35 @@ export default async function AuditPage() {
               <li key={a.id} className="px-5 py-3 text-sm">
                 <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
                   <span className="font-semibold text-[var(--cream)]/90">
-                    {ACTION_LABELS[a.action] ?? a.action}
+                    {ADMIN_ACTION_LABELS[a.action] ?? a.action}
                   </span>
                   <span className="text-[var(--cream)]/50">
-                    by {nameOf.get(a.adminId) ?? a.adminId}
-                    {a.targetId ? <> → {nameOf.get(a.targetId) ?? "(deleted account)"}</> : null}
+                    by{" "}
+                    {nameOf.has(a.adminId) ? (
+                      <Link
+                        href={`/admin/users/${a.adminId}`}
+                        className="underline-offset-4 hover:text-[var(--gold-bright)] hover:underline"
+                      >
+                        {nameOf.get(a.adminId)}
+                      </Link>
+                    ) : (
+                      a.adminId
+                    )}
+                    {a.targetId && (
+                      <>
+                        {" → "}
+                        {nameOf.has(a.targetId) ? (
+                          <Link
+                            href={`/admin/users/${a.targetId}`}
+                            className="underline-offset-4 hover:text-[var(--gold-bright)] hover:underline"
+                          >
+                            {nameOf.get(a.targetId)}
+                          </Link>
+                        ) : (
+                          "(deleted account)"
+                        )}
+                      </>
+                    )}
                   </span>
                   <span className="ml-auto text-xs text-[var(--cream)]/40">
                     {a.createdAt.toLocaleString("en-US", {

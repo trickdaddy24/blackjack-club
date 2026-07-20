@@ -67,19 +67,30 @@ export function PlayerActions({
   }
 
   const banned = role === "banned";
+  const isAdminTarget = role === "admin";
+  const disabledCls = "!opacity-40 !cursor-not-allowed hover:!bg-transparent";
 
   return (
     <div>
       <div className="flex flex-wrap gap-1.5">
         <button className={btnCls} onClick={() => toggle("chips")}>± Chips</button>
         <button
-          className={`${btnCls} ${banned ? "!border-emerald-400/40 !text-emerald-200/80" : "!border-red-400/40 !text-red-200/80"}`}
+          className={`${btnCls} ${banned ? "!border-emerald-400/40 !text-emerald-200/80" : "!border-red-400/40 !text-red-200/80"} ${isAdminTarget ? disabledCls : ""}`}
           onClick={() => toggle("role")}
+          disabled={isAdminTarget}
+          title={isAdminTarget ? "Admin accounts — use shell scripts (see scripts/promote-admin.js)" : undefined}
         >
           {banned ? "Unban" : "Ban"}
         </button>
         <button className={btnCls} onClick={() => toggle("trophy")}>🏆</button>
-        <button className={btnCls} onClick={() => toggle("password")}>🔑 Set PW</button>
+        <button
+          className={`${btnCls} ${isAdminTarget ? disabledCls : ""}`}
+          onClick={() => toggle("password")}
+          disabled={isAdminTarget}
+          title={isAdminTarget ? "Admin accounts — use shell scripts (see scripts/set-admin-password.js)" : undefined}
+        >
+          🔑 Set PW
+        </button>
       </div>
 
       {panel === "chips" && (
