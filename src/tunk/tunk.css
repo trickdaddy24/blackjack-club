@@ -1,0 +1,171 @@
+/* Tunk (Tonk) game styles, fully scoped under .tunk-app so nothing leaks
+ * into the Blackjack app's Tailwind. Mirrors the Spades/Wild Card/Dominoes
+ * dark-felt + gold aesthetic. */
+
+.tunk-app {
+  --bg: #0b120f;
+  --felt: #1c4a34;
+  --felt-2: #0f2c1f;
+  --rail: #3a2a16;
+  --ink: #eef4ee;
+  --muted: #8ea698;
+  --gold: #f2c14e;
+  --line: rgba(255, 255, 255, 0.12);
+  --red: #c81e2c;
+  --black: #17201a;
+  --pos: #4fbf6e;
+  --neg: #e05a5a;
+
+  background: radial-gradient(1200px 700px at 50% -10%, #163523, transparent), var(--bg);
+  color: var(--ink);
+  font: 15px/1.4 ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+}
+.tunk-app *, .tunk-app *::before, .tunk-app *::after { box-sizing: border-box; }
+.tunk-app button { font: inherit; }
+
+.tunk-app .app { display: flex; flex-direction: column; min-height: 100%; max-width: 1020px; margin: 0 auto; }
+
+/* ── Top bar ─────────────────────────────────────────────────────────────── */
+.tunk-app .topbar { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 10px 16px; border-bottom: 1px solid var(--line); }
+.tunk-app .brand { font-weight: 800; font-size: 20px; letter-spacing: -0.02em; }
+.tunk-app .brand span { color: var(--gold); }
+.tunk-app .brand .ver { color: var(--muted); font-size: 11px; font-weight: 500; font-style: normal; margin-left: 6px; }
+.tunk-app .purses { display: flex; align-items: center; gap: 8px; margin: 0 auto; flex-wrap: wrap; }
+.tunk-app .pursechip {
+  display: flex; gap: 6px; align-items: baseline; padding: 4px 10px;
+  border: 1px solid var(--line); border-radius: 9px; background: rgba(0,0,0,0.25);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.tunk-app .pursechip--active { border-color: var(--gold); box-shadow: 0 0 0 2px rgba(242,193,78,0.25); }
+.tunk-app .pursechip--neg .pursechip__amt { color: var(--neg); }
+.tunk-app .pursechip__name { font-size: 12px; color: var(--muted); }
+.tunk-app .pursechip__amt { font-weight: 800; font-variant-numeric: tabular-nums; }
+.tunk-app .purses__target { color: var(--muted); font-size: 12px; }
+.tunk-app .topbar__new { background: transparent; color: var(--muted); border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px; cursor: pointer; }
+.tunk-app .topbar__new:hover { color: var(--ink); border-color: var(--gold); }
+
+/* ── Table ───────────────────────────────────────────────────────────────── */
+.tunk-app .table {
+  position: relative; flex: 1; margin: 14px; border-radius: 22px; min-height: 350px;
+  background: radial-gradient(120% 120% at 50% 40%, var(--felt) 0%, var(--felt-2) 100%);
+  border: 8px solid var(--rail);
+  box-shadow: inset 0 0 60px rgba(0, 0, 0, 0.5), 0 20px 50px rgba(0, 0, 0, 0.4);
+}
+.tunk-app .opp { position: absolute; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.tunk-app .opp--n { top: 12px; left: 50%; transform: translateX(-50%); }
+.tunk-app .opp--w { left: 14px; top: 50%; transform: translateY(-50%); }
+.tunk-app .opp--e { right: 14px; top: 50%; transform: translateY(-50%); }
+
+.tunk-app .seattag {
+  background: rgba(0,0,0,0.35); border: 1px solid var(--line); border-radius: 9px;
+  padding: 4px 10px; font-size: 12px; white-space: nowrap;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.tunk-app .seattag--active { border-color: var(--gold); box-shadow: 0 0 0 2px rgba(242,193,78,0.25); }
+
+.tunk-app .backs { display: flex; }
+.tunk-app .backs .tk-card { margin-left: -26px; }
+.tunk-app .backs .tk-card:first-child { margin-left: 0; }
+.tunk-app .backs--side { flex-direction: column; }
+.tunk-app .backs--side .tk-card { margin-left: 0; margin-top: -44px; }
+.tunk-app .backs--side .tk-card:first-child { margin-top: 0; }
+
+/* Center piles */
+.tunk-app .center {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 30px;
+}
+.tunk-app .pile { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.tunk-app .pile__count {
+  position: relative; margin-top: -14px; background: var(--gold); color: #1a1300;
+  font-size: 11px; font-weight: 800; border-radius: 999px; padding: 2px 8px; z-index: 1;
+}
+.tunk-app .pile__label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; }
+
+.tunk-app .msg {
+  position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%);
+  color: var(--gold); font-weight: 600; font-size: 13px; text-align: center; max-width: 92%;
+}
+
+/* ── Cards ───────────────────────────────────────────────────────────────── */
+.tunk-app .tk-card {
+  position: relative; width: 62px; height: 90px; border-radius: 10px;
+  display: grid; place-items: center; font-weight: 800;
+  background: linear-gradient(160deg, #fbf8ef, #f0ead9);
+  border: 2px solid rgba(0, 0, 0, 0.15);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45);
+  user-select: none; padding: 0;
+}
+.tunk-app .tk-card--sm { width: 40px; height: 58px; border-width: 1px; }
+.tunk-app .tk-card--black { color: var(--black); }
+.tunk-app .tk-card--red { color: var(--red); }
+.tunk-app .tk-card--empty { background: transparent; border: 2px dashed var(--line); box-shadow: none; }
+.tunk-app .tk-card--back {
+  background: repeating-linear-gradient(45deg, #245638, #245638 7px, #1c4a30 7px, #1c4a30 14px);
+  border-color: #2e6b46;
+}
+.tunk-app .tk-card__center { font-size: 26px; line-height: 1; }
+.tunk-app .tk-card--sm .tk-card__center { font-size: 17px; }
+.tunk-app .tk-card__corner { position: absolute; font-size: 10px; line-height: 1.1; text-align: center; opacity: 0.9; }
+.tunk-app .tk-card--sm .tk-card__corner { font-size: 8px; }
+.tunk-app .tk-card__corner--tl { top: 4px; left: 5px; }
+.tunk-app .tk-card__corner--br { bottom: 4px; right: 5px; transform: rotate(180deg); }
+
+.tunk-app .tk-card--btn { cursor: pointer; transition: transform 0.12s, box-shadow 0.12s; }
+.tunk-app .tk-card--btn:hover:not(:disabled) { transform: translateY(-10px); box-shadow: 0 10px 18px rgba(0, 0, 0, 0.55); }
+.tunk-app .tk-card--meld { outline: 3px solid var(--pos); }
+.tunk-app .tk-card--dead { outline: 3px solid var(--neg); }
+.tunk-app .tk-card--dim { opacity: 0.45; }
+.tunk-app .tk-card:disabled { cursor: default; }
+
+/* ── Hand + actions ──────────────────────────────────────────────────────── */
+.tunk-app .myhand { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px 14px 4px; min-height: 120px; }
+.tunk-app .myhand__deadwood { color: var(--muted); font-size: 13px; }
+.tunk-app .myhand__deadwood b { color: var(--ink); }
+.tunk-app .myhand__tonktag { color: var(--gold); font-weight: 700; }
+.tunk-app .myhand__cards { display: flex; justify-content: center; flex-wrap: wrap; gap: 6px; }
+
+.tunk-app .actions { display: flex; align-items: center; gap: 12px; justify-content: center; flex-wrap: wrap; padding: 6px 16px 2px; }
+.tunk-app .actions__hint { color: var(--muted); font-size: 13px; }
+
+/* ── Sheets (modals) ─────────────────────────────────────────────────────── */
+.tunk-app .sheet { position: fixed; inset: 0; background: rgba(4, 8, 18, 0.72); display: grid; place-items: center; z-index: 40; padding: 16px; }
+.tunk-app .sheet__card {
+  background: #10241a; border: 1px solid var(--line); border-radius: 16px;
+  padding: 20px; max-width: 380px; width: 100%; text-align: center;
+  box-shadow: 0 30px 70px rgba(0, 0, 0, 0.7);
+}
+.tunk-app .sheet__card--wide { max-width: 560px; }
+.tunk-app .sheet__title { margin: 0 0 14px; font-size: 20px; }
+
+.tunk-app .bigbtn {
+  background: var(--gold); color: #1a1300; border: none; border-radius: 10px;
+  padding: 12px 22px; font-weight: 800; font-size: 15px; cursor: pointer;
+}
+.tunk-app .bigbtn:hover:not(:disabled) { filter: brightness(1.05); }
+.tunk-app .bigbtn:disabled { opacity: 0.4; cursor: default; }
+.tunk-app .bigbtn--tonk { background: var(--gold); }
+.tunk-app .bigbtn--drop { background: transparent; color: var(--ink); border: 1px solid var(--gold); }
+
+.tunk-app .resulttable { width: 100%; border-collapse: collapse; margin-bottom: 16px; font-variant-numeric: tabular-nums; }
+.tunk-app .resulttable th { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; padding: 4px 6px; text-align: left; }
+.tunk-app .resulttable td { padding: 6px 6px; border-top: 1px solid var(--line); text-align: left; vertical-align: middle; }
+.tunk-app .resulttable__hand { display: flex; flex-wrap: wrap; gap: 2px; max-width: 220px; }
+.tunk-app .resulttable__winner td { color: var(--gold); font-weight: 700; }
+.tunk-app .meldtag { display: inline-block; background: rgba(79,191,110,0.15); color: var(--pos); border-radius: 6px; padding: 1px 6px; font-size: 11px; margin: 0 3px 3px 0; }
+.tunk-app .delta--pos { color: var(--pos); }
+.tunk-app .delta--neg { color: var(--neg); }
+
+.tunk-app .foot { text-align: center; color: var(--muted); font-size: 12px; padding: 8px 10px 14px; }
+.tunk-app .foot a { color: var(--gold); text-decoration: none; }
+.tunk-app .foot a:hover { text-decoration: underline; }
+
+@media (max-width: 640px) {
+  .tunk-app .tk-card { width: 48px; height: 70px; }
+  .tunk-app .tk-card__center { font-size: 19px; }
+  .tunk-app .backs .tk-card { margin-left: -30px; }
+  .tunk-app .backs--side .tk-card { margin-top: -50px; }
+  .tunk-app .table { min-height: 300px; }
+  .tunk-app .resulttable__hand { max-width: 160px; }
+}

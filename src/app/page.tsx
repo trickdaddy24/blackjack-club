@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Crown, Spade, Heart, Diamond, Club, CircleDot, Layers, Dice5 } from "lucide-react";
+import { Crown, Spade, Heart, Diamond, Club, CircleDot, Layers, Dice5, Banknote } from "lucide-react";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { TopBar } from "@/components/TopBar";
@@ -168,6 +168,22 @@ export default async function LobbyPage() {
             <p className="mt-1 text-sm text-[var(--cream)]/60">
               Classic Draw Dominoes, heads-up vs the bot. Double-6 set, no sign-up —{" "}
               <span className="text-[var(--gold-bright)]">set the boneyard →</span>
+            </p>
+          </Link>
+        </section>
+
+        {/* Another game at the Club — Tunk */}
+        <section className="fade-up mt-6 w-full max-w-md" style={{ animationDelay: "850ms" }}>
+          <Link
+            href="/tunk"
+            className="gold-ring block rounded-2xl bg-black/25 px-6 py-5 text-center transition hover:bg-black/40"
+          >
+            <div className="flex items-center justify-center gap-2 font-display text-lg font-bold gold-text">
+              <Banknote className="h-5 w-5" /> New — Tunk
+            </div>
+            <p className="mt-1 text-sm text-[var(--cream)]/60">
+              The rummy hustle — meld sets and runs, Tonk a clean hand, drop your deadwood. No sign-up —{" "}
+              <span className="text-[var(--gold-bright)]">buy in →</span>
             </p>
           </Link>
         </section>

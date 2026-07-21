@@ -5,6 +5,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the `VERSION` fi
 
 ---
 
+## [0.40.0] — 2026-07-21
+
+### Added
+- **Tunk joins the hub** — Tunk (Tonk) was built as a standalone site
+  (`tunk.minus-one-labs.com`) and never got ported into the Club the way
+  Spades/Roulette/Wild Card/Dominoes were, so it never showed up on the
+  lobby or `/rules`. Ported the engine and UI verbatim into
+  `src/tunk/` as a new `/tunk` route (CSS fully scoped under `.tunk-app`,
+  matching the Dominoes pattern), added a lobby card and a `/rules/tunk`
+  page. The old standalone deploy (Cloudflare DNS + GitHub Pages) has been
+  retired — Tunk now lives here only.
+
 ## [0.39.1] — 2026-07-20
 
 ### Fixed

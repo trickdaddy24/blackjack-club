@@ -57,6 +57,17 @@ const GAMES: {
       "Forget to call “last card!” and the deck bites back",
     ],
   },
+  {
+    href: "/rules/tunk",
+    icon: "💵",
+    name: "Tunk",
+    tagline: "The rummy hustle — meld sets and runs, drop your deadwood, purse on the line",
+    facts: [
+      "5-card hands, draw from the stock or the discard",
+      "Tonk a clean hand for double, or drop and hope you're lowest",
+      "Bust at $0, cash out a winner at $300",
+    ],
+  },
 ];
 
 export default function RulesHubPage() {
