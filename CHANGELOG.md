@@ -5,6 +5,23 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the `VERSION` fi
 
 ---
 
+## [0.41.0] — 2026-07-21
+
+### Added
+- **House rules coverage for six previously-undocumented bonus systems** —
+  VIP tiers, the Property-Pick bonus, the Chip Wheel, Daily Quests, Hot Seat
+  drops, and the Match-Play Voucher all existed in code with zero
+  player-facing explanation anywhere on the site. Added a `Section` for each
+  to `/how-to-play`, plus expanded the existing Daily Bonus bullet into a
+  full "Daily Bonus & VIP" section covering the login-streak boost (+250/day,
+  capped +1,750) and Midnight Madness doubling that weren't mentioned before
+  (best-case stack is 12,750 chips, not the 2,500 previously implied). Also
+  added `/rules/dominoes`, which was playable and on the lobby but had no
+  rules page and wasn't in the rules hub's `GAMES` array — a pre-existing gap
+  unrelated to Tunk, caught by the same audit. Numbers cross-checked against
+  the actual code constants (`vip.ts`, `chip-wheel.ts`, `property-bonus.ts`,
+  `quests.ts`, `hotseat.ts`, `voucher.ts`), not written from memory.
+
 ## [0.40.0] — 2026-07-21
 
 ### Added

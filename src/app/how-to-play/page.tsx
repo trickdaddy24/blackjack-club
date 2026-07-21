@@ -240,13 +240,122 @@ export default function HowToPlayPage() {
               your lifetime tip total is shown next to the dealer.
             </li>
             <li>
-              <strong>Chips</strong> — everyone starts with 10,000. Claim +2,500 daily, and
-              if you ever go broke the house stakes you back to 1,000.
+              <strong>Chips</strong> — everyone starts with 10,000. Go broke with no round
+              in progress and the house stakes you back to 1,000. See{" "}
+              <strong>Daily Bonus &amp; VIP</strong> below for the full claim economy.
             </li>
             <li>
               <strong>Multiple hands</strong> — play up to three seats at once, same bet each.
             </li>
           </ul>
+        </Section>
+
+        <Section title="Daily Bonus & VIP" delay={460}>
+          <p>
+            Claim once every 24 hours for a base <strong>+2,500 chips</strong>. Three things
+            stack on top of that base:
+          </p>
+          <ul className="list-disc space-y-1.5 pl-5">
+            <li>
+              <strong>Login streak</strong> — claiming on consecutive Vegas days adds{" "}
+              <strong>+250 per day</strong> past the first, capped at <strong>+1,750</strong>{" "}
+              (day 7 and beyond). Miss a day and the streak resets to 1.
+            </li>
+            <li>
+              <strong>VIP tier</strong> — a permanent loyalty status from your{" "}
+              <em>lifetime settled rounds</em>, boosting the whole claim by a percentage:
+            </li>
+          </ul>
+          <PayTable
+            rows={[
+              ["Member (0 rounds)", "+0%"],
+              ["Silver (100 rounds)", "+5%, one-time +500"],
+              ["Gold (500 rounds)", "+10%, one-time +1,500"],
+              ["Platinum (2,000 rounds)", "+20%, one-time +5,000"],
+              ["Diamond (5,000 rounds)", "+35%, one-time +15,000"],
+              ["Seven Stars (15,000 rounds)", "+50%, one-time +50,000"],
+            ]}
+          />
+          <p className="mt-2 text-[var(--cream)]/55">
+            Each tier also pays a <strong>one-time bonus</strong> the instant you cross its
+            threshold. And if the floor is running{" "}
+            <strong>Midnight Madness</strong>, the whole claim — base, streak, and VIP boost
+            together — is <strong>doubled</strong>. Stack everything and a single claim can be
+            worth up to <strong>12,750 chips</strong>.
+          </p>
+        </Section>
+
+        <Section title="Chip Wheel" delay={480}>
+          <p>
+            One free spin every Vegas day. Twenty segments, weighted toward the small end:
+          </p>
+          <PayTable
+            rows={[
+              ["150 chips", "30% (6 of 20 segments)"],
+              ["300 chips", "25% (5 of 20 segments)"],
+              ["450 chips", "20% (4 of 20 segments)"],
+              ["750 chips", "15% (3 of 20 segments)"],
+              ["1,500 chips", "5% (1 of 20 segments)"],
+              ["7,500 chips — JACKPOT", "5% (1 of 20 segments)"],
+            ]}
+          />
+        </Section>
+
+        <Section title="Property-Pick Bonus" delay={500}>
+          <p>
+            Once per Vegas day, pick one of six properties. Each has its own payout curve —
+            the choice is about risk shape, not a strictly-better option (every property
+            lands near the same ~850-950 expected value):
+          </p>
+          <PayTable
+            rows={[
+              ["Circus Circus", "750–950, always — safe & steady"],
+              ["MGM Grand", "500–1,300, always — standard odds, wide range"],
+              ["Bellagio", "500–1,100, plus 5% chance of a 2,000 Fountain Show"],
+              ["Caesars Palace", "100–1,700, always — the widest spread"],
+              ["Wynn", "300–900, plus 5% chance of a 5,000 Penthouse Jackpot"],
+              ["The Sphere", "250–1,450, plus 8% chance the roll doubles (Encore)"],
+            ]}
+          />
+        </Section>
+
+        <Section title="Daily Quests" delay={520}>
+          <p>Nine quests, all reset on the Vegas day. Complete any of them for chips:</p>
+          <PayTable
+            rows={[
+              ["🃏 Grinder's Shift — settle 5 rounds", "+500"],
+              ["🏆 Triple Threat — win 3 rounds", "+750"],
+              ["🔥 Back to Back — win 2 rounds in a row", "+750"],
+              ["♠️ Snapper — be dealt a blackjack", "+750"],
+              ["✨ Little Extra — win any side bet", "+500"],
+              ["⚡ Press It — win a hand you doubled", "+750"],
+              ["👥 Bring a Friend — settle a round at a shared table", "+1,000"],
+              ["🔮 Call the Bust — win a Dealer Bust bet", "+1,000"],
+              ["💪 Hit the Gym — complete a counting drill in the Gym", "+500"],
+            ]}
+          />
+        </Section>
+
+        <Section title="Hot Seat Drops" delay={540}>
+          <p>
+            A random bonus lands on one currently-active player — mid-hand, or settled within
+            the last few minutes — roughly every <strong>4 to 12 minutes</strong>, deliberately
+            randomized so it can&apos;t be timed. Usually a modest <strong>300–900 chips</strong>
+            , with a <strong>5% chance</strong> of a &quot;blaze&quot; hit worth{" "}
+            <strong>2,000–3,000 chips</strong>. No action needed — just be at the table when the
+            clock lands on you.
+          </p>
+        </Section>
+
+        <Section title="Match-Play Voucher" delay={560}>
+          <p>
+            A welcome-back bonus: stay away <strong>6+ hours</strong> since your last settled
+            round and your next visit grants a voucher, active for{" "}
+            <strong>2 hours</strong>. While it&apos;s active, your next real win on the main
+            game <strong>doubles</strong> — capped at a <strong>+10,000</strong> bonus on top
+            of the round&apos;s own payout. One grant per Vegas day; side bets don&apos;t
+            trigger or consume it.
+          </p>
         </Section>
       </main>
     </div>

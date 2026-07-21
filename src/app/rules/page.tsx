@@ -68,6 +68,17 @@ const GAMES: {
       "Bust at $0, cash out a winner at $300",
     ],
   },
+  {
+    href: "/rules/dominoes",
+    icon: "🁣",
+    name: "Dominoes",
+    tagline: "Classic Draw Dominoes, double-6 set, heads-up against the bot",
+    facts: [
+      "7 tiles each, 14 in the boneyard",
+      "Match either open end, or draw until you can",
+      "Empty your hand to win, or win the block on lower pips",
+    ],
+  },
 ];
 
 export default function RulesHubPage() {
