@@ -5,6 +5,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the `VERSION` fi
 
 ---
 
+## [0.42.0] — 2026-07-23
+
+### Added
+- **Tetris and Pixel Plumber** — two arcade games added to the Club hub
+  alongside the card/table games. Both are canvas + vanilla-JS engines
+  (`src/tetris`, `src/mario`) mounted from thin client-component routes
+  (`/tetris`, `/mario`), CSS-namespaced under `.tetris-app` / `.mario-app`
+  (same pattern as `tunk.css`). Tetris: 7-bag randomizer, hold, next queue,
+  ghost piece, wall kicks, DAS. Pixel Plumber: 3 hand-built levels, tile
+  physics, goomba stomp/side-damage AI, coins, question blocks, flagpole
+  goal. Both have full touch controls for mobile. Hub cards added to
+  `src/app/page.tsx`.
+
 ## [0.41.0] — 2026-07-21
 
 ### Added

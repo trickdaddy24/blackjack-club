@@ -1,0 +1,79 @@
+/* Pixel Plumber styles, fully scoped under .mario-app so nothing leaks into
+ * the Blackjack app's Tailwind (mirrors the Tunk/Tetris CSS pattern). */
+
+.mario-app {
+  --m-sky: #5c94fc;
+  --m-panel: #1a1c2e;
+  --m-panel-border: #33355a;
+  --m-text: #ffffff;
+  --m-text-dim: #c7cbe6;
+  --m-accent: #fbd000;
+  --m-danger: #e0463c;
+
+  background: #111;
+  color: var(--m-text);
+  font-family: "Trebuchet MS", "Segoe UI", system-ui, sans-serif;
+  min-height: 100vh;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.mario-app *, .mario-app *::before, .mario-app *::after { box-sizing: border-box; }
+.mario-app button { font: inherit; }
+
+.mario-app .mario-shell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-height: 100vh;
+  padding: 6px;
+  gap: 6px;
+}
+
+.mario-app .mario-topbar { display: flex; align-items: baseline; gap: 8px; }
+.mario-app .mario-topbar h1 { margin: 0; font-size: 20px; letter-spacing: 3px; color: var(--m-accent); text-shadow: 2px 2px 0 #7a2a00; }
+.mario-app .mario-back { color: var(--m-text-dim); font-size: 12px; text-decoration: none; }
+.mario-app .mario-back:hover { color: var(--m-accent); }
+
+.mario-app .mario-hud {
+  display: flex; gap: 16px; flex-wrap: wrap; justify-content: center;
+  background: var(--m-panel); border: 1px solid var(--m-panel-border); border-radius: 8px;
+  padding: 6px 14px; font-size: 12px; letter-spacing: 1px; color: var(--m-text-dim);
+}
+.mario-app .mario-hud span { color: var(--m-text); font-weight: 700; font-variant-numeric: tabular-nums; margin-left: 4px; }
+
+.mario-app .mario-canvas-wrap { position: relative; flex: 1; width: 100%; min-height: 0; display: flex; justify-content: center; height: 62vh; max-height: 560px; }
+.mario-app .mario-canvas { background: var(--m-sky); border: 2px solid var(--m-panel-border); border-radius: 10px; height: 100%; max-width: 100%; image-rendering: pixelated; }
+
+.mario-app .mario-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.65); display: flex; align-items: center; justify-content: center; border-radius: 10px; }
+.mario-app .mario-overlay.hidden { display: none; }
+.mario-app .mario-overlay-card { text-align: center; background: var(--m-panel); border: 2px solid var(--m-accent); padding: 22px 28px; border-radius: 12px; }
+.mario-app .mario-overlay-card h2 { margin: 0 0 6px; letter-spacing: 2px; }
+.mario-app .mario-overlay-card p { margin: 0 0 14px; color: var(--m-text-dim); font-size: 13px; white-space: pre-line; }
+.mario-app .mario-overlay-card .mario-btn { padding: 10px 22px; font-size: 13px; background: var(--m-accent); border-color: var(--m-accent); color: #402800; font-weight: 700; }
+
+.mario-app .mario-btn { background: var(--m-panel); border: 1px solid var(--m-panel-border); color: var(--m-text); padding: 8px 14px; border-radius: 8px; font-size: 12px; cursor: pointer; }
+.mario-app .mario-btn:active { background: var(--m-accent); border-color: var(--m-accent); color: #402800; }
+.mario-app .mario-btn.small { flex: 1; max-width: 140px; }
+
+.mario-app .mario-bottom-bar { display: flex; gap: 8px; width: 100%; max-width: 460px; justify-content: center; }
+.mario-app .mario-hint { font-size: 11px; color: #9aa; margin: 0; }
+
+.mario-app .mario-touch { display: none; width: 100%; justify-content: space-between; align-items: center; padding: 4px 10px; }
+.mario-app .mario-touch-left, .mario-app .mario-touch-right { display: flex; gap: 10px; }
+
+.mario-app .tc-btn { background: rgba(255,255,255,0.12); border: 2px solid rgba(255,255,255,0.35); color: var(--m-text); border-radius: 50%; font-size: 20px; width: 62px; height: 62px; }
+.mario-app .tc-btn:active { background: var(--m-accent); border-color: var(--m-accent); color: #402800; }
+.mario-app .tc-action { border-radius: 30px; width: 74px; font-size: 13px; font-weight: 700; }
+.mario-app .tc-jump { background: rgba(224,70,60,0.35); }
+
+@media (max-width: 720px), (pointer: coarse) {
+  .mario-app .mario-hint { display: none; }
+  .mario-app .mario-canvas-wrap { height: 56vh; }
+  .mario-app .mario-touch { display: flex; }
+  .mario-app .mario-hud { font-size: 10px; gap: 10px; padding: 4px 8px; }
+}
+
+@media (min-width: 721px) and (pointer: fine) {
+  .mario-app .mario-touch { display: none !important; }
+}

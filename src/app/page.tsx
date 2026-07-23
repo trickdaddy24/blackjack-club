@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Crown, Spade, Heart, Diamond, Club, CircleDot, Layers, Dice5, Banknote } from "lucide-react";
+import { Crown, Spade, Heart, Diamond, Club, CircleDot, Layers, Dice5, Banknote, Blocks, Gamepad2 } from "lucide-react";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { TopBar } from "@/components/TopBar";
@@ -184,6 +184,38 @@ export default async function LobbyPage() {
             <p className="mt-1 text-sm text-[var(--cream)]/60">
               The rummy hustle — meld sets and runs, Tonk a clean hand, drop your deadwood. No sign-up —{" "}
               <span className="text-[var(--gold-bright)]">buy in →</span>
+            </p>
+          </Link>
+        </section>
+
+        {/* Not a card game — Tetris */}
+        <section className="fade-up mt-6 w-full max-w-md" style={{ animationDelay: "950ms" }}>
+          <Link
+            href="/tetris"
+            className="gold-ring block rounded-2xl bg-black/25 px-6 py-5 text-center transition hover:bg-black/40"
+          >
+            <div className="flex items-center justify-center gap-2 font-display text-lg font-bold gold-text">
+              <Blocks className="h-5 w-5" /> New — Tetris
+            </div>
+            <p className="mt-1 text-sm text-[var(--cream)]/60">
+              Hold, next queue, ghost piece, 7-bag randomizer. No sign-up —{" "}
+              <span className="text-[var(--gold-bright)]">drop in →</span>
+            </p>
+          </Link>
+        </section>
+
+        {/* Not a card game — Pixel Plumber */}
+        <section className="fade-up mt-6 w-full max-w-md" style={{ animationDelay: "1050ms" }}>
+          <Link
+            href="/mario"
+            className="gold-ring block rounded-2xl bg-black/25 px-6 py-5 text-center transition hover:bg-black/40"
+          >
+            <div className="flex items-center justify-center gap-2 font-display text-lg font-bold gold-text">
+              <Gamepad2 className="h-5 w-5" /> New — Pixel Plumber
+            </div>
+            <p className="mt-1 text-sm text-[var(--cream)]/60">
+              A run-and-jump platformer, 3 levels, goombas and coins. No sign-up —{" "}
+              <span className="text-[var(--gold-bright)]">press start →</span>
             </p>
           </Link>
         </section>
