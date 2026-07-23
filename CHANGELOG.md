@@ -5,6 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the `VERSION` fi
 
 ---
 
+## [0.42.1] — 2026-07-23
+
+### Changed
+- **Tetris and Pixel Plumber now require login** — added `/tetris` and
+  `/mario` to `middleware.ts`'s `PROTECTED_PREFIXES`, matching `/play`,
+  `/profile`, `/admin`, `/player`, `/gym`. Anonymous visitors are redirected
+  to `/login?callbackUrl=...`. The other sibling games (Spades, Roulette,
+  Wild Card, Dominoes, Tunk) intentionally stay no-sign-up — Kendall's call.
+  Updated the two hub cards' copy from "No sign-up" to "Members only" so the
+  homepage doesn't advertise something no longer true.
+
 ## [0.42.0] — 2026-07-23
 
 ### Added

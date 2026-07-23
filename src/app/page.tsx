@@ -198,7 +198,7 @@ export default async function LobbyPage() {
               <Blocks className="h-5 w-5" /> New — Tetris
             </div>
             <p className="mt-1 text-sm text-[var(--cream)]/60">
-              Hold, next queue, ghost piece, 7-bag randomizer. No sign-up —{" "}
+              Hold, next queue, ghost piece, 7-bag randomizer. Members only —{" "}
               <span className="text-[var(--gold-bright)]">drop in →</span>
             </p>
           </Link>
@@ -214,7 +214,7 @@ export default async function LobbyPage() {
               <Gamepad2 className="h-5 w-5" /> New — Pixel Plumber
             </div>
             <p className="mt-1 text-sm text-[var(--cream)]/60">
-              A run-and-jump platformer, 3 levels, goombas and coins. No sign-up —{" "}
+              A run-and-jump platformer, 3 levels, goombas and coins. Members only —{" "}
               <span className="text-[var(--gold-bright)]">press start →</span>
             </p>
           </Link>

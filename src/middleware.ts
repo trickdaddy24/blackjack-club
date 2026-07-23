@@ -6,7 +6,9 @@ const { auth } = NextAuth(authConfig);
 
 // /admin also role-checks server-side (404 for non-admins) — this just sends
 // anonymous visitors to login like any other member page.
-const PROTECTED_PREFIXES = ["/play", "/profile", "/admin", "/player", "/gym"];
+// Tetris/Pixel Plumber are gated (unlike the sibling card games, which stay
+// intentionally no-sign-up) — Kendall's call, 2026-07-23.
+const PROTECTED_PREFIXES = ["/play", "/profile", "/admin", "/player", "/gym", "/tetris", "/mario"];
 
 export default auth((req) => {
   const { pathname } = req.nextUrl;
