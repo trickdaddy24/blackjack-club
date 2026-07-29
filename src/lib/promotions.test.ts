@@ -3,6 +3,7 @@ import { currentPromo, effectivePromo, promoStatus, PROMO_SCHEDULE } from "./pro
 
 // July dates → PDT (UTC-7), so "-07:00" offsets pin the Vegas clock exactly.
 const pt = (time: string) => new Date(`2026-07-15T${time}:00-07:00`);
+const ptSec = (time: string) => new Date(`2026-07-15T${time}-07:00`);
 
 describe("currentPromo", () => {
   it("runs Happy Hour 5pm–7pm PT", () => {
@@ -43,6 +44,32 @@ describe("promoStatus", () => {
     expect(s.active).toBeNull();
     expect(s.next.id).toBe("midnight-madness");
     expect(s.startsInMinutes).toBe(240);
+  });
+
+  // The banner advertises payout rules the server enforces independently, so
+  // it needs sub-minute resolution near a boundary. endsInMinutes alone can't
+  // tell 60s from 1s — both round up to "1m" — hence endsInSeconds.
+  it("keeps the rounded-up minute count for the whole final minute", () => {
+    expect(promoStatus(ptSec("18:59:00")).endsInMinutes).toBe(1);
+    expect(promoStatus(ptSec("18:59:59")).endsInMinutes).toBe(1);
+  });
+
+  it("distinguishes the final seconds via endsInSeconds", () => {
+    expect(promoStatus(ptSec("18:59:00")).endsInSeconds).toBe(60);
+    expect(promoStatus(ptSec("18:59:40")).endsInSeconds).toBe(20);
+    expect(promoStatus(ptSec("18:59:59")).endsInSeconds).toBe(1);
+  });
+
+  it("never advertises a promo that has already ended", () => {
+    const s = promoStatus(ptSec("19:00:00"));
+    expect(s.active).toBeNull();
+    expect(s.endsInMinutes).toBeNull();
+    expect(s.endsInSeconds).toBeNull();
+  });
+
+  it("reports exact seconds until the next promo starts", () => {
+    expect(promoStatus(ptSec("16:59:30")).startsInSeconds).toBe(30);
+    expect(promoStatus(ptSec("16:59:30")).startsInMinutes).toBe(1);
   });
 });
 

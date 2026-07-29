@@ -227,13 +227,22 @@ function PromoBanner() {
   useEffect(() => {
     const tick = () => setStatus(promoStatus());
     tick();
-    const id = setInterval(tick, 30_000);
+    // 5s, not 30s. The banner is the floor's promise about payout rules, and
+    // the server settles on its own clock — a 30s poll could keep "BLACKJACK
+    // PAYS 2:1" on screen for half a minute after 7pm PT, so a natural dealt
+    // in that gap paid 3:2 while the board said otherwise.
+    const id = setInterval(tick, 5_000);
     return () => clearInterval(id);
   }, []);
   if (!status) return null;
 
-  const fmt = (m: number) =>
-    m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`;
+  // Under a minute reads "<1m" rather than a flat "1m" — the last seconds of
+  // Happy Hour shouldn't look like a full minute of 2:1 blackjack still on
+  // offer when the next hand will almost certainly settle at 3:2.
+  const fmt = (m: number, secs: number | null) => {
+    if (secs !== null && secs < 60) return "<1m";
+    return m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`;
+  };
 
   return (
     <div className={`bj-promo ${status.active ? "bj-promo-live" : ""} mb-3`}>
@@ -248,7 +257,7 @@ function PromoBanner() {
               {status.active.pitch}
             </span>
             <span className="text-[11px] text-white/70 tabular-nums">
-              · ends in {fmt(status.endsInMinutes ?? 0)}
+              · ends in {fmt(status.endsInMinutes ?? 0, status.endsInSeconds)}
             </span>
           </>
         ) : (
@@ -260,7 +269,7 @@ function PromoBanner() {
               {status.next.name} — {status.next.pitch}
             </span>
             <span className="text-[11px] text-[var(--cream)]/50 tabular-nums">
-              · {status.next.hours} Vegas time · starts in {fmt(status.startsInMinutes ?? 0)}
+              · {status.next.hours} Vegas time · starts in {fmt(status.startsInMinutes ?? 0, status.startsInSeconds)}
             </span>
           </>
         )}

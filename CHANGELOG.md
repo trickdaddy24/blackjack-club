@@ -5,6 +5,27 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the `VERSION` fi
 
 ---
 
+## [0.42.2] — 2026-07-28
+
+### Fixed
+- **Promo banner could advertise a promotion that had already ended** (part of
+  issue #13). Two compounding causes:
+  - The banner polled `promoStatus()` every 30 seconds, so at a boundary it
+    kept showing "BLACKJACK PAYS 2:1" for up to half a minute after 7pm PT —
+    while the server had already reverted to 3:2. A natural dealt in that gap
+    paid 3:2 against what the board promised. Now polls every 5 seconds.
+  - The countdown was computed from whole minutes, so `endsInMinutes` couldn't
+    tell 60 seconds from 1 second — both rendered a confident "ends in 1m".
+    `promoStatus()` now also returns exact `endsInSeconds` / `startsInSeconds`,
+    and the banner renders "<1m" for the final minute. The rounded minute
+    fields keep their original meaning, so nothing else that reads them
+    changes behaviour.
+
+  Note: the hydration half of #13 (Spades/Roulette random-initial-state) was
+  already fixed in v0.34.0 and the issue simply stayed open. The third part —
+  porting the sound kit to the standalone Wild Card Pages build — is untouched
+  here, since `src/lib/sound.ts` has unfinished local work in it.
+
 ## [0.42.1] — 2026-07-23
 
 ### Changed

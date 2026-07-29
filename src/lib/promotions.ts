@@ -42,16 +42,17 @@ export const PROMO_SCHEDULE: Promotion[] = [
   },
 ];
 
-function vegasHourMinute(now: Date): { hour: number; minute: number } {
+function vegasHourMinute(now: Date): { hour: number; minute: number; second: number } {
   const parts = new Intl.DateTimeFormat("en-US", {
     timeZone: "America/Los_Angeles",
     hour: "numeric",
     minute: "numeric",
+    second: "numeric",
     hourCycle: "h23",
   }).formatToParts(now);
   const get = (type: string) =>
     Number(parts.find((p) => p.type === type)?.value ?? 0);
-  return { hour: get("hour"), minute: get("minute") };
+  return { hour: get("hour"), minute: get("minute"), second: get("second") };
 }
 
 /** The promotion running right now, or null when the floor is quiet. */
@@ -83,38 +84,60 @@ export function effectivePromo(
 export interface PromoStatus {
   /** Active promo, or null. */
   active: Promotion | null;
-  /** Minutes until the active promo ends (when active). */
+  /** Minutes until the active promo ends, rounded up (when active). */
   endsInMinutes: number | null;
+  /** Exact seconds until the active promo ends (when active). */
+  endsInSeconds: number | null;
   /** The next promo on the clock (always set — the schedule wraps daily). */
   next: Promotion;
-  /** Minutes until the next promo starts (when none is active). */
+  /** Minutes until the next promo starts, rounded up (when none is active). */
   startsInMinutes: number | null;
+  /** Exact seconds until the next promo starts (when none is active). */
+  startsInSeconds: number | null;
 }
 
-/** Everything the promo banner needs: what's on, what's next, and when. */
+/**
+ * Everything the promo banner needs: what's on, what's next, and when.
+ *
+ * The minute fields round up and keep their original meaning ("at most N
+ * minutes left"). The second fields are the exact remainder, which the banner
+ * needs to tell the difference between 59 minutes and 20 seconds — both of
+ * which the old minute-only math reported as a confident "ends in 1m", right
+ * up to the boundary where payouts had already reverted.
+ */
 export function promoStatus(now: Date = new Date()): PromoStatus {
-  const { hour, minute } = vegasHourMinute(now);
-  const minutesNow = hour * 60 + minute;
+  const { hour, minute, second } = vegasHourMinute(now);
+  const secondsNow = hour * 3600 + minute * 60 + second;
   const active = currentPromo(now);
 
   if (active) {
+    const endsInSeconds = active.to * 3600 - secondsNow;
     return {
       active,
-      endsInMinutes: active.to * 60 - minutesNow,
+      endsInMinutes: Math.ceil(endsInSeconds / 60),
+      endsInSeconds,
       next: active,
       startsInMinutes: null,
+      startsInSeconds: null,
     };
   }
 
-  // Distance (in minutes, wrapping past midnight) to each promo's start
+  // Distance (in seconds, wrapping past midnight) to each promo's start
   let next = PROMO_SCHEDULE[0];
   let best = Infinity;
   for (const p of PROMO_SCHEDULE) {
-    const dist = (p.from * 60 - minutesNow + 24 * 60) % (24 * 60);
+    const dist = (p.from * 3600 - secondsNow + 24 * 3600) % (24 * 3600);
     if (dist < best) {
       best = dist;
       next = p;
     }
   }
-  return { active: null, endsInMinutes: null, next, startsInMinutes: best };
+  return {
+    active: null,
+    endsInMinutes: null,
+    endsInSeconds: null,
+    next,
+    startsInMinutes: Math.ceil(best / 60),
+    startsInSeconds: best,
+  };
 }
