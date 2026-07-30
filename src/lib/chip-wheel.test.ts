@@ -19,24 +19,32 @@ const jackpotIndexes = (tier?: "mega" | "mini") =>
   );
 
 describe("WHEEL_SEGMENTS", () => {
-  it("has three jackpot slices: two mega, one mini", () => {
-    expect(jackpotIndexes()).toHaveLength(3);
+  it("has four jackpot slices: two mega, two mini", () => {
+    expect(jackpotIndexes()).toHaveLength(4);
     expect(jackpotIndexes("mega")).toHaveLength(2);
-    expect(jackpotIndexes("mini")).toHaveLength(1);
+    expect(jackpotIndexes("mini")).toHaveLength(2);
   });
 
-  it("keeps the two mega slices opposite each other", () => {
-    const [a, b] = jackpotIndexes("mega");
-    const separation = Math.abs(b - a);
-    const half = WHEEL_SEGMENTS.length / 2;
-    expect(Math.abs(separation - half)).toBeLessThanOrEqual(1);
+  // Layout rule: each tier is paired across the face, so the wheel reads
+  // balanced wherever it stops.
+  it.each([["mega"], ["mini"]] as const)(
+    "keeps the two %s slices exactly opposite each other",
+    (tier) => {
+      const [a, b] = jackpotIndexes(tier);
+      const half = WHEEL_SEGMENTS.length / 2;
+      expect(Math.abs(Math.abs(b - a) - half)).toBeLessThanOrEqual(1);
+    }
+  );
+
+  it("interleaves the two pairs so jackpots spread around the wheel", () => {
+    const [m1, m2] = jackpotIndexes("mega");
+    const [n1, n2] = jackpotIndexes("mini");
+    // expected order around the face: mega, mini, mega, mini
+    expect([m1, n1, m2, n2]).toEqual([...[m1, n1, m2, n2]].sort((x, y) => x - y));
   });
 
-  it("puts the mini slice between the two mega slices", () => {
-    const [a, b] = jackpotIndexes("mega");
-    const [mini] = jackpotIndexes("mini");
-    expect(mini).toBeGreaterThan(a);
-    expect(mini).toBeLessThan(b);
+  it("has no leftover 1500 slice — it became the second mini", () => {
+    expect(WHEEL_SEGMENTS.some((s) => s.value === 1500)).toBe(false);
   });
 
   it("tags every jackpot slice with a tier, and no regular slice", () => {
@@ -74,13 +82,13 @@ describe("WHEEL_SEGMENTS", () => {
   it("matches the segment count, EV and jackpot odds published on /how-to-play", () => {
     expect(WHEEL_SEGMENTS.length).toBe(22);
     const ev = WHEEL_SEGMENTS.reduce((sum, s) => sum + s.value, 0) / WHEEL_SEGMENTS.length;
-    expect(ev).toBeCloseTo(787.5, 4);
-    expect(jackpotIndexes().length / WHEEL_SEGMENTS.length).toBeCloseTo(0.1364, 4);
+    expect(ev).toBeCloseTo(804.5455, 3);
+    expect(jackpotIndexes().length / WHEEL_SEGMENTS.length).toBeCloseTo(0.1818, 4);
 
     const counts = new Map<number, number>();
     for (const s of WHEEL_SEGMENTS) counts.set(s.value, (counts.get(s.value) ?? 0) + 1);
     expect(Object.fromEntries(counts)).toEqual({
-      150: 6, 300: 5, 450: 4, 750: 3, 1500: 1, [MINI_JACKPOT]: 1, [MEGA_JACKPOT]: 2,
+      150: 6, 300: 5, 450: 4, 750: 3, [MINI_JACKPOT]: 2, [MEGA_JACKPOT]: 2,
     });
   });
 });

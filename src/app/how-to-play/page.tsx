@@ -288,8 +288,8 @@ export default function HowToPlayPage() {
         <Section title="Chip Wheel" delay={480}>
           <p>
             One free spin every Vegas day. Twenty-two segments, weighted toward the small
-            end, with two jackpot tiers: a ★ MEGA on two slices sitting opposite each other,
-            and a ☆ MINI on a single slice between them.
+            end, with two jackpot tiers — a ★ MEGA and a ☆ MINI — each on a matched pair of
+            slices sitting opposite each other, the two pairs alternating around the wheel.
           </p>
           <PayTable
             rows={[
@@ -297,13 +297,13 @@ export default function HowToPlayPage() {
               ["300 chips", "22.7% (5 of 22 segments)"],
               ["450 chips", "18.2% (4 of 22 segments)"],
               ["750 chips", "13.6% (3 of 22 segments)"],
-              ["1,500 chips", "4.5% (1 of 22 segments)"],
-              ["1,875 chips — ☆ MINI JACKPOT", "4.5% (1 of 22 segments)"],
+              ["1,875 chips — ☆ MINI JACKPOT", "9.1% (2 of 22 segments)"],
               ["3,750 chips — ★ MEGA JACKPOT", "9.1% (2 of 22 segments)"],
             ]}
           />
           <p>
-            Some jackpot lands on 13.6% of spins, and the wheel averages 787 chips a spin.
+            Some jackpot lands on 18.2% of spins — better than one in six — and the wheel
+            averages 804 chips a spin.
           </p>
         </Section>
 

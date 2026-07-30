@@ -5,6 +5,40 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the `VERSION` fi
 
 ---
 
+## [0.44.0] — 2026-07-30
+
+### Changed
+- **Chip Wheel: the ☆ MINI jackpot is now a matched pair, mirroring the ★ MEGA
+  pair — and the lone 1,500 slice is gone, having become the second MINI.**
+  The two MEGAs already faced each other, but the single MINI was unpaired. The
+  wheel is now symmetric: both tiers sit on opposite pairs, and the two pairs
+  alternate around the face.
+
+  | tier | slices | faces |
+  |---|---|---|
+  | ★ MEGA 3,750 | idx 2, 13 | each other |
+  | ☆ MINI 1,875 | idx 8, 19 | each other |
+
+  Order around the wheel is MEGA / MINI / MEGA / MINI with gaps of 6, 5, 6, 5,
+  so a jackpot is never far from the pointer wherever it stops.
+
+  **This is a payout change, not a reskin.** The 1,500 value no longer exists on
+  the wheel; that slice pays 1,875 as a MINI instead:
+
+  | | v0.42.x | v0.43.0 | v0.44.0 |
+  |---|---|---|---|
+  | segments | 21 | 22 | 22 |
+  | jackpot slices | 2 (9.5%) | 3 (13.6%) | **4 (18.2%)** |
+  | EV per spin | 735.7 | 787.5 | **804.5** |
+
+  Now **+9.4% EV per spin** against the pre-0.43 wheel, cumulatively — the
+  number to watch if the chip economy starts inflating. Some jackpot now lands
+  on better than one spin in six.
+
+  `/how-to-play` pay table updated (the 1,500 row is gone; MINI is 9.1%). The
+  pinned test that ties published EV and odds to the code was updated in the
+  same commit, which is exactly what it exists to force.
+
 ## [0.43.0] — 2026-07-29
 
 ### Added

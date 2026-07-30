@@ -6,18 +6,30 @@
 // roll, so a plain uniform pick over the segment list is already correctly
 // weighted.
 //
-// TWO-TIER JACKPOT. The wheel carries two MEGA slices still sitting exactly
-// opposite each other (11 apart on a 22-slice face), plus a single MINI slice
-// between them. The MEGA pair is unchanged from the previous 21-slice wheel —
-// this was an additive change, so the mini slice raises the daily give rather
-// than being funded by shrinking the megas:
+// TWO-TIER JACKPOT, PAIRED. Four jackpot slices on a 22-slice face: two MEGA
+// and two MINI, each pair sitting exactly opposite its twin (11 apart), and
+// the two pairs interleaved so the jackpots are spread almost evenly around
+// the wheel:
 //
-//   before  21 slices, EV 735.7/spin, jackpot slices 2/21 = 9.5%
-//   after   22 slices, EV 787.5/spin, jackpot slices 3/22 = 13.6%
+//   MEGA  idx 2  <-> idx 13
+//   MINI  idx 8  <-> idx 19
+//   order around the face: 2 M / 8 m / 13 M / 19 m — gaps 6, 5, 6, 5
 //
-// That is +7.0% EV per spin per player per day. MINI is set at half a MEGA so
-// it still reads as a jackpot rather than a big regular slice — it has to sit
-// above the 1500 top regular value or the tiering is invisible to players.
+// The wheel therefore reads balanced wherever it stops. There is deliberately
+// NO 1500 slice any more: it used to be the lone top regular value, and it
+// became the second MINI so that the mini tier is paired the way the mega
+// tier already was. MINI is half a MEGA so it still reads as a jackpot.
+//
+//   v0.42.x  21 slices, EV 735.7/spin, 2 jackpot slices  = 9.5%
+//   v0.43.0  22 slices, EV 787.5/spin, 3 jackpot slices  = 13.6%
+//   v0.44.0  22 slices, EV 804.5/spin, 4 jackpot slices  = 18.2%
+//
+// Cumulatively +9.4% EV per spin per player per day against the pre-0.43
+// wheel — the number to watch if the chip economy starts inflating.
+//
+// Slice POSITION is cosmetic (the roll is a uniform pick over the list, so
+// only the landing spot moves); slice VALUE is not — changing one moves EV
+// and the published pay table, which two tests below pin together.
 
 import type { Rng } from "./blackjack/engine";
 
@@ -54,9 +66,9 @@ export const WHEEL_SEGMENTS: readonly WheelSegment[] = [
   { value: 450, jackpot: false },
   { value: 150, jackpot: false },
   { value: 300, jackpot: false },
-  { value: 1500, jackpot: false },
-  { value: 450, jackpot: false },
   { value: 150, jackpot: false },
+  { value: 450, jackpot: false },
+  { value: MINI_JACKPOT, jackpot: true, tier: "mini" },
   { value: 750, jackpot: false },
   { value: 300, jackpot: false },
 ] as const;
