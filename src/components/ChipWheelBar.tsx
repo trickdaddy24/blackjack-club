@@ -1,7 +1,8 @@
 "use client";
 
-// Chip wheel — a free daily spin, weighted toward small payouts with one
-// rare jackpot slice. Unlike the property bonus (pick a card), there's no
+// Chip wheel — a free daily spin, weighted toward small payouts with three
+// rare jackpot slices in two tiers (2x MEGA, 1x MINI). Unlike the property
+// bonus (pick a card), there's no
 // choice here: the server rolls first, then the wheel animates to land on
 // whatever it already decided — same server-authoritative-then-animate
 // pattern as the Roulette wheel this component's animation was adapted from.
@@ -12,15 +13,24 @@ import { toast } from "sonner";
 import { sounds } from "@/lib/sound";
 import { ChipWheel } from "./ChipWheel";
 
+type JackpotTier = "mega" | "mini";
+
 interface Segment {
   value: number;
   jackpot: boolean;
+  tier?: JackpotTier;
 }
 
 interface SpinResult {
   granted: number;
   jackpot: boolean;
+  tier?: JackpotTier;
   segmentIndex: number;
+}
+
+/** "☆ MINI JACKPOT" / "★ MEGA JACKPOT" — tier defaults to mega if absent. */
+function jackpotLabel(tier: JackpotTier | undefined): string {
+  return tier === "mini" ? "☆ MINI JACKPOT" : "★ MEGA JACKPOT";
 }
 
 export function ChipWheelBar() {
@@ -56,7 +66,12 @@ export function ChipWheelBar() {
       const res = await fetch("/api/chip-wheel", { method: "POST" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Couldn't spin the wheel");
-      setPending({ granted: data.granted, jackpot: data.jackpot, segmentIndex: data.segmentIndex });
+      setPending({
+        granted: data.granted,
+        jackpot: data.jackpot,
+        tier: data.tier,
+        segmentIndex: data.segmentIndex,
+      });
       setTargetIndex(data.segmentIndex);
       setSpinId((n) => n + 1);
       setAvailable(false);
@@ -75,7 +90,7 @@ export function ChipWheelBar() {
     sounds.coins();
     toast.success(
       pending.jackpot
-        ? `★ JACKPOT! +${pending.granted.toLocaleString()} chips!`
+        ? `${jackpotLabel(pending.tier)}! +${pending.granted.toLocaleString()} chips!`
         : `+${pending.granted.toLocaleString()} chips!`,
       { duration: 6000 }
     );
@@ -108,7 +123,9 @@ export function ChipWheelBar() {
           {reveal ? (
             <div className="flex flex-col items-center gap-1 text-center">
               {reveal.jackpot && (
-                <div className="text-sm font-bold text-[var(--gold-bright)]">★ JACKPOT!</div>
+                <div className="text-sm font-bold text-[var(--gold-bright)]">
+                  {jackpotLabel(reveal.tier)}!
+                </div>
               )}
               <div className="text-xl font-bold text-[var(--gold-bright)]">
                 +{reveal.granted.toLocaleString()} chips

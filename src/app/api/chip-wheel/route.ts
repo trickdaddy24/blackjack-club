@@ -23,7 +23,7 @@ export async function GET() {
 
   return NextResponse.json({
     available,
-    segments: WHEEL_SEGMENTS.map((s) => ({ value: s.value, jackpot: s.jackpot })),
+    segments: WHEEL_SEGMENTS.map((s) => ({ value: s.value, jackpot: s.jackpot, tier: s.tier })),
   });
 }
 
@@ -75,6 +75,7 @@ export async function POST() {
     chips: updated.chips,
     granted: segment.value,
     jackpot: segment.jackpot,
+    tier: segment.tier,
     segmentIndex: index,
   });
 }

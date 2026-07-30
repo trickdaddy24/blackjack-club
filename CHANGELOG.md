@@ -5,6 +5,40 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the `VERSION` fi
 
 ---
 
+## [0.43.0] — 2026-07-29
+
+### Added
+- **Second Chip Wheel jackpot — a ☆ MINI tier alongside the existing ★ MEGA.**
+  The wheel already carried two jackpot slices, but both paid the same 3,750,
+  so players experienced it as a single prize. It now has two distinct tiers:
+  - ★ **MEGA 3,750** on two slices, still sitting exactly opposite each other
+    (11 apart on the new 22-slice face) — unchanged from before.
+  - ☆ **MINI 1,875** on one new slice, placed between the two megas.
+
+  This was additive, not a re-split: the mega pair kept its value, so the wheel
+  got more generous rather than diluting what was there.
+
+  | | before | after |
+  |---|---|---|
+  | segments | 21 | 22 |
+  | jackpot slices | 2 (9.5%) | 3 (13.6%) |
+  | EV per spin | 735.7 | 787.5 |
+
+  That is **+7.0% EV per spin**, per player, per day — the one number to watch
+  if the chip economy starts inflating.
+
+  MINI is set at half a MEGA deliberately: it has to sit above the 1,500 top
+  regular slice or the tiering is invisible to players. A test now enforces
+  that, so a future tweak to the regular values can't silently flatten it.
+
+  The two tiers are told apart by colour and glyph on the wheel face (mega deep
+  red ★, mini a step down in burnt orange ☆), and the toast plus the reveal
+  panel name which one landed. `/api/chip-wheel` now returns `tier` on both the
+  segment list and the spin result; `jackpot: boolean` is unchanged, so the
+  response stays backward compatible.
+
+  `/how-to-play` pay table updated with both tiers and the new probabilities.
+
 ## [0.42.2] — 2026-07-28
 
 ### Fixed

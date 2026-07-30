@@ -5,10 +5,14 @@ import { useEffect, useRef } from "react";
 interface Segment {
   value: number;
   jackpot: boolean;
+  tier?: "mega" | "mini";
 }
 
 const REGULAR_COLORS = ["#3a2a12", "#4a3418"]; // alternating dark-gold tones
 const JACKPOT_COLOR = "#b0203a";
+// Mini sits a step down from mega's deep red so the two tiers read apart at a
+// glance on the wheel face — same family, clearly lesser.
+const MINI_JACKPOT_COLOR = "#8a4a12";
 const EXTRA_SPINS = 6;
 const DURATION_MS = 4200;
 const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
@@ -16,7 +20,7 @@ const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
 /**
  * A canvas chip wheel — adapted from the Roulette wheel's spin-to-target
  * animation (same easing/rotation math), restyled for chip-value segments
- * with one jackpot slice. On each `spinId` change it animates from its
+ * with two tiers of jackpot slice (mega ★, mini ☆). On each `spinId` change it animates from its
  * current rotation, through several full turns, to land `targetIndex`
  * under the fixed pointer at the top, then calls `onDone`.
  */
@@ -66,7 +70,11 @@ export function ChipWheel({
       ctx.moveTo(cx, cy);
       ctx.arc(cx, cy, rimInner, a0, a1);
       ctx.closePath();
-      ctx.fillStyle = segments[j].jackpot ? JACKPOT_COLOR : REGULAR_COLORS[j % 2];
+      ctx.fillStyle = segments[j].jackpot
+        ? segments[j].tier === "mini"
+          ? MINI_JACKPOT_COLOR
+          : JACKPOT_COLOR
+        : REGULAR_COLORS[j % 2];
       ctx.fill();
       ctx.strokeStyle = "rgba(242, 193, 78, 0.35)";
       ctx.lineWidth = 1;
@@ -79,7 +87,11 @@ export function ChipWheel({
       ctx.textBaseline = "middle";
       ctx.fillStyle = segments[j].jackpot ? "#ffe9a8" : "#f3e9d2";
       ctx.font = `${segments[j].jackpot ? "bold " : ""}${Math.max(8, Math.round(size * 0.036))}px ui-sans-serif, system-ui, sans-serif`;
-      const label = segments[j].jackpot ? "★" : segments[j].value.toLocaleString();
+      const label = segments[j].jackpot
+        ? segments[j].tier === "mini"
+          ? "☆"
+          : "★"
+        : segments[j].value.toLocaleString();
       ctx.fillText(label, rimInner * 0.82, 0);
       ctx.restore();
     }
