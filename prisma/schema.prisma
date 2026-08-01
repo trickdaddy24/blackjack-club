@@ -103,6 +103,10 @@ model Table {
   // Player-phase turn clock; expired = the active hand auto-stands (enforced
   // lazily by whichever request arrives next)
   turnDeadline  DateTime?
+  // Quick reactions, as a small capped ring buffer (see lib/emotes.ts). Rides
+  // the existing table poll — no socket — and entries expire on read, so this
+  // never needs a cleanup job.
+  emotesJson    String?
   endedReason   String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt

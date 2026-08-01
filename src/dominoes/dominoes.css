@@ -39,7 +39,7 @@
 .dominoes-app .dboard__backs { display: flex; gap: -10px; }
 .dominoes-app .dboard__backs .domino--back { margin-left: -18px; }
 .dominoes-app .dboard__backs .domino--back:first-child { margin-left: 0; }
-.dominoes-app .dline { display: flex; align-items: center; gap: 3px; overflow-x: auto; max-width: 100%; padding: 8px; }
+.dominoes-app .dline { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 3px; max-width: 100%; padding: 8px; }
 
 /* Draw / end-pick prompts */
 .dominoes-app .ddraw, .dominoes-app .dendpick { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 8px 16px; font-size: 13px; color: var(--muted); }
@@ -66,12 +66,11 @@
 .dominoes-app .domino { display: flex; align-items: center; justify-content: center; background: var(--tile-bg); border: 1px solid rgba(0, 0, 0, 0.25); border-radius: 6px; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.35); user-select: none; padding: 4px; }
 .dominoes-app .domino--h { flex-direction: row; width: 68px; height: 34px; gap: 3px; }
 .dominoes-app .domino--v { flex-direction: column; width: 34px; height: 68px; gap: 3px; }
-.dominoes-app .domino--v.domino--double { flex-direction: row; width: 68px; height: 34px; }
 .dominoes-app .domino--sm.domino--h { width: 52px; height: 26px; }
 .dominoes-app .domino--sm.domino--v { width: 26px; height: 52px; }
 .dominoes-app .domino__divider { background: rgba(0, 0, 0, 0.25); flex-shrink: 0; }
-.dominoes-app .domino--h .domino__divider, .dominoes-app .domino--v.domino--double .domino__divider { width: 1px; height: 70%; }
-.dominoes-app .domino--v:not(.domino--double) .domino__divider { height: 1px; width: 70%; }
+.dominoes-app .domino--h .domino__divider { width: 1px; height: 70%; }
+.dominoes-app .domino--v .domino__divider { height: 1px; width: 70%; }
 .dominoes-app .domino--back { background: repeating-linear-gradient(45deg, #2b3a67, #2b3a67 5px, #24325a 5px, #24325a 10px); border: 1px solid #3b4b7a; width: 34px; height: 68px; border-radius: 6px; }
 .dominoes-app .domino--btn { cursor: pointer; transition: transform 0.12s, box-shadow 0.12s; }
 .dominoes-app .domino--btn:hover:not(:disabled) { transform: translateY(-6px); box-shadow: 0 8px 16px rgba(0, 0, 0, 0.5); }

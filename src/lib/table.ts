@@ -11,6 +11,7 @@
 
 import { Prisma, type Table } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { liveEmotes, parseEmotes, type EmoteRecord } from "./emotes";
 import {
   applyAction,
   clientView,
@@ -535,6 +536,8 @@ export interface TableView {
   jackpot: number;
   tableMin: { min: number; label: string };
   maxSideBet: number;
+  /** Live quick reactions (#6), newest last. Expired entries are pruned on read. */
+  emotes: EmoteRecord[];
 }
 
 export async function buildTableView(table: Table, viewerId: string): Promise<TableView> {
@@ -585,5 +588,8 @@ export async function buildTableView(table: Table, viewerId: string): Promise<Ta
     jackpot,
     tableMin: { min: min.min, label: min.label },
     maxSideBet: MAX_SIDE_BET,
+    // Pruned on read — expired reactions simply stop being sent, so there is
+    // no cleanup job and a stale row can't accumulate.
+    emotes: liveEmotes(parseEmotes(table.emotesJson), Date.now()),
   };
 }

@@ -8,6 +8,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { sounds } from "@/lib/sound";
+import { emitChipsChanged } from "@/lib/chip-events";
 
 interface PropertySummary {
   id: string;
@@ -64,6 +65,7 @@ export function PropertyBonusBar() {
       });
       setAvailable(false);
       sounds.coins();
+      emitChipsChanged("property-bonus", data.granted);
       toast.success(
         data.bonusHit
           ? `${data.bonusLabel} +${data.granted.toLocaleString()} chips at ${data.propertyName}!`

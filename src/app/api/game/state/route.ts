@@ -14,6 +14,12 @@ export async function GET() {
   }
   const userId = session.user.id;
 
+  // Before the balance is read, not after: if this is the poll that claims and
+  // pays a drop, reading chips first would hand back a pre-credit balance
+  // alongside a hotSeat payload announcing the award. Never throws — see
+  // hotseat-io.ts.
+  await maybeTriggerHotSeat();
+
   const user = await prisma.user.findUnique({
     where: { id: userId },
     select: {
@@ -39,10 +45,6 @@ export async function GET() {
     const state = parseRoundState(round.stateJson);
     roundView = withHint(state, clientView(state));
   }
-
-  // Fire-and-forget-ish: almost always a no-op read, occasionally the poll
-  // that claims and pays out a drop. Never throws — see hotseat-io.ts.
-  await maybeTriggerHotSeat();
 
   return NextResponse.json({
     chips: user.chips,

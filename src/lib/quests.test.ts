@@ -1,10 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
   advanceQuest,
+  CLEAN_SWEEP,
+  CLEAN_SWEEP_SLUG,
   dailyQuests,
+  isCleanSweep,
+  previousDayKey,
   questDef,
   QUESTS,
   settleEventFor,
+  sweepStreak,
   type SettleEvent,
 } from "./quests";
 import type { HandState, RoundState } from "./blackjack/engine";
@@ -137,5 +142,92 @@ describe("catalog", () => {
       expect(q.reward).toBeGreaterThan(0);
       expect(q.target).toBeGreaterThan(0);
     }
+  });
+});
+
+// ── Clean Sweep (#7) ───────────────────────────────────────────────────────
+
+describe("isCleanSweep", () => {
+  const defs = dailyQuests("2026-07-28");
+
+  it("is false until every one of the day's quests is done", () => {
+    expect(isCleanSweep(defs, [])).toBe(false);
+    expect(isCleanSweep(defs, [defs[0].slug])).toBe(false);
+    expect(isCleanSweep(defs, [defs[0].slug, defs[1].slug])).toBe(false);
+  });
+
+  it("is true once all three are done", () => {
+    expect(isCleanSweep(defs, defs.map((d) => d.slug))).toBe(true);
+  });
+
+  it("ignores completed quests that aren't on today's board", () => {
+    // A quest finished before the board rotated must not count toward today.
+    const stale = ["gym-1", "bust-1", "duo-1", "natural-1"];
+    const onlyStale = stale.filter((s) => !defs.some((d) => d.slug === s));
+    expect(isCleanSweep(defs, onlyStale)).toBe(false);
+  });
+
+  it("is false for an empty board rather than vacuously true", () => {
+    expect(isCleanSweep([], [])).toBe(false);
+  });
+});
+
+describe("previousDayKey", () => {
+  it("steps back one day", () => {
+    expect(previousDayKey("2026-07-28")).toBe("2026-07-27");
+  });
+  it("crosses month and year boundaries", () => {
+    expect(previousDayKey("2026-08-01")).toBe("2026-07-31");
+    expect(previousDayKey("2026-01-01")).toBe("2025-12-31");
+    expect(previousDayKey("2026-03-01")).toBe("2026-02-28");
+  });
+  it("handles a leap day", () => {
+    expect(previousDayKey("2028-03-01")).toBe("2028-02-29");
+  });
+});
+
+describe("sweepStreak", () => {
+  it("counts consecutive days ending today", () => {
+    expect(sweepStreak(["2026-07-28", "2026-07-27", "2026-07-26"], "2026-07-28")).toBe(3);
+  });
+
+  it("stops at the first gap", () => {
+    expect(
+      sweepStreak(["2026-07-28", "2026-07-27", "2026-07-25"], "2026-07-28")
+    ).toBe(2);
+  });
+
+  // Mid-day, before today's sweep lands, the streak should read as yesterday's
+  // run rather than collapsing to 0 and jumping back up an hour later.
+  it("still counts yesterday's run when today isn't swept yet", () => {
+    expect(sweepStreak(["2026-07-27", "2026-07-26"], "2026-07-28")).toBe(2);
+  });
+
+  it("is 0 with no sweeps, or when the run ended before yesterday", () => {
+    expect(sweepStreak([], "2026-07-28")).toBe(0);
+    expect(sweepStreak(["2026-07-20"], "2026-07-28")).toBe(0);
+  });
+
+  it("counts a single day", () => {
+    expect(sweepStreak(["2026-07-28"], "2026-07-28")).toBe(1);
+  });
+
+  it("is unaffected by duplicate or unordered input", () => {
+    expect(
+      sweepStreak(["2026-07-26", "2026-07-28", "2026-07-27", "2026-07-27"], "2026-07-28")
+    ).toBe(3);
+  });
+
+  it("crosses a month boundary", () => {
+    expect(sweepStreak(["2026-08-01", "2026-07-31", "2026-07-30"], "2026-08-01")).toBe(3);
+  });
+});
+
+describe("CLEAN_SWEEP catalog", () => {
+  it("uses a slug that can never collide with a real quest", () => {
+    expect(QUESTS.some((q) => q.slug === CLEAN_SWEEP_SLUG)).toBe(false);
+  });
+  it("pays more than any single daily quest", () => {
+    expect(CLEAN_SWEEP.reward).toBeGreaterThan(Math.max(...QUESTS.map((q) => q.reward)));
   });
 });

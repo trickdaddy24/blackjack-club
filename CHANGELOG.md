@@ -5,6 +5,40 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the `VERSION` fi
 
 ---
 
+## [0.45.0] — 2026-07-31
+
+### Fixed
+- **Bonus chips never appeared on the table's chip counter.** Catching a Hot
+  Seat drop toasted "+700 chips!" while the HUD sat unchanged — and the same
+  went for quest rewards, Clean Sweep, VIP tier-ups, Chip Wheel spins, and
+  property bonuses. The chips were always credited correctly in the database;
+  the counter just never heard about it.
+
+  `GameTable` fetched `/api/game/state` once on mount and thereafter only
+  updated the balance from its own bet/action/tip responses. The bars that
+  announce these bonuses are deliberately independent components, so none of
+  them could reach it. The number stayed frozen until the next bet overwrote
+  it with a balance that silently already included the bonus — which read as
+  the bonus never arriving at all.
+
+  Every crediter now announces on a `bj:chips-changed` event (`lib/chip-events.ts`);
+  the HUD bumps optimistically for instant feedback, then reconciles against the
+  new `GET /api/game/chips` so a missed or duplicated event self-corrects. A 30s
+  reconcile backstops the credits nobody can announce client-side — board
+  champion prizes (awarded whenever some *other* player loads the leaderboard),
+  admin grants, and the same player betting in a second tab.
+
+- **`/api/game/state` could return a pre-credit balance.** `maybeTriggerHotSeat()`
+  ran *after* the user row was read, so the very poll that claimed and paid a drop
+  handed back the old chip count alongside a `hotSeat` payload announcing the
+  award. The trigger now runs before the read.
+
+### Note
+Other work landed in this release (table emotes, Hi-Lo deviations, dominoes)
+and is not yet documented here.
+
+---
+
 ## [0.44.0] — 2026-07-30
 
 ### Changed

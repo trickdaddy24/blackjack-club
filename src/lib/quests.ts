@@ -106,6 +106,68 @@ export function advanceQuest(def: QuestDef, prev: number, ev: SettleEvent): numb
   }
 }
 
+// ── Clean Sweep ────────────────────────────────────────────────────────────
+//
+// Finishing all three of the day's quests pays a bonus on top of the three
+// individual rewards, and builds a sweep streak across consecutive days.
+//
+// Deliberately recorded as a QuestProgress row under a reserved slug rather
+// than new User columns: the award is already a per-user-per-day fact, which
+// is exactly what that table stores, so this ships with **no schema
+// migration**. The streak is derived by walking consecutive day keys
+// backwards instead of being cached in a counter that could drift out of sync
+// with the rows it summarises.
+
+export const CLEAN_SWEEP_SLUG = "clean-sweep";
+
+export const CLEAN_SWEEP = {
+  slug: CLEAN_SWEEP_SLUG,
+  name: "Clean Sweep",
+  emoji: "🧹",
+  description: "Finish all three of today's quests.",
+  /** Roughly the three daily rewards again — worth chasing the last one. */
+  reward: 2500,
+} as const;
+
+/**
+ * True when every one of today's quests is done. Takes the day's defs so it
+ * can't drift from `dailyQuests` if the board size ever changes.
+ */
+export function isCleanSweep(defs: QuestDef[], doneSlugs: Iterable<string>): boolean {
+  const done = new Set(doneSlugs);
+  return defs.length > 0 && defs.every((d) => done.has(d.slug));
+}
+
+/** `YYYY-MM-DD` minus one day, matching vegasDayKey's format. */
+export function previousDayKey(dayKey: string): string {
+  const [y, m, d] = dayKey.split("-").map(Number);
+  // UTC math on a date-only key — no timezone involved, so no DST hazard.
+  const t = new Date(Date.UTC(y, m - 1, d) - 24 * 3600 * 1000);
+  return `${t.getUTCFullYear()}-${String(t.getUTCMonth() + 1).padStart(2, "0")}-${String(
+    t.getUTCDate()
+  ).padStart(2, "0")}`;
+}
+
+/**
+ * Consecutive sweep days ending at `todayKey`. Pure — callers pass the set of
+ * days that have a completed sweep.
+ *
+ * A sweep today isn't required: mid-day, before today's sweep lands, the
+ * streak still reads as yesterday's run rather than collapsing to 0 and
+ * jumping back up an hour later.
+ */
+export function sweepStreak(sweptDays: Iterable<string>, todayKey: string): number {
+  const swept = new Set(sweptDays);
+  let cursor = swept.has(todayKey) ? todayKey : previousDayKey(todayKey);
+  let n = 0;
+  // Bounded so a corrupt day key can never spin forever.
+  for (let guard = 0; guard < 3650 && swept.has(cursor); guard++) {
+    n++;
+    cursor = previousDayKey(cursor);
+  }
+  return n;
+}
+
 /** The pseudo-event a completed Gym drill emits into the quest engine. */
 export const GYM_EVENT: SettleEvent = {
   won: false,

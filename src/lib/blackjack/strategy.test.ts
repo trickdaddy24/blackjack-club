@@ -111,3 +111,87 @@ describe("explainAction", () => {
     expect(view.hintReason).toMatch(/bust/i);
   });
 });
+
+// ── Pro book: Illustrious 18 count deviations (#9, opt-in) ─────────────────
+
+describe("recommendAction with the pro book", () => {
+  const card = (rank: Card["rank"]): Card => ({ rank, suit: "S" } as Card);
+  const ALL: PlayerAction[] = ["hit", "stand", "double", "split", "surrender"];
+
+  // The most important property: existing players see no change at all.
+  it("is OFF by default — basic strategy is unchanged", () => {
+    const sixteen = [card("10"), card("6")];
+    expect(recommendAction(sixteen, card("K"), ALL)).toBe("hit");
+    expect(recommendAction(sixteen, card("K"), ALL, "classic")).toBe("hit");
+    expect(
+      recommendAction(sixteen, card("K"), ALL, "classic", { enabled: false, trueCount: 9 })
+    ).toBe("hit");
+  });
+
+  it("stands 16 vs 10 once enabled and the count is at the index", () => {
+    const sixteen = [card("10"), card("6")];
+    expect(
+      recommendAction(sixteen, card("K"), ALL, "classic", { enabled: true, trueCount: -1 })
+    ).toBe("hit");
+    expect(
+      recommendAction(sixteen, card("K"), ALL, "classic", { enabled: true, trueCount: 0 })
+    ).toBe("stand");
+  });
+
+  it("doubles 11 vs ace from +1", () => {
+    const eleven = [card("6"), card("5")];
+    expect(
+      recommendAction(eleven, card("A"), ALL, "classic", { enabled: true, trueCount: 1 })
+    ).toBe("double");
+  });
+
+  it("reverses on a ten-poor shoe (13 vs 2 becomes a hit)", () => {
+    const thirteen = [card("9"), card("4")];
+    expect(
+      recommendAction(thirteen, card("2"), ALL, "classic", { enabled: true, trueCount: 0 })
+    ).toBe("stand");
+    expect(
+      recommendAction(thirteen, card("2"), ALL, "classic", { enabled: true, trueCount: -1 })
+    ).toBe("hit");
+  });
+
+  it("takes insurance only at a genuinely ten-rich shoe", () => {
+    const hand = [card("9"), card("7")];
+    const ins: PlayerAction[] = ["insurance-yes", "insurance-no"];
+    expect(recommendAction(hand, card("A"), ins, "classic")).toBe("insurance-no");
+    expect(
+      recommendAction(hand, card("A"), ins, "classic", { enabled: true, trueCount: 2 })
+    ).toBe("insurance-no");
+    expect(
+      recommendAction(hand, card("A"), ins, "classic", { enabled: true, trueCount: 3 })
+    ).toBe("insurance-yes");
+  });
+
+  it("still declines even money regardless of the count", () => {
+    // Even money is insurance on a natural — the 3:2 payout still wins out.
+    const nat = [card("A"), card("K")];
+    expect(
+      recommendAction(nat, card("A"), ["even-money-yes", "even-money-no"], "classic", {
+        enabled: true,
+        trueCount: 9,
+      })
+    ).toBe("even-money-no");
+  });
+
+  // The published indices assume a 6-deck shoe that HAS tens in it.
+  it("ignores the count on Spanish 21, where the indices don't apply", () => {
+    const sixteen = [card("10"), card("6")];
+    expect(
+      recommendAction(sixteen, card("K"), ALL, "spanish21", { enabled: true, trueCount: 9 })
+    ).toBe("hit");
+  });
+
+  it("never returns an action the table doesn't allow", () => {
+    const eleven = [card("6"), card("5")];
+    const out = recommendAction(eleven, card("A"), ["hit", "stand"], "classic", {
+      enabled: true,
+      trueCount: 9,
+    });
+    expect(["hit", "stand"]).toContain(out);
+  });
+});

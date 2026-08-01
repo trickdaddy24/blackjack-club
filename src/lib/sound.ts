@@ -97,6 +97,36 @@ class Sounds {
     src.start(t);
   }
 
+  /** Filtered noise riser — ascending sweep, builds anticipation into a hit. */
+  private riser({
+    delay = 0,
+    dur = 0.22,
+    freqFrom = 500,
+    freqTo = 3400,
+    vol = 0.22,
+  }: { delay?: number; dur?: number; freqFrom?: number; freqTo?: number; vol?: number } = {}) {
+    const ctx = this.ensure();
+    if (!ctx || !this.master) return;
+    const t = ctx.currentTime + delay;
+    const len = Math.ceil(ctx.sampleRate * dur);
+    const buffer = ctx.createBuffer(1, len, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
+    const src = ctx.createBufferSource();
+    src.buffer = buffer;
+    const filter = ctx.createBiquadFilter();
+    filter.type = "bandpass";
+    filter.Q.value = 1.1;
+    filter.frequency.setValueAtTime(freqFrom, t);
+    filter.frequency.exponentialRampToValueAtTime(freqTo, t + dur);
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.001, t);
+    gain.gain.exponentialRampToValueAtTime(vol, t + dur * 0.7);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    src.connect(filter).connect(gain).connect(this.master);
+    src.start(t);
+  }
+
   /** Ceramic chip clink — two detuned high blips. */
   chip(delay = 0) {
     this.tone(2100, { type: "triangle", delay, dur: 0.06, vol: 0.3 });
@@ -189,6 +219,36 @@ class Sounds {
         delay: delay + 0.3 + i * 0.05,
         dur: 0.08,
         vol: 0.12,
+      });
+    }
+  }
+
+  /** PERFECT PAIR (30:1) — the rarest, richest side-bet win. Anticipation
+   *  riser into a sub-bass impact thump, a two-octave major arpeggio with
+   *  dual-harmonic (octave + fifth) shimmer, and a long, dense sparkle
+   *  cascade — deliberately the biggest sound in the game. */
+  perfectPair(delay = 0) {
+    this.riser({ delay, dur: 0.22, freqFrom: 500, freqTo: 3400, vol: 0.22 });
+
+    const hitAt = delay + 0.2;
+    this.tone(55, { type: "sine", delay: hitAt, dur: 0.4, vol: 0.5 });
+    this.tone(110, { type: "triangle", delay: hitAt, dur: 0.3, vol: 0.22 });
+
+    const run = [523.25, 659.25, 783.99, 1046.5, 1318.51, 1567.98, 2093.0]; // C5 E5 G5 C6 E6 G6 C7
+    run.forEach((f, i) => {
+      const t = hitAt + i * 0.065;
+      this.tone(f, { type: "triangle", delay: t, dur: 0.32, vol: 0.36 });
+      this.tone(f * 2, { type: "sine", delay: t + 0.02, dur: 0.22, vol: 0.12 }); // octave shimmer
+      this.tone(f * 1.5, { type: "sine", delay: t + 0.03, dur: 0.18, vol: 0.08 }); // fifth shimmer
+    });
+
+    const cascadeStart = hitAt + run.length * 0.065 + 0.05;
+    for (let i = 0; i < 12; i++) {
+      this.tone(2200 + Math.random() * 2000, {
+        type: "sine",
+        delay: cascadeStart + i * 0.045,
+        dur: 0.1,
+        vol: Math.max(0.05, 0.14 - i * 0.007),
       });
     }
   }

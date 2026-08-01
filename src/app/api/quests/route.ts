@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { vegasDayKey } from "@/lib/leaderboard";
-import { dailyQuests } from "@/lib/quests";
+import { CLEAN_SWEEP, CLEAN_SWEEP_SLUG, dailyQuests } from "@/lib/quests";
+import { getSweepStreak } from "@/lib/quests-io";
 
 /** GET: today's three quests with my progress, plus my login streak. */
 export async function GET() {
@@ -14,14 +15,17 @@ export async function GET() {
   const day = vegasDayKey();
   const defs = dailyQuests(day);
 
-  const [rows, user] = await Promise.all([
+  const [rows, user, sweepStreak] = await Promise.all([
     prisma.questProgress.findMany({
-      where: { userId, day, slug: { in: defs.map((d) => d.slug) } },
+      // Include the reserved Clean Sweep slug so the client can tell
+      // "all three done" apart from "all three done AND the bonus paid".
+      where: { userId, day, slug: { in: [...defs.map((d) => d.slug), CLEAN_SWEEP_SLUG] } },
     }),
     prisma.user.findUnique({
       where: { id: userId },
       select: { loginStreak: true, chips: true },
     }),
+    getSweepStreak(userId),
   ]);
   const byslug = new Map(rows.map((r) => [r.slug, r]));
 
@@ -29,6 +33,14 @@ export async function GET() {
     day,
     loginStreak: user?.loginStreak ?? 0,
     chips: user?.chips ?? 0,
+    cleanSweep: {
+      name: CLEAN_SWEEP.name,
+      emoji: CLEAN_SWEEP.emoji,
+      description: CLEAN_SWEEP.description,
+      reward: CLEAN_SWEEP.reward,
+      claimed: byslug.get(CLEAN_SWEEP_SLUG)?.done ?? false,
+      streak: sweepStreak,
+    },
     quests: defs.map((d) => ({
       slug: d.slug,
       name: d.name,

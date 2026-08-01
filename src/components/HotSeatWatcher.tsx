@@ -7,6 +7,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { sounds } from "@/lib/sound";
+import { emitChipsChanged } from "@/lib/chip-events";
 
 interface HotSeatState {
   winnerId: string | null;
@@ -31,6 +32,7 @@ export function HotSeatWatcher({ userId }: { userId: string }) {
 
       if (data.winnerId === userId) {
         sounds.coins();
+        emitChipsChanged("hot-seat", data.amount ?? undefined);
         toast.success(`🔥 HOT SEAT! You just caught +${data.amount?.toLocaleString()} chips!`, {
           duration: 6000,
         });

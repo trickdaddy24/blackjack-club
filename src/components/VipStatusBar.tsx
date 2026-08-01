@@ -7,6 +7,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { sounds } from "@/lib/sound";
+import { emitChipsChanged } from "@/lib/chip-events";
 
 interface VipState {
   tier: { name: string; badge: string; dailyBonusBoostPct: number };
@@ -27,6 +28,7 @@ export function VipStatusBar() {
       setVip(data);
       if (data.tieredUp) {
         sounds.coins();
+        emitChipsChanged("vip-tier-up", data.bonusAwarded);
         toast.success(
           `${data.tier.badge} ${data.tier.name.toUpperCase()} VIP! +${data.bonusAwarded.toLocaleString()} chips — new perks unlocked`,
           { duration: 8000 }

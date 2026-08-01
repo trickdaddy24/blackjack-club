@@ -1,6 +1,6 @@
 ﻿# ♠ Blackjack Club
 
-[![Version](https://img.shields.io/badge/version-0.36.0-blue)](./VERSION)
+[![Version](https://img.shields.io/badge/version-0.45.0-blue)](./VERSION)
 [![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
 [![Tests](https://img.shields.io/badge/tests-270%20passing-brightgreen)](./src/lib/blackjack/engine.test.ts)
 
@@ -102,6 +102,7 @@ tournaments, themes, and retention mechanics.
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 0.45.0 | 2026-07-31 | **💰 Out-of-band chip credits now reach the table HUD** — hot seat drops, quest rewards, Clean Sweep, VIP tier-ups, wheel spins, and property bonuses were all crediting correctly in the database but leaving the chip counter frozen until the next bet quietly absorbed them. A `bj:chips-changed` event plus a 30s reconcile against the new `/api/game/chips` closes every path, including champion prizes and admin grants that have no client-side signal. |
 | 0.36.0 | 2026-07-19 | **🕵️ Admin console slice 2** (issue #14) — round inspector (`/admin/rounds`, filterable, expandable hand replays, read-only) and house dashboard (`/admin/house`: today/week P&L, Lucky Ladies pot override, promo calendar + force-promo override that actually changes payouts, not just the banner). |
 | 0.35.0 | 2026-07-19 | **🎡 Chip wheel** (issue #8) — a free daily spin, weighted toward small payouts with one rare jackpot slice, alongside the flat daily bonus and the property-pick bonus. Real canvas wheel animation (adapted from the Roulette wheel) spins to a server-rolled result — no client-side chance, the wheel just reveals what already happened. |
 | 0.34.0 | 2026-07-19 | **Hydration fixes (issue #13, part 1)** — `/spades` and `/roulette` now mount-gate their table render, same fix already applied to `/wildcard`. Verified the actual root causes: Spades' random deal and Roulette's `localStorage`-loaded balance/history both previously guaranteed an SSR/client mismatch on nearly every load; neither reproduces now. |

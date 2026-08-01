@@ -6,6 +6,7 @@
 // missing 10s push it toward more hitting/later standing and uses surrender
 // against an ace on hard 16-17).
 
+import { deviationFor, insuranceDeviation } from "./deviations";
 import {
   cardValue,
   handValue,
@@ -17,6 +18,17 @@ import {
 } from "./engine";
 
 type Advice = "hit" | "stand" | "double" | "split" | "surrender";
+
+/**
+ * Opt-in count-based play. Off by default and deliberately so: a player who
+ * follows index plays without actually tracking the count does *worse* than
+ * one who sticks to basic strategy.
+ */
+export interface ProBookOptions {
+  enabled?: boolean;
+  /** Hi-Lo true count (running ÷ decks remaining). */
+  trueCount?: number;
+}
 
 /** Downgrade advice to something legal: double→(hit/stand), split→total, surrender→hit. */
 function legalize(
@@ -106,12 +118,33 @@ export function recommendAction(
   cards: Card[],
   upcard: Card,
   actions: PlayerAction[],
-  variant: Variant = "classic"
+  variant: Variant = "classic",
+  pro?: ProBookOptions
 ): PlayerAction | null {
   if (actions.length === 0) return null;
-  // Basic strategy never takes insurance — and even money IS insurance
+
+  // Pro book (Illustrious 18) — opt-in, classic only. The published indices
+  // assume a 6-deck S17 DAS shoe, which is exactly the classic table; applying
+  // them to Spanish 21 (no tens in the shoe) would be actively wrong, so the
+  // count is ignored there.
+  const proOn = Boolean(pro?.enabled) && variant === "classic";
+  const tc = pro?.trueCount ?? 0;
+
+  // Basic strategy never takes insurance — and even money IS insurance.
+  // The one exception is the count: insurance is the single most valuable
+  // index play in the Illustrious 18, and only at a genuinely ten-rich shoe.
   if (actions.includes("even-money-no")) return "even-money-no";
-  if (actions.includes("insurance-no")) return "insurance-no";
+  if (actions.includes("insurance-no")) {
+    if (proOn && insuranceDeviation(tc) && actions.includes("insurance-yes")) {
+      return "insurance-yes";
+    }
+    return "insurance-no";
+  }
+
+  if (proOn) {
+    const d = deviationFor(cards, upcard, tc, actions);
+    if (d) return d.action as PlayerAction;
+  }
 
   const up = cardValue(upcard); // A = 11
   const spanish = variant === "spanish21";

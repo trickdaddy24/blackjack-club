@@ -98,13 +98,21 @@ export function applyPlay(state: GameState, seat: Seat, tileIndex: number, end: 
   const hands: [Tile[], Tile[]] = seat === 0 ? [nextHand, state.hands[1]] : [state.hands[0], nextHand];
 
   // The end this tile connects to becomes the new open value at that end.
-  const newValue = end === "left"
-    ? (tile.a === state.board.leftEnd ? tile.b : tile.a)
-    : (tile.a === state.board.rightEnd ? tile.b : tile.a);
+  const anchor = end === "left" ? state.board.leftEnd : state.board.rightEnd;
+  const connecting = tile.a === anchor ? tile.a : tile.b;
+  const newValue = tile.a === anchor ? tile.b : tile.a;
+
+  // Orient the stored copy so the connecting pip always faces the chain it's
+  // joining: outward-then-connecting when prepended left, connecting-then-
+  // outward when appended right. TileView always draws `a` before `b`, so
+  // without this the wrong half can end up facing the neighbor it matches.
+  const oriented: Tile = end === "left"
+    ? { a: newValue, b: connecting }
+    : { a: connecting, b: newValue };
 
   const line = end === "left"
-    ? [{ tile, seat }, ...state.board.line]
-    : [...state.board.line, { tile, seat }];
+    ? [{ tile: oriented, seat }, ...state.board.line]
+    : [...state.board.line, { tile: oriented, seat }];
 
   const board: Board = {
     line,

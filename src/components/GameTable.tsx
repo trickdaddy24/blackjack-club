@@ -1,12 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Coins, Crown, Eye, EyeOff, Flame, Gift, GraduationCap, HandCoins, Lightbulb, LightbulbOff, Loader2, RotateCcw, Volume2, VolumeX } from "lucide-react";
 import { rulesFor, type ClientView, type PlayerAction, type Variant } from "@/lib/blackjack/engine";
 import { PROMO_SCHEDULE, promoStatus, type PromoStatus } from "@/lib/promotions";
 import { PlayingCard } from "@/components/PlayingCard";
 import { sounds } from "@/lib/sound";
+import { onChipsChanged } from "@/lib/chip-events";
 
 const CHIP_VALUES = [1, 5, 25, 100, 500, 1000] as const;
 const SIDE_CHIP_VALUES = [1, 5, 25] as const;
@@ -567,6 +568,10 @@ export function GameTable() {
   const [pendingBet, setPendingBet] = useState(0);
   const [seats, setSeats] = useState(1);
   const [busy, setBusy] = useState(false);
+  /** `busy` readable from inside interval/event callbacks, plus a counter that
+   *  ticks on every mutation so a slow chip reconcile can tell it got lapped. */
+  const busyRef = useRef(false);
+  const mutationSeq = useRef(0);
   const [loading, setLoading] = useState(true);
   const [muted, setMuted] = useState(false);
   const [variant, setVariant] = useState<Variant>("classic");
@@ -638,6 +643,43 @@ export function GameTable() {
       .finally(() => setLoading(false));
   }, []);
 
+  useEffect(() => {
+    if (busy) mutationSeq.current += 1;
+    busyRef.current = busy;
+  }, [busy]);
+
+  /** Pull the authoritative balance. Bails if a bet/action/tip raced us — those
+   *  responses carry a fresher number than this read could. */
+  const reconcileChips = useCallback(async () => {
+    if (busyRef.current) return;
+    const seq = mutationSeq.current;
+    try {
+      const r = await api<{ chips: number }>("/api/game/chips");
+      if (busyRef.current || mutationSeq.current !== seq) return;
+      setChips(r.chips);
+    } catch {
+      // transient — the next credit or tick retries
+    }
+  }, []);
+
+  // Out-of-band credits: the bars announce, we bump optimistically for instant
+  // feedback, then reconcile. The interval is the backstop for credits nobody
+  // announces — board champion prizes (awarded by whoever loads the
+  // leaderboard), admin grants, or this player betting in a second tab.
+  useEffect(() => {
+    const off = onChipsChanged(({ amount }) => {
+      if (typeof amount === "number" && amount !== 0) {
+        setChips((c) => (c === null ? c : c + amount));
+      }
+      void reconcileChips();
+    });
+    const t = setInterval(() => void reconcileChips(), 30_000);
+    return () => {
+      off();
+      clearInterval(t);
+    };
+  }, [reconcileChips]);
+
   const applyResponse = useCallback(
     (r: { chips: number; round: ClientView; winStreak?: number }) => {
       setChips(r.chips);
@@ -701,17 +743,21 @@ export function GameTable() {
       const dealt = (seats + (r.round.bots?.length ?? 0)) * 2 + 2;
       for (let i = 0; i < dealt; i++) sounds.deal(i * 0.13);
       // Side bet hits are paid on the spot — celebrate right after the deal
-      if (
-        r.round.hands.some(
-          (h) =>
-            (h.pp?.payout ?? 0) > 0 ||
-            (h.tp?.payout ?? 0) > 0 ||
-            (h.ll?.payout ?? 0) > 0
-        )
-      ) {
-        sounds.sideBet(dealt * 0.13 + 0.15);
+      const ppHands = r.round.hands.filter((h) => (h.pp?.payout ?? 0) > 0);
+      const otherSideHit = r.round.hands.some(
+        (h) => (h.tp?.payout ?? 0) > 0 || (h.ll?.payout ?? 0) > 0
+      );
+      let resultExtraDelay = 0;
+      if (ppHands.length || otherSideHit) {
+        const sideBetDelay = dealt * 0.13 + 0.15;
+        if (ppHands.some((h) => h.pp!.label === "perfect pair")) {
+          sounds.perfectPair(sideBetDelay);
+          resultExtraDelay = 0.75; // let the perfect-pair fanfare land before any hand-result sound enters
+        } else {
+          sounds.sideBet(sideBetDelay);
+        }
       }
-      if (r.round.phase === "settled") playResult(r.round, dealt * 0.13 + 0.3);
+      if (r.round.phase === "settled") playResult(r.round, dealt * 0.13 + 0.3 + resultExtraDelay);
       celebrateUnlocks(r.unlocked);
     } catch (e) {
       toast.error((e as Error).message);
@@ -1229,7 +1275,9 @@ export function GameTable() {
                           <span
                             className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
                               hand.pp.payout > 0
-                                ? "sidebet-win bg-[var(--gold)]/25 text-[var(--gold-bright)]"
+                                ? hand.pp.label === "perfect pair"
+                                  ? "sidebet-win-perfect bg-[var(--gold)]/30 text-[var(--gold-bright)]"
+                                  : "sidebet-win bg-[var(--gold)]/25 text-[var(--gold-bright)]"
                                 : "bg-black/40 text-[var(--cream-dim)]"
                             }`}
                             title={`Perfect Pairs: ${hand.pp.label} — paid instantly`}

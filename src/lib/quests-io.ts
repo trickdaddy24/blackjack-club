@@ -4,7 +4,15 @@
 
 import { prisma } from "@/lib/prisma";
 import { vegasDayKey } from "@/lib/leaderboard";
-import { advanceQuest, dailyQuests, type SettleEvent } from "@/lib/quests";
+import {
+  CLEAN_SWEEP,
+  CLEAN_SWEEP_SLUG,
+  advanceQuest,
+  dailyQuests,
+  isCleanSweep,
+  sweepStreak,
+  type SettleEvent,
+} from "@/lib/quests";
 
 /**
  * Advance today's quests for one player after one settled round. Rewards pay
@@ -37,7 +45,50 @@ export async function progressQuestsAtSettle(
         });
       }
     }
+    await awardCleanSweep(userId, day);
   } catch (err) {
     console.error("quest progression failed:", (err as Error).message);
   }
+}
+
+/**
+ * Pays the Clean Sweep bonus the first time all three of the day's quests are
+ * done. The award is itself a QuestProgress row under a reserved slug, so
+ * `create` on the composite primary key is what makes it idempotent — two
+ * rounds settling concurrently can't both pay out, because the second insert
+ * violates the key rather than reading a stale "not yet awarded".
+ */
+async function awardCleanSweep(userId: string, day: string): Promise<void> {
+  const defs = dailyQuests(day);
+  const rows = await prisma.questProgress.findMany({
+    where: { userId, day, done: true },
+    select: { slug: true },
+  });
+  const doneSlugs = rows.map((r) => r.slug);
+  if (doneSlugs.includes(CLEAN_SWEEP_SLUG)) return;   // already paid today
+  if (!isCleanSweep(defs, doneSlugs)) return;
+
+  try {
+    await prisma.questProgress.create({
+      data: { userId, day, slug: CLEAN_SWEEP_SLUG, progress: defs.length, done: true },
+    });
+  } catch {
+    return;   // lost the race — the other round paid it
+  }
+  await prisma.user.update({
+    where: { id: userId },
+    data: { chips: { increment: CLEAN_SWEEP.reward } },
+  });
+}
+
+/** Consecutive days this player has swept, ending today. */
+export async function getSweepStreak(userId: string, now: Date = new Date()): Promise<number> {
+  const today = vegasDayKey(now);
+  const rows = await prisma.questProgress.findMany({
+    where: { userId, slug: CLEAN_SWEEP_SLUG, done: true },
+    select: { day: true },
+    orderBy: { day: "desc" },
+    take: 400,
+  });
+  return sweepStreak(rows.map((r) => r.day), today);
 }

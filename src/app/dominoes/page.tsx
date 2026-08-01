@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Volume2, VolumeX } from "lucide-react";
 import { sounds } from "@/lib/sound";
-import { handPips } from "@/dominoes/engine/tiles";
+import { handPips, isDouble } from "@/dominoes/engine/tiles";
 import type { End } from "@/dominoes/engine/types";
 import { TileBack, TileView } from "@/dominoes/ui/TileView";
 import { HUMAN_SEAT, useDominoes } from "@/dominoes/ui/useDominoes";
@@ -104,7 +104,7 @@ export default function DominoesPage() {
           <div className="dboard__backs">{Array.from({ length: botCount }, (_, i) => <TileBack key={i} small />)}</div>
           <div className="dline">
             {state.board.line.map((p, i) => (
-              <TileView key={i} tile={p.tile} vertical small={false} />
+              <TileView key={i} tile={p.tile} vertical={isDouble(p.tile)} />
             ))}
           </div>
         </div>

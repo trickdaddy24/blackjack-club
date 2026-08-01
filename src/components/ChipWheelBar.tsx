@@ -11,6 +11,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { sounds } from "@/lib/sound";
+import { emitChipsChanged } from "@/lib/chip-events";
 import { ChipWheel } from "./ChipWheel";
 
 type JackpotTier = "mega" | "mini";
@@ -88,6 +89,9 @@ export function ChipWheelBar() {
     setReveal(pending);
     setPending(null);
     sounds.coins();
+    // Credited server-side back when the spin was rolled, but announced here so
+    // the HUD ticks up with the wheel landing, not mid-animation.
+    emitChipsChanged("chip-wheel", pending.granted);
     toast.success(
       pending.jackpot
         ? `${jackpotLabel(pending.tier)}! +${pending.granted.toLocaleString()} chips!`

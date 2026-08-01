@@ -5,6 +5,7 @@
 // bet, no trainer. Reuses the engine types, PlayingCard, and the sound kit.
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { EMOTES, emoteDef, type EmoteRecord } from "@/lib/emotes";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -40,6 +41,7 @@ interface TableView {
   jackpot: number;
   tableMin: { min: number; label: string };
   maxSideBet: number;
+  emotes?: EmoteRecord[];
 }
 
 const POLL_MS = 1500;
@@ -82,6 +84,81 @@ export function OpenTableButton() {
     >
       {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Open a Table"}
     </button>
+  );
+}
+
+/**
+ * Quick reactions (#6). Sends through the table row and arrives on the other
+ * seat's next poll, so there's no socket. The send is optimistic-free: the
+ * server owns the cooldown, and a rejected send simply returns the unchanged
+ * list, which the next poll would have shown anyway.
+ */
+function EmoteBar({
+  tableId,
+  emotes,
+  mySeat,
+  hostName,
+  guestName,
+}: {
+  tableId: string;
+  emotes: EmoteRecord[];
+  mySeat: number;
+  hostName: string;
+  guestName: string;
+}) {
+  const [sending, setSending] = useState(false);
+
+  async function send(slug: string) {
+    if (sending) return;
+    setSending(true);
+    try {
+      await fetch(`/api/table/${tableId}/emote`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ slug }),
+      });
+    } catch {
+      // transient — the next poll reconciles
+    } finally {
+      // Matches the server cooldown so the buttons visibly settle.
+      setTimeout(() => setSending(false), 2000);
+    }
+  }
+
+  const incoming = emotes.filter((e) => e.seat !== mySeat).slice(-3);
+
+  return (
+    <div className="mt-4 flex flex-col items-center gap-2">
+      <div className="flex flex-wrap justify-center gap-1.5">
+        {EMOTES.map((e) => (
+          <button
+            key={e.slug}
+            onClick={() => void send(e.slug)}
+            disabled={sending}
+            title={e.label}
+            aria-label={e.label}
+            className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-base leading-none transition hover:bg-white/15 disabled:opacity-40"
+          >
+            {e.emoji}
+          </button>
+        ))}
+      </div>
+      {incoming.length > 0 && (
+        <div className="flex flex-wrap justify-center gap-2 text-xs text-emerald-100/80">
+          {incoming.map((e) => (
+            <span
+              key={`${e.seat}-${e.at}`}
+              className="rounded-full bg-black/40 px-2.5 py-1"
+            >
+              {emoteDef(e.slug)?.emoji}{" "}
+              <span className="opacity-70">
+                {e.seat === 0 ? hostName : guestName}
+              </span>
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -492,6 +569,17 @@ export function MultiplayerTable({ tableId }: { tableId: string }) {
             </p>
           )}
         </div>
+      )}
+
+      {/* Quick reactions — only once someone is actually sitting across. */}
+      {view.guest && mySeat !== null && (
+        <EmoteBar
+          tableId={tableId}
+          emotes={view.emotes ?? []}
+          mySeat={mySeat}
+          hostName={view.host.name}
+          guestName={view.guest.name}
+        />
       )}
 
       {/* betting row */}
