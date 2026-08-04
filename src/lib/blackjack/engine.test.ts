@@ -737,33 +737,62 @@ describe("bots", () => {
     expect(state.bots[0].name).toBe("Vinny");
   });
 
-  it("stands on hard 12 vs dealer 5, hits vs 7", () => {
-    const vs5 = startRound(10, {
-      previousShoe: shoeFor(c("K"), c("8"), c("5"), c("K", "H"), c("4"), c("K", "D")),
-      bots: 1,
-    });
-    const settled5 = applyAction(vs5.state, "stand").state;
-    expect(settled5.bots[0].cards).toHaveLength(2); // 12 vs 5 stands
-
-    const vs7 = startRound(10, {
-      previousShoe: shoeFor(c("K"), c("8"), c("7"), c("K", "H"), c("4"), c("K", "D")),
-      bots: 1,
-    });
-    const settled7 = applyAction(vs7.state, "stand").state;
-    // 12 → 14 → 16 → 18 on filler 2s
-    expect(settled7.bots[0].cards).toHaveLength(5);
-    expect(handValue(settled7.bots[0].cards).total).toBe(18);
+  // v0.46.0 — bots play the dealer's hand. They used to run basic strategy,
+  // which stands on 12-16 against a weak upcard and hits soft 17; both are now
+  // gone in favour of the single house rule.
+  it("hits hard 12 regardless of the dealer upcard", () => {
+    // Identical bot hand (2+K = 12), only the dealer upcard differs. Basic
+    // strategy stood vs 5 and drew vs 7; the house rule draws in both.
+    for (const up of ["5", "7"] as const) {
+      const r = startRound(10, {
+        previousShoe: shoeFor(c("K"), c("8"), c(up), c("K", "H"), c("4"), c("K", "D")),
+        bots: 1,
+      });
+      const s = applyAction(r.state, "stand").state;
+      // 12 → 14 → 16 → 18 on filler 2s
+      expect(s.bots[0].cards).toHaveLength(5);
+      expect(handValue(s.bots[0].cards).total).toBe(18);
+    }
   });
 
-  it("doubles hard 11 vs dealer 9: one card, doubled bet", () => {
+  it("stands on soft 17 instead of drawing to a hard total", () => {
+    // Bot is dealt A + 6 = soft 17. Basic strategy hit this and kept going
+    // until it made a hard 17+ — the behaviour that prompted the change.
+    const r = startRound(10, {
+      previousShoe: shoeFor(c("K"), c("A"), c("9"), c("K", "H"), c("6"), c("K", "D")),
+      bots: 1,
+    });
+    const s = applyAction(r.state, "stand").state;
+    expect(s.bots[0].cards).toHaveLength(2); // stood pat
+    const { total, soft } = handValue(s.bots[0].cards);
+    expect(total).toBe(17);
+    expect(soft).toBe(true);
+  });
+
+  it("never doubles — the dealer has no such move", () => {
+    // Hard 11 vs dealer 9: the old bot doubled here for a single card.
     const r0 = startRound(10, {
       previousShoe: shoeFor(c("K"), c("6"), c("9"), c("9", "H"), c("5"), c("K", "D")),
       bots: 1,
     });
     const s = applyAction(r0.state, "stand").state;
-    expect(s.bots[0].cards).toHaveLength(3);
-    expect(s.bots[0].doubled).toBe(true);
-    expect(s.bots[0].bet).toBe(200); // Vinny's cosmetic 100 × 2
+    expect(s.bots[0].doubled).toBe(false);
+    expect(s.bots[0].bet).toBe(100); // Vinny's cosmetic stake, unmultiplied
+    expect(handValue(s.bots[0].cards).total).toBeGreaterThanOrEqual(17);
+  });
+
+  it("draws by exactly the same rule as the dealer", () => {
+    // The point of the change: one function, two consumers. Give the bot and
+    // the dealer the same two cards and they must finish identically.
+    const r = startRound(10, {
+      previousShoe: shoeFor(c("K"), c("6"), c("6"), c("K", "H"), c("9"), c("9", "D")),
+      bots: 1,
+    });
+    const s = applyAction(r.state, "stand").state;
+    const bot = handValue(s.bots[0].cards);
+    const dealer = handValue(s.dealer);
+    expect(bot.total).toBeGreaterThanOrEqual(17);
+    expect(dealer.total).toBeGreaterThanOrEqual(17);
   });
 
   it("never touches the player's chips", () => {

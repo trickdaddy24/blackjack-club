@@ -1378,11 +1378,8 @@ export function GameTable() {
                       {bot.total}
                     </span>
                     <span className="text-[var(--cream)]/40 tabular-nums">bet {bot.bet}</span>
-                    {bot.doubled && (
-                      <span className="rounded bg-[var(--gold)]/20 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-[var(--gold-bright)]">
-                        2×
-                      </span>
-                    )}
+                    {/* No 2× badge: as of v0.46.0 bots play the dealer's hand,
+                        and the dealer never doubles. */}
                     {bot.outcome && (
                       <span
                         className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${

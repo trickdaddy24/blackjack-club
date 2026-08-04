@@ -1,6 +1,6 @@
 ﻿# ♠ Blackjack Club
 
-[![Version](https://img.shields.io/badge/version-0.45.0-blue)](./VERSION)
+[![Version](https://img.shields.io/badge/version-0.46.0-blue)](./VERSION)
 [![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
 [![Tests](https://img.shields.io/badge/tests-270%20passing-brightgreen)](./src/lib/blackjack/engine.test.ts)
 
@@ -102,6 +102,7 @@ tournaments, themes, and retention mechanics.
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 0.46.0 | 2026-08-03 | **🤖 Bots now play the dealer's hand, not basic strategy.** Basic strategy treats soft 17 as a hitting hand, so a bot holding A-6 kept drawing until it made a *hard* 17 — at the table it looked like the bots refused to stop until they got there the hard way. They now follow the house rule exactly: hit under 17, stand on 17+ soft or hard, no doubling. Also drops basic strategy's stand-on-13–16-vs-weak-upcard and the 10/11 double (and with it the `2×` bot badge). The dealer and the bots now draw through one shared function instead of two loops that merely agreed on the number 17. |
 | 0.45.0 | 2026-07-31 | **💰 Out-of-band chip credits now reach the table HUD** — hot seat drops, quest rewards, Clean Sweep, VIP tier-ups, wheel spins, and property bonuses were all crediting correctly in the database but leaving the chip counter frozen until the next bet quietly absorbed them. A `bj:chips-changed` event plus a 30s reconcile against the new `/api/game/chips` closes every path, including champion prizes and admin grants that have no client-side signal. |
 | 0.36.0 | 2026-07-19 | **🕵️ Admin console slice 2** (issue #14) — round inspector (`/admin/rounds`, filterable, expandable hand replays, read-only) and house dashboard (`/admin/house`: today/week P&L, Lucky Ladies pot override, promo calendar + force-promo override that actually changes payouts, not just the banner). |
 | 0.35.0 | 2026-07-19 | **🎡 Chip wheel** (issue #8) — a free daily spin, weighted toward small payouts with one rare jackpot slice, alongside the flat daily bonus and the property-pick bonus. Real canvas wheel animation (adapted from the Roulette wheel) spins to a server-rolled result — no client-side chance, the wheel just reveals what already happened. |

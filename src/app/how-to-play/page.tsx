@@ -223,8 +223,9 @@ export default function HowToPlayPage() {
           <ul className="list-disc space-y-1.5 pl-5">
             <li>
               <strong>Bots</strong> — seat up to three simulated players (Vinny, Ruth, Doc).
-              They're dealt real cards from the shoe and play basic strategy, but never touch
-              your chips.
+              They're dealt real cards from the shoe and play the house hand: hit under 17,
+              stand on 17 or better (soft 17 included), no doubling — the same rule the dealer
+              follows. They never touch your chips.
             </li>
             <li>
               <strong>Card counter</strong> — the eye toggle shows the Hi-Lo count: 2–6 count

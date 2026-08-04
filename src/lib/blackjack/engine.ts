@@ -9,6 +9,8 @@
 //   - Split equal ranks, one re-split allowed (max 3 hands)
 //   - Split aces receive exactly one card each; 21 after split is not blackjack
 //   - Insurance offered on dealer ace, pays 2:1
+//   - Simulated players (bots) draw by the dealer's rule, not basic strategy:
+//     hit under 17, stand on 17+ soft or hard, never double (v0.46.0)
 //
 // Spanish 21 variant additionally:
 //   - 48-card decks (all four 10s removed; J/Q/K stay)
@@ -903,32 +905,32 @@ function spanish21Bonus(cards: Card[]): { mult: number; label: string } | null {
 }
 
 /**
- * Deterministic basic strategy for the simulated players — hit/stand/double
- * only. Runs before the dealer draws; consumes real shoe cards.
+ * The house drawing rule: hit while under 17, stand on 17 or better — soft or
+ * hard, matching "dealer stands on all 17s". No upcard awareness, no doubling.
+ *
+ * The dealer AND the simulated players both draw through this one function, so
+ * the two can never drift apart. They previously did: the bots ran basic
+ * strategy, which stands on 13-16 against a weak upcard and — the visible
+ * symptom — treats soft 17 as a hitting hand, so a bot holding A-6 kept drawing
+ * until it made a HARD 17. Watching the felt, the bots looked like they refused
+ * to stop until 17 the hard way.
+ */
+function drawToHouseRule(state: RoundState, cards: Card[]): void {
+  for (;;) {
+    const { total } = handValue(cards);
+    if (total >= 17) break;
+    cards.push(draw(state));
+  }
+}
+
+/**
+ * The simulated players play the dealer's hand: same rule, same stopping point.
+ * Runs before the dealer draws; consumes real shoe cards.
  */
 function playBots(state: RoundState): void {
-  const up = cardValue(state.dealer[0]);
   for (const bot of state.bots) {
     if (bot.done) continue; // natural 21 at the deal
-    for (;;) {
-      const { total, soft } = handValue(bot.cards);
-      if (total >= 21) break;
-      if (soft) {
-        if (total >= 18) break;
-        bot.cards.push(draw(state));
-        continue;
-      }
-      if (total >= 17) break;
-      if (total >= 13 && up >= 2 && up <= 6) break;
-      if (total === 12 && up >= 4 && up <= 6) break;
-      if ((total === 10 || total === 11) && bot.cards.length === 2 && up <= 9) {
-        bot.cards.push(draw(state));
-        bot.doubled = true;
-        bot.bet *= 2; // cosmetic
-        break;
-      }
-      bot.cards.push(draw(state));
-    }
+    drawToHouseRule(state, bot.cards);
     bot.done = true;
   }
 }
@@ -1003,11 +1005,7 @@ function settle(state: RoundState): RoundState {
   // Dealer draws when someone at the table is still standing — or when a
   // bust bet is riding (the wager needs the dealer to play out their hand)
   if (!dealerBJ && (anyLive || s.bustBet > 0)) {
-    for (;;) {
-      const { total } = handValue(s.dealer);
-      if (total >= 17) break; // stands on soft 17
-      s.dealer.push(draw(s));
-    }
+    drawToHouseRule(s, s.dealer); // stands on all 17s, soft included
   }
 
   const dealerTotal = handValue(s.dealer).total;

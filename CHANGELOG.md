@@ -5,6 +5,30 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the `VERSION` fi
 
 ---
 
+## [0.46.0] — 2026-08-03
+
+### Changed
+- **The bots now play the dealer's hand instead of basic strategy.** They ran a
+  deterministic basic-strategy table, which diverges from the dealer in three
+  ways — and the visible one was soft 17. Basic strategy treats soft 17 as a
+  hitting hand, so a bot holding A-6 kept drawing until it made a **hard** 17 or
+  better. At the table it looked like the bots simply refused to stop until they
+  got there the hard way.
+
+  Bots now follow the house rule exactly: hit under 17, stand on 17 or better,
+  **soft or hard**. Gone with basic strategy: standing on 13–16 against a weak
+  upcard, standing on 12 vs 4–6, and doubling 10/11.
+
+  The dealer and the bots now draw through a **single** `drawToHouseRule()`
+  function rather than two loops that happened to agree on the number 17. Two
+  copies of a rule are two rules; this is one.
+
+- **Bots no longer double**, because the dealer has no such move. The `2×` badge
+  is removed from bot seats — it could no longer render.
+
+- `/how-to-play` said bots "play basic strategy". It now states the actual rule,
+  soft 17 included.
+
 ## [0.45.0] — 2026-07-31
 
 ### Fixed
