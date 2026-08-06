@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Dumbbell, HelpCircle, Shield, Spade, LogOut, Trophy, User, Users } from "lucide-react";
+import { Award, Dumbbell, HelpCircle, Shield, Spade, LogOut, Trophy, User, Users } from "lucide-react";
 import { auth } from "@/auth";
 import { logout } from "@/lib/actions";
 import { InviteBell } from "@/components/InviteBell";
@@ -34,6 +34,14 @@ export async function TopBar() {
             >
               <Users className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">Duo</span>
+            </Link>
+            <Link
+              href="/tournaments"
+              className="flex items-center gap-1.5 uppercase tracking-widest text-[var(--cream)]/70 hover:text-[var(--gold-bright)] transition-colors"
+              title="Sit-and-go tournaments — 3-8 players, isolated stacks"
+            >
+              <Award className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Tournaments</span>
             </Link>
             <InviteBell />
             <VoucherBadge />

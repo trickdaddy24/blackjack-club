@@ -17,9 +17,11 @@ it **significantly more fun and engaging** while keeping the play-money spirit.
    Today/Week/Strategy Masters window closes. Boards become a competition.
 
 ### Competition
-4. **Tournaments** — sit-and-go: buy-in, isolated tournament stack, N hands,
-   top finishers split the pot. Multi-evening project — **/grill-me first**
-   (format, scheduling, prize structure).
+4. **Tournaments** ✅ *(v0.47.0 — Sit-and-Go: 1,000-chip buy-in off main chips,
+   isolated per-entrant stack, fixed 20 hands, no side bets, 3–8 entrants,
+   auto-start at 8 or manual start at 3+, self-paced with a 24h forfeit-in-place
+   deadline and a 1h idle-lobby auto-cancel (both lazy, no cron), live
+   leaderboard, 60/40 prize split with tie handling.)*
 5. **Head-to-head challenge** — "same 20 hands, same shoe" vs a friend; the
    deterministic engine makes identical shoes trivial.
 6. **Invite-a-friend multiplayer table** ✅ *(v0.21.0 — Duo Table: 2 players,

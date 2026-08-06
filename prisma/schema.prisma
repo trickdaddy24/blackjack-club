@@ -48,6 +48,7 @@ model User {
   trainerStat         TrainerStat?
   achievements        Achievement[]
   passwordResetTokens PasswordResetToken[]
+  tournamentEntries   TournamentEntry[]
 }
 
 // Forgot-password flow. tokenHash is sha256 of the raw token mailed to the
@@ -79,11 +80,16 @@ model Round {
   // Shared-table round this row records (one row PER PLAYER at settle).
   // Null = solo. Solo shoe carry-over skips table rounds.
   tableId   String?
+  // Tournament hand this row records (see TournamentEntry) — an isolated
+  // stack, so its shoe carry-over is scoped to this entry, never the
+  // player's solo shoe. Null = not a tournament hand.
+  tournamentEntryId String?
   createdAt DateTime  @default(now())
   settledAt DateTime?
 
   @@index([userId, status])
   @@index([settledAt])
+  @@index([tournamentEntryId])
 }
 
 // A shared 2-player table (game-agnostic social layer — gameType decides the
@@ -128,6 +134,67 @@ model Invite {
 
   @@index([toId, status])
   @@index([tableId, status])
+}
+
+// Sit-and-go tournament (v0.47.0): an independent-stack leaderboard, NOT a
+// head-to-head table — each entrant plays HANDS_PER_ENTRANT solo hands
+// against the dealer with their own isolated stack, self-paced (no lockstep,
+// no realtime sync across entrants needed). Buy-in is 1:1 off the player's
+// main `chips` balance; the isolated stack lives only on TournamentEntry.
+// The 24h completion deadline and the idle-lobby auto-cancel are both
+// enforced lazily on read (same convention as Invite expiry above) — no
+// cron job in this codebase.
+model TournamentLobby {
+  id          String    @id @default(cuid())
+  creatorId   String
+  status      String    @default("open") // "open" | "active" | "settled" | "canceled"
+  buyIn       Int       @default(1000)
+  prizePool   Int       @default(0) // sum of buy-ins actually collected (backed-out entrants are removed)
+  // Idle-cancel clock: bumped on every join. No NEW joins for IDLE_CANCEL_MS
+  // while still "open" ⇒ swept and fully refunded on the next read.
+  lastJoinAt  DateTime  @default(now())
+  startedAt   DateTime?
+  // startedAt + COMPLETION_DEADLINE_MS — unfinished entrants are forfeited
+  // in place (ranked by whatever stack they'd reached) once this passes.
+  deadlineAt  DateTime?
+  settledAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  entries     TournamentEntry[]
+
+  @@index([status])
+  @@index([status, lastJoinAt])
+  @@index([status, deadlineAt])
+}
+
+model TournamentEntry {
+  id          String    @id @default(cuid())
+  lobbyId     String
+  lobby       TournamentLobby @relation(fields: [lobbyId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Isolated tournament stack — starts at the lobby's buyIn, never touches
+  // the player's main `chips` balance again until the prize settles.
+  stack       Int
+  handsPlayed Int       @default(0)
+  // "joined" (pre-start) | "playing" | "finished" (hit HANDS_PER_ENTRANT or
+  // busted below the minimum bet) | "forfeited" (deadline hit mid-run) |
+  // "backed-out" (voluntary pre-start exit, refunded) | "refunded" (lobby
+  // never reached the minimum, auto-canceled)
+  status      String    @default("joined")
+  // Stack snapshot at finish/forfeit — what ranking and payout are computed
+  // from. Null until the entry reaches a terminal playing state.
+  finalStack  Int?
+  rank        Int?
+  prize       Int       @default(0)
+  finishedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([lobbyId, userId])
+  @@index([lobbyId, status])
+  @@index([userId])
 }
 
 // Server-side strategy-trainer record: blind decisions graded by the API

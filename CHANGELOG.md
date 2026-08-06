@@ -5,6 +5,48 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the `VERSION` fi
 
 ---
 
+## [0.47.0] — 2026-08-06
+
+### Added
+- **Tournaments (Sit-and-Go)** (issue #2) — an independent-stack leaderboard, not
+  head-to-head: nothing in this codebase syncs more than 2 players in real time (the
+  `Table` model is strictly host/guest), so each entrant plays a fixed 20 solo hands
+  against the dealer with their own isolated stack, at their own pace, and the
+  leaderboard is just who's got the most chips.
+
+  - **Buy-in**: 1,000 chips, 1:1 off your main balance — no separate tournament
+    currency. Refunded in full if you back out before start, or if the lobby never
+    reaches 3 entrants.
+  - **Lobby**: player-created, creator pays in as the first entrant. 3–8 entrants;
+    auto-starts at 8, or the creator can start manually once 3+ have joined.
+  - **Hands**: fixed 20, player-chosen bet each hand (reuses the same bet floor/ceiling
+    as the main table), scoped entirely to the isolated tournament stack. Side bets
+    (Perfect Pairs / 21+3 / Lucky Ladies / Dealer Bust) are off during tournament
+    hands — keeps final-stack comparisons clean across entrants. Every tournament hand
+    still writes a real `Round` row (linked via `Round.tournamentEntryId`) for history
+    consistency, and each entry carries its own shoe — never the player's solo shoe.
+  - **Pacing**: self-paced, no lockstep. A 24-hour clock starts at tournament start;
+    anyone not finished at the deadline is ranked by whatever stack they'd reached
+    (forfeit-in-place, not an error state). If the whole field finishes early, the
+    tournament settles immediately rather than sitting on the clock.
+  - **Prizes**: pool = sum of buy-ins, split 60/40 between 1st and 2nd by final stack;
+    everyone else gets nothing back. Ties share the combined prize percentage of every
+    place they collectively span, split evenly (a 2-way tie for 1st splits the full
+    60+40% pool 50/50; a tie for 2nd only splits the 40% slot).
+  - **No cron**: both the 24h completion deadline and the 1-hour idle-lobby auto-cancel
+    are enforced lazily on read, same convention as `Invite` expiry — whichever request
+    lands next does the sweep.
+  - New `TournamentLobby` / `TournamentEntry` models. Pure state-machine/ranking/payout
+    logic lives in `lib/tournament.ts` (Prisma-free, matching the `hotseat.ts` /
+    `hotseat-io.ts` split so vitest doesn't need a database); IO lives in
+    `lib/tournament-io.ts`. New `/api/tournaments/*` routes and a `/tournaments`
+    section in the nav, styled with the existing felt/gold table language rather than
+    a new visual language.
+  - 29 new tests cover the join/back-out state machine, start conditions, bet/side-bet
+    validation, and — most load-bearing — the tie-handling prize-split math (2-way and
+    3-way ties for 1st, ties for 2nd, an all-tied field, and remainder conservation
+    when a split doesn't divide evenly).
+
 ## [0.46.0] — 2026-08-03
 
 ### Changed
