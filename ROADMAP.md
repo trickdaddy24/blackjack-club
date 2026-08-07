@@ -30,6 +30,14 @@ it **significantly more fun and engaging** while keeping the play-money spirit.
    progressive, per-player rounds/streaks/achievements. The Table/Invite
    social layer is game-agnostic — Spades/Wild Card multiplayer = engine
    port only.)*
+   - **Spades multiplayer** ✅ *(v0.48.0 — issue #1: partnership Spades to 500,
+     you + a friend (seats 0 & 2) vs two bots (seats 1 & 3, fixed — no lobby).
+     New `SpadesTable`/`SpadesInvite` models rather than extending `Table`
+     (which is hard-wired to 2 seats + blackjack money fields). The existing
+     `/spades` reducer and bot AI run server-side unmodified; the bot AI also
+     supplies the forced move when a human's 30s clock expires. New per-seat
+     `spadesClientView()` — your hand in full, every other seat as a card
+     count only. Accepting the invite auto-starts the table immediately.)*
 
 ### Deepening the game
 7. **Pro book (Illustrious 18)** — opt-in count deviations, graded separately.

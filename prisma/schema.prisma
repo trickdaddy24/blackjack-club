@@ -136,6 +136,57 @@ model Invite {
   @@index([tableId, status])
 }
 
+// A shared 4-seat partnership Spades table (Duo social layer, v0.48.0) — a
+// NEW model rather than extending Table, which is hard-wired to 2 seats plus
+// blackjack money fields (hostBet/guestBet) and can't hold a 4-seat
+// partnership. Seats 0 & 2 are the two human players (partners — the
+// engine's teamOf(seat) = seat % 2 pairs 0&2 vs 1&3, mirrored here by
+// hostId=seat0/guestId=seat2); seats 1 & 3 are always bots in v1 — no lobby,
+// no variable headcount, so they need no DB columns at all. The full
+// GameState (src/spades/engine/types.ts) rides in stateJson exactly like
+// Table.stateJson, but — unlike Table — that raw JSON must NEVER be sent to
+// a browser as-is: every read goes through spadesClientView() (in
+// src/spades/engine/clientView.ts), which redacts every seat but the
+// viewer's own down to a card count. turnDeadline reuses the existing 30s
+// turn-clock convention from Table, enforced lazily by whichever request
+// arrives next (see lib/spades-table.ts). NO betting/wager fields — v1
+// deliberately has no buy-in and no way to split a partnership win/loss
+// across a wager (unlike Table.hostBet/guestBet).
+model SpadesTable {
+  id           String    @id @default(cuid())
+  status       String    @default("open") // "open" (no guest) | "active" | "ended"
+  hostId       String // seat 0
+  guestId      String? // seat 2 — null until the invite is accepted
+  stateJson    String? // full GameState — NEVER sent to a client as-is, see above
+  turnDeadline DateTime?
+  endedReason  String? // e.g. "gameOver" once a team reaches the target score
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([hostId, status])
+  @@index([guestId, status])
+}
+
+// Spades table invite: mirrors Invite's shape/lifecycle exactly (members
+// only, 5-minute expiry, superseded when the host invites someone else,
+// both enforced lazily on read) but points at a SpadesTable. The moment the
+// invited friend accepts, the table auto-starts immediately (deals the
+// first hand) — no separate "host clicks start" step, because headcount is
+// always fixed at exactly 4 (2 human + 2 bot) the instant the second human
+// seats.
+model SpadesInvite {
+  id            String   @id @default(cuid())
+  spadesTableId String
+  fromId        String
+  toId          String
+  status        String   @default("pending") // pending|accepted|canceled|expired|superseded
+  createdAt     DateTime @default(now())
+  expiresAt     DateTime
+
+  @@index([toId, status])
+  @@index([spadesTableId, status])
+}
+
 // Sit-and-go tournament (v0.47.0): an independent-stack leaderboard, NOT a
 // head-to-head table — each entrant plays HANDS_PER_ENTRANT solo hands
 // against the dealer with their own isolated stack, self-paced (no lockstep,

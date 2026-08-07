@@ -5,6 +5,78 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the `VERSION` fi
 
 ---
 
+## [0.48.0] — 2026-08-07
+
+### Added
+- **♠ Spades multiplayer on the Duo social layer** (issue #1) — you + a friend as
+  partners vs two bots, playing partnership Spades to 500. First multiplayer game
+  built on top of the Spades engine that's been live solo at `/spades` since v0.9.0.
+
+  - **Seats**: fixed 2 humans + 2 bots, no lobby, no variable headcount. Humans sit
+    seats 0 & 2 (partners — the engine's own `teamOf(seat) = seat % 2` pairs them
+    against 1 & 3); bots always sit 1 & 3.
+  - **New models**: `SpadesTable` / `SpadesInvite`, modeled on the same pattern as
+    `Table`/`Invite` (bell, 1.5s poll, 30s turn clock, lazy-enforced expiry) but
+    NOT an extension of `Table` itself — `Table` is hard-wired to 2 seats plus
+    blackjack-specific money fields and can't hold a 4-seat partnership, same
+    reasoning Tournaments already used for its own new models. No betting fields —
+    deliberately out of scope for v1.
+  - **Server-authoritative engine reuse**: the existing pure Spades reducer
+    (`newGame`/`startHand`/`placeBid`/`playCard`/`dealNextHand` in
+    `src/spades/engine/game.ts`) now runs server-side, called from a new
+    `lib/spades-table.ts` (mirrors `lib/table.ts`'s role) instead of client-side —
+    zero changes to the reducer itself. The single-player route (`/spades`) and its
+    hook (`useSpades.ts`) are untouched.
+  - **Bot AI, one code path for two purposes**: `bots.ts`'s heuristic bid/play AI
+    drives seats 1 & 3 always, AND is the forced action for a human seat whose 30s
+    turn clock expires (`autoAct`/`resolveBotTurns` in the new
+    `src/spades/engine/auto.ts`) — a timed-out human gets the bot's own recommended
+    move, not a separate arbitrary fallback. Bot turns resolve synchronously,
+    server-side, on whichever request causes it to become a bot's turn (no
+    background worker, same no-cron convention as everything else in this app).
+  - **Per-seat `clientView` — the core new engineering surface**: `spadesClientView()`
+    in the new `src/spades/engine/clientView.ts` redacts the full `GameState` per
+    viewer — the viewer's own hand is real `Card[]`, every other seat is a card
+    COUNT only, while bids, the current trick's played cards, completed-trick
+    counts, and team scores stay public (how real Spades information rules work).
+    Nothing like this existed anywhere in the codebase before — Blackjack's own
+    `clientView()` returns one shared view for both players and only hides the
+    dealer's hole card.
+  - **Invite flow**: a parallel `SpadesInviteBell` (not a modified `InviteBell`,
+    zero regression risk to the live blackjack Duo invites) plus
+    `/api/spades-table/invite`, `/invite/cancel`, `/join`, mirroring the existing
+    Duo Table invite lifecycle exactly (members-only, 5-minute hold, superseded on
+    re-invite). Accepting auto-starts the table immediately — deals the first hand
+    right there, no separate "host clicks start" step, since headcount is always
+    fixed at exactly 4 the instant the second human seats.
+  - **New routes**: `/spades-table` (launcher), `/spades-table/[id]` (the table),
+    `/spades-table/join/[inviteId]`, `GET /api/spades-table/[id]/state` (the
+    POLL_MS = 1500 poll + lazy turn-clock enforcement), `POST .../bid`,
+    `POST .../play`, `POST .../next-hand`. New `SpadesMultiplayerTable.tsx`
+    component reuses `CardView`/`CardBack`/`Scoreboard`/`BidPanel` from
+    `src/spades/ui/` where they're viewer-agnostic, and renders each viewer's own
+    seat as South regardless of whether they're actually seat 0 or seat 2 (seat
+    labels/positions computed relative to the viewer).
+  - 19 new vitest tests: the per-seat redaction logic (including a raw-JSON-string
+    scan proving another seat's card objects never appear anywhere in the
+    serialized response, not just in the `hands` field) and the bot/timeout
+    auto-action logic (bot seats, a "timed-out human" producing the exact same
+    forced move as a bot would, stale-turn no-ops, and the bot-cascade resolver's
+    invariant that a persisted state never parks on a bot seat's turn).
+  - Verified end-to-end against the dev server with two real accounts/sessions
+    (Playwright, two browser contexts — same pattern used to verify the Duo Table
+    and Tournaments multiplayer flows): registered both, opened a table, sent and
+    accepted a real invite (auto-starting the deal), placed real bids and played
+    real cards through the actual UI for both human seats while the server
+    resolved bot turns transparently, and — the security-critical check — fetched
+    each seat's `/api/spades-table/[id]/state` response from its own authenticated
+    session and confirmed against the raw SQLite `stateJson` (ground truth) that
+    no seat's cards ever appear in another seat's response, structurally and via a
+    raw-string scan of the JSON payload. A second, separate check deliberately
+    backdated `turnDeadline` in the database and hit the poll endpoint from the
+    *other* player's session to confirm the timeout auto-action fires correctly
+    from any request, not just the timed-out player's own poll.
+
 ## [0.47.0] — 2026-08-06
 
 ### Added

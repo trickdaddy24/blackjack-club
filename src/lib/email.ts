@@ -84,20 +84,26 @@ interface InviteEmail {
   fromName: string;
   joinUrl: string;
   expiresMinutes: number;
+  /** What kind of table this seat is held at — kept optional with the
+   *  original "blackjack" default so the existing Duo Table call site is
+   *  byte-for-byte unchanged; Spades invites (src/app/api/spades-table/invite)
+   *  pass "Spades". */
+  gameLabel?: string;
 }
 
 export async function sendInviteEmail(opts: InviteEmail): Promise<boolean> {
+  const game = opts.gameLabel ?? "blackjack";
   return sendEmail({
     to: opts.to,
     subject: `♠️ ${opts.fromName} is holding a seat for you`,
-    text: `${opts.fromName} invited you to a shared blackjack table at Blackjack Club.
+    text: `${opts.fromName} invited you to a shared ${game} table at Blackjack Club.
 
 Take your seat: ${opts.joinUrl}
 
 The seat is held for ${opts.expiresMinutes} minutes. If the link has expired, ask ${opts.fromName} to deal you back in.`,
     html: `<div style="font-family:Georgia,serif;background:#151210;color:#f3e9d2;padding:32px;border-radius:12px;max-width:480px;margin:0 auto">
   <h2 style="color:#d4af37;margin:0 0 12px">♠️ ${escapeHtml(opts.fromName)} is holding a seat for you</h2>
-  <p style="line-height:1.5">You've been invited to a shared blackjack table at <strong>Blackjack Club</strong>.</p>
+  <p style="line-height:1.5">You've been invited to a shared ${escapeHtml(game)} table at <strong>Blackjack Club</strong>.</p>
   <p style="text-align:center;margin:28px 0">
     <a href="${opts.joinUrl}" style="background:#d4af37;color:#151210;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:bold">Take a Seat</a>
   </p>

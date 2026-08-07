@@ -3,6 +3,7 @@ import { Award, Dumbbell, HelpCircle, Shield, Spade, LogOut, Trophy, User, Users
 import { auth } from "@/auth";
 import { logout } from "@/lib/actions";
 import { InviteBell } from "@/components/InviteBell";
+import { SpadesInviteBell } from "@/components/SpadesInviteBell";
 import { HotSeatWatcher } from "@/components/HotSeatWatcher";
 import { VoucherBadge } from "@/components/VoucherBadge";
 
@@ -43,7 +44,16 @@ export async function TopBar() {
               <Award className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">Tournaments</span>
             </Link>
+            <Link
+              href="/spades-table"
+              className="flex items-center gap-1.5 uppercase tracking-widest text-[var(--cream)]/70 hover:text-[var(--gold-bright)] transition-colors"
+              title="Spades Duo — partnership Spades, you + a friend vs two bots"
+            >
+              <Spade className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Spades Duo</span>
+            </Link>
             <InviteBell />
+            <SpadesInviteBell />
             <VoucherBadge />
             {session.user.role === "admin" && (
               <Link

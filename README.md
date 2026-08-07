@@ -1,8 +1,8 @@
 ﻿# ♠ Blackjack Club
 
-[![Version](https://img.shields.io/badge/version-0.47.0-blue)](./VERSION)
+[![Version](https://img.shields.io/badge/version-0.48.0-blue)](./VERSION)
 [![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
-[![Tests](https://img.shields.io/badge/tests-402%20passing-brightgreen)](./src/lib/blackjack/engine.test.ts)
+[![Tests](https://img.shields.io/badge/tests-421%20passing-brightgreen)](./src/lib/blackjack/engine.test.ts)
 
 A play-money blackjack site in the spirit of Zynga Poker — real casino rules, persistent
 chip balances, daily free chips, and a dim, gold-on-felt "midnight table" aesthetic.
@@ -32,6 +32,10 @@ free demo at [blackjack.minus-one-labs.com](https://blackjack.minus-one-labs.com
 - **Tournaments (Sit-and-Go)** — player-created lobbies, 3–8 entrants, 1,000-chip buy-in,
   isolated per-entrant stack, fixed 20 hands each at your own pace, live leaderboard,
   60/40 prize split.
+- **♠ Spades Duo** — partnership Spades to 500, you + a friend vs two bots. Server-
+  authoritative (the same pure engine that runs `/spades` solo), a genuinely per-seat
+  redacted view (your hand only — everyone else is a card count), and the bot AI
+  doubles as the forced move for a human whose 30s clock runs out.
 
 ## Stack
 
@@ -105,6 +109,7 @@ tournaments, themes, and retention mechanics.
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 0.48.0 | 2026-08-07 | **♠ Spades multiplayer on the Duo social layer** (issue #1) — you + a friend as partners vs two bots, partnership Spades to 500. New `SpadesTable`/`SpadesInvite` models (not an extension of `Table`), the existing Spades reducer and bot AI now run server-side unmodified via a new `lib/spades-table.ts`, and a genuinely new per-seat `spadesClientView()` — your own hand in full, every other seat as a card count only. A timed-out human seat gets the bot AI's own recommended move, same code path as the bots themselves. 19 new tests; verified end-to-end with two real accounts (invite → auto-start → real bids/plays through the UI) and a dedicated check confirming no seat's cards ever leak into another seat's API response. |
 | 0.47.0 | 2026-08-06 | **🏆 Tournaments (Sit-and-Go)** (issue #2) — player-created lobbies, 1,000-chip buy-in off your main balance, isolated per-entrant stack, fixed 20 hands, no side bets, 3–8 entrants (auto-starts at 8, manual start at 3+). Self-paced — play your hands whenever, no lockstep. 24h forfeit-in-place deadline and a 1h idle-lobby auto-cancel, both enforced lazily on read (no cron). Live leaderboard (stack + hands played), 60/40 prize split between 1st and 2nd with tie handling. |
 | 0.46.0 | 2026-08-03 | **🤖 Bots now play the dealer's hand, not basic strategy.** Basic strategy treats soft 17 as a hitting hand, so a bot holding A-6 kept drawing until it made a *hard* 17 — at the table it looked like the bots refused to stop until they got there the hard way. They now follow the house rule exactly: hit under 17, stand on 17+ soft or hard, no doubling. Also drops basic strategy's stand-on-13–16-vs-weak-upcard and the 10/11 double (and with it the `2×` bot badge). The dealer and the bots now draw through one shared function instead of two loops that merely agreed on the number 17. |
 | 0.45.0 | 2026-07-31 | **💰 Out-of-band chip credits now reach the table HUD** — hot seat drops, quest rewards, Clean Sweep, VIP tier-ups, wheel spins, and property bonuses were all crediting correctly in the database but leaving the chip counter frozen until the next bet quietly absorbed them. A `bj:chips-changed` event plus a 30s reconcile against the new `/api/game/chips` closes every path, including champion prizes and admin grants that have no client-side signal. |
