@@ -46,6 +46,7 @@ model User {
   sessions            Session[]
   rounds              Round[]
   trainerStat         TrainerStat?
+  proBookStat         ProBookStat?
   achievements        Achievement[]
   passwordResetTokens PasswordResetToken[]
   tournamentEntries   TournamentEntry[]
@@ -251,6 +252,23 @@ model TournamentEntry {
 // Server-side strategy-trainer record: blind decisions graded by the API
 // against its own basic-strategy book. Feeds the Strategy Masters board.
 model TrainerStat {
+  userId    String   @id
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  right     Int      @default(0)
+  wrong     Int      @default(0)
+  streak    Int      @default(0)
+  best      Int      @default(0)
+  updatedAt DateTime @updatedAt
+}
+
+// Pro-book (Illustrious 18) strategy-trainer record (#9) — mirrors TrainerStat
+// exactly, but grades blind decisions against the count-deviation book
+// instead of basic strategy. Written IN ADDITION to TrainerStat (never
+// instead of it) whenever a blind decision is made with pro-book toggled on
+// on the classic table: Strategy Masters' basic-strategy grading must never
+// shift under a player who opts into the pro book, so the two scorecards
+// are kept fully independent. Personal-only for v1 — no leaderboard tab.
+model ProBookStat {
   userId    String   @id
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   right     Int      @default(0)

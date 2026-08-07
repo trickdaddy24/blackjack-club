@@ -7,12 +7,17 @@ import { getActiveRound, getLuckyLadiesJackpot, parseRoundState } from "@/lib/ga
 import { currentTableMinimum } from "@/lib/tableMinimum";
 import { getHotSeatState, maybeTriggerHotSeat } from "@/lib/hotseat-io";
 
-export async function GET() {
+export async function GET(req: Request) {
   const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const userId = session.user.id;
+
+  // Pro-book toggle rides as a query param on this GET (no body) — see
+  // GameTable.tsx's `bj-pro-book` localStorage toggle. withHint re-gates on
+  // the round's own variant, so this is safe to pass through unconditionally.
+  const proBook = new URL(req.url).searchParams.get("pro") === "1";
 
   // Before the balance is read, not after: if this is the poll that claims and
   // pays a drop, reading chips first would hand back a pre-credit balance
@@ -43,7 +48,7 @@ export async function GET() {
   let roundView = null;
   if (round) {
     const state = parseRoundState(round.stateJson);
-    roundView = withHint(state, clientView(state));
+    roundView = withHint(state, clientView(state), proBook);
   }
 
   return NextResponse.json({

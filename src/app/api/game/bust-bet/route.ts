@@ -17,8 +17,9 @@ export async function POST(req: Request) {
   const userId = session.user.id;
 
   let amount: unknown;
+  let proBook: unknown;
   try {
-    ({ amount } = await req.json());
+    ({ amount, proBook } = await req.json());
   } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
@@ -79,6 +80,6 @@ export async function POST(req: Request) {
 
   return NextResponse.json({
     chips: updated.chips,
-    round: withHint(next, clientView(next)),
+    round: withHint(next, clientView(next), proBook === true),
   });
 }

@@ -15,7 +15,7 @@ import {
   roundStatus,
   settleLuckyLadiesPot,
 } from "@/lib/game";
-import { withHint } from "@/lib/blackjack/strategy";
+import { proBookActive, withHint } from "@/lib/blackjack/strategy";
 import {
   earnedFromTrainer,
   earnedThisSettle,
@@ -48,8 +48,9 @@ export async function POST(req: Request) {
 
   let action: unknown;
   let blind: unknown;
+  let proBook: unknown;
   try {
-    ({ action, blind } = await req.json());
+    ({ action, blind, proBook } = await req.json());
   } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
@@ -68,8 +69,20 @@ export async function POST(req: Request) {
   // Strategy Masters: grade the decision against the SERVER's own book,
   // computed from the pre-action state. The client only attests that the
   // guide was hidden (`blind`) — accuracy itself can't be fabricated.
+  // Unconditionally basic-strategy — NEVER pass `proBook` here. Strategy
+  // Masters' meaning must not shift for a player who opts into the pro book
+  // (#9); that grading lives entirely in `proBookPlay` below, written to its
+  // own `ProBookStat` table, in addition to (never instead of) this one.
   const bookPlay =
     blind === true ? withHint(state, clientView(state)).hint : null;
+
+  // Pro book (#9): a SEPARATE grade of the same blind decision against the
+  // Illustrious 18, recorded to ProBookStat — only when the client actually
+  // had pro-book toggled on for this decision and the table is classic (the
+  // published indices don't apply to Spanish 21's 10-less shoe).
+  const proBookOn = proBookActive(state.variant ?? "classic", proBook === true);
+  const proBookPlay =
+    blind === true && proBookOn ? withHint(state, clientView(state), true).hint : null;
 
   let result;
   try {
@@ -180,6 +193,33 @@ export async function POST(req: Request) {
     unlocked.push(...(await awardAchievements(userId, earnedFromTrainer(stat))));
   }
 
+  // Pro book (#9): a second, independent grade of the SAME blind decision,
+  // written to ProBookStat only — TrainerStat above is never touched by this
+  // block, and this block never touches TrainerStat. No achievement hook:
+  // the pro book is a personal-only v1 scorecard, not tied into the existing
+  // (basic-strategy-only) trainer achievement thresholds.
+  if (proBookPlay) {
+    const correct = action === proBookPlay;
+    const existingPro = await prisma.proBookStat.findUnique({ where: { userId } });
+    const proStreak = correct ? (existingPro?.streak ?? 0) + 1 : 0;
+    await prisma.proBookStat.upsert({
+      where: { userId },
+      create: {
+        userId,
+        right: correct ? 1 : 0,
+        wrong: correct ? 0 : 1,
+        streak: proStreak,
+        best: proStreak,
+      },
+      update: {
+        right: { increment: correct ? 1 : 0 },
+        wrong: { increment: correct ? 0 : 1 },
+        streak: proStreak,
+        best: Math.max(existingPro?.best ?? 0, proStreak),
+      },
+    });
+  }
+
   if (settled) {
     const roundsPlayed = await prisma.round.count({
       where: { userId, status: "settled" },
@@ -200,7 +240,9 @@ export async function POST(req: Request) {
 
   return NextResponse.json({
     chips: updated.chips,
-    round: withHint(next, clientView(next)),
+    // On-screen hint only (never grading, see bookPlay above): respects the
+    // client's pro-book toggle for the NEXT decision on this hand.
+    round: withHint(next, clientView(next), proBook === true),
     ...(settled ? { winStreak: newStreak } : {}),
     ...(jackpotWon > 0 ? { jackpotWon } : {}),
     ...(unlocked.length > 0 ? { unlocked } : {}),

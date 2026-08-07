@@ -5,6 +5,66 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the `VERSION` fi
 
 ---
 
+## [0.49.0] — 2026-08-07
+
+### Added
+- **🧮 Pro book (Illustrious 18 count deviations)** (issue #9) — opt-in, classic
+  6-deck table only, graded on a fully separate personal scorecard so Strategy
+  Masters' meaning never shifts for anyone.
+
+  - **Wiring, not a rebuild**: the Illustrious 18 table/math already lived at
+    `src/lib/blackjack/deviations.ts` (20 tests) and `recommendAction()` already
+    accepted an optional `pro?: ProBookOptions` param — nothing in the app ever
+    passed it. This release connects that existing, tested library into the
+    live app; the deviation math itself is untouched.
+  - **The core conflict, resolved with a second scorecard**: Strategy Masters
+    grades blind decisions against basic strategy via a `bookPlay` computation
+    in `action/route.ts` that reuses the same `withHint()` call driving the
+    on-screen hint. Wiring pro-book into that call unconditionally would have
+    made a correct Illustrious-18 play register as "wrong" on the public
+    leaderboard the moment it diverges from basic strategy. Instead: `bookPlay`
+    is untouched (still unconditionally basic-strategy, still `withHint()`
+    called without a `pro` flag), and a new, independent `proBookPlay`
+    computation — same state, `withHint(state, clientView(state), true)` —
+    feeds a brand-new `ProBookStat` model, written IN ADDITION to (never
+    instead of) `TrainerStat` on the same blind decision.
+  - **`withHint(state, view, proBook?)`** now takes an opt-in third parameter.
+    When on (and the table is classic), it threads `view.trueCount` into
+    `recommendAction`'s existing `pro` option and, when a deviation actually
+    fires, swaps the reason text to `explainDeviation()` instead of running
+    the deviation's action through `explainAction()`'s basic-strategy reasoning
+    (which reads backwards for a count-driven play, e.g. explaining a
+    count-driven stand on 16 vs. a dealer 10 as if 10 were a weak upcard).
+  - **One gating function, two call sites**: `proBookActive(variant, enabled)`
+    is the single source of truth for "opt-in AND classic table" — Spanish 21
+    removes all the shoe's 10s, so the Illustrious 18's thresholds would be
+    actively wrong there, not just out of scope. Both `withHint`'s on-screen
+    hint and `action/route.ts`'s `ProBookStat` grading gate call the same
+    function, so the two can never silently disagree about when the feature
+    is live.
+  - **Toggle**: `bj-pro-book` in localStorage (same convention as `bj-variant`,
+    `bj-hints`, `bj-show-count`, …), a `Calculator` icon button next to the
+    other hint/count controls in `GameTable.tsx`, visible and enabled only on
+    the classic table. Insurance's `insuranceDeviation` rides the same toggle
+    automatically — no separate control.
+  - **Stat surface**: a `ProBookStat` accuracy pill (right/wrong/accuracy/
+    streak, reset button) next to the existing Strategy Masters trainer pill —
+    personal-only, no new public leaderboard tab.
+  - 6 new vitest tests (`proBookActive`'s variant gate, plus `withHint` rigged
+    at a real Illustrious 18 threshold proving the default-off/on/Spanish-21
+    behavior and that Strategy Masters' exact call shape never deviates); 427
+    total tests passing. Verified end-to-end against the dev server: logged in
+    a real account, played dozens of classic-table blind hands with pro-book
+    on, and — the case that matters — caught a genuine live divergence at
+    true count +1.8 (Illustrious 18 #2, hard 16 vs. dealer 10) where the same
+    decision landed as "wrong" in `TrainerStat` (basic strategy) and "right"
+    in `ProBookStat` (the count-based play) on the SAME hand, confirmed
+    directly in the SQLite tables (not just the UI). Also confirmed
+    `ProBookStat` never moves when pro-book is off, and stays inert even when
+    a request forces `proBook: true` against a Spanish 21 round (server-side
+    gate holds regardless of client behavior). Toggle confirmed hidden on
+    Spanish 21 and reappearing on return to classic, state preserved.
+
 ## [0.48.0] — 2026-08-07
 
 ### Added

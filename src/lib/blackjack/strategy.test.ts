@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { explainAction, recommendAction, withHint } from "./strategy";
+import { explainAction, proBookActive, recommendAction, withHint } from "./strategy";
 import { clientView, startRound, type Card, type PlayerAction, type Rank, type Suit } from "./engine";
 
 function c(rank: Rank, suit: Suit = "C"): Card {
@@ -193,5 +193,90 @@ describe("recommendAction with the pro book", () => {
       trueCount: 9,
     });
     expect(["hit", "stand"]).toContain(out);
+  });
+});
+
+// ── proBookActive: the single variant-gating rule (#9) ──────────────────────
+//
+// Shared by withHint's on-screen hint and action/route.ts's ProBookStat
+// grading gate — one function, tested once, so the two call sites can never
+// silently disagree about when the pro book is actually live.
+
+describe("proBookActive", () => {
+  it("requires both opt-in AND the classic table", () => {
+    expect(proBookActive("classic", true)).toBe(true);
+    expect(proBookActive("classic", false)).toBe(false);
+    expect(proBookActive("spanish21", true)).toBe(false);
+    expect(proBookActive("spanish21", false)).toBe(false);
+  });
+});
+
+// ── withHint + the pro-book toggle: the actual wiring (#9) ──────────────────
+//
+// This is the integration point the whole feature hangs off: Strategy
+// Masters' grading in action/route.ts calls withHint WITHOUT `proBook`, so
+// its meaning must never shift. These tests rig a hand/count where basic
+// strategy and the Illustrious 18 disagree and prove the split holds.
+
+describe("withHint with the pro book", () => {
+  // Rig a hand/count where basic and pro strategy diverge: hard 16 vs a
+  // dealer 10-upcard is Illustrious 18 #2 (index 0, "at-or-above") — basic
+  // strategy hits, the pro book stands once true count >= 0. A large neutral
+  // ("8", Hi-Lo 0) filler plus a seeded previousCount puts the true count at
+  // a comfortable +4.5 after the opening deal, well clear of the threshold.
+  function riggedSixteenVsTen() {
+    const filler: Card[] = Array.from({ length: 104 }, () => c("8", "S"));
+    const shoe = [...filler, ...[c("10", "D"), c("K", "C"), c("6", "D"), c("9", "H")].reverse()];
+    return startRound(10, { previousShoe: shoe, previousCount: 10 }).state;
+  }
+
+  it("is OFF by default — the on-screen hint stays basic strategy at a rich count", () => {
+    const state = riggedSixteenVsTen();
+    const view = withHint(state, clientView(state));
+    expect(view.hint).toBe("hit");
+    expect(view.hintReason).not.toMatch(/count/i);
+  });
+
+  it("passing proBook=false is identical to omitting it (Strategy Masters' exact call shape)", () => {
+    const state = riggedSixteenVsTen();
+    const withFlag = withHint(state, clientView(state), false);
+    const withoutFlag = withHint(state, clientView(state));
+    expect(withFlag.hint).toBe(withoutFlag.hint);
+    expect(withFlag.hint).toBe("hit");
+  });
+
+  it("proBook=true deviates from basic strategy and explains the count, not the book", () => {
+    const state = riggedSixteenVsTen();
+    const view = withHint(state, clientView(state), true);
+    expect(view.trueCount).toBeGreaterThanOrEqual(4); // sanity: the rig landed where intended
+    expect(view.hint).toBe("stand");
+    expect(view.hintReason).toMatch(/count/i);
+    expect(view.hintReason).toMatch(/\+?4\.5|true count/i);
+  });
+
+  it("proBook=true is a no-op on Spanish 21 even at the same rich count", () => {
+    const filler: Card[] = Array.from({ length: 104 }, () => c("8", "S"));
+    const shoe = [...filler, ...[c("10", "D"), c("K", "C"), c("6", "D"), c("9", "H")].reverse()];
+    const { state } = startRound(10, {
+      previousShoe: shoe,
+      previousCount: 10,
+      previousVariant: "spanish21",
+      variant: "spanish21",
+    });
+    const view = withHint(state, clientView(state), true);
+    // Spanish 21's hard-total table hits 16 vs 10 regardless of the count.
+    expect(view.hint).toBe("hit");
+    expect(view.hintReason).not.toMatch(/count/i);
+  });
+
+  it("grading call shape (no proBook arg) never changes regardless of a caller elsewhere passing true", () => {
+    // Simulates the actual conflict the issue describes: the SAME state is
+    // hinted for on-screen display with proBook on, and separately graded
+    // for Strategy Masters without it — the two must not contaminate each other.
+    const state = riggedSixteenVsTen();
+    const onScreen = withHint(state, clientView(state), true);
+    const graded = withHint(state, clientView(state)); // Strategy Masters' exact call
+    expect(onScreen.hint).toBe("stand"); // pro book fired
+    expect(graded.hint).toBe("hit"); // basic strategy, untouched
   });
 });

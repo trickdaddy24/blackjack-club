@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Coins, Crown, Eye, EyeOff, Flame, Gift, GraduationCap, HandCoins, Lightbulb, LightbulbOff, Loader2, RotateCcw, Volume2, VolumeX } from "lucide-react";
+import { Calculator, Coins, Crown, Eye, EyeOff, Flame, Gift, GraduationCap, HandCoins, Lightbulb, LightbulbOff, Loader2, RotateCcw, Volume2, VolumeX } from "lucide-react";
 import { rulesFor, type ClientView, type PlayerAction, type Variant } from "@/lib/blackjack/engine";
+import { explainAction, proBookActive, recommendAction } from "@/lib/blackjack/strategy";
 import { PROMO_SCHEDULE, promoStatus, type PromoStatus } from "@/lib/promotions";
 import { PlayingCard } from "@/components/PlayingCard";
 import { sounds } from "@/lib/sound";
@@ -28,6 +29,9 @@ const TRAINER_STATS_KEY = "bj-trainer-stats-v2";
 const TRAINER_STATS_KEY_V1 = "bj-trainer-stats";
 const HAND_HINTS_KEY = "bj-hand-hints";
 const SHOW_SIGN_KEY = "bj-sign";
+// Pro book (#9): opt-in Illustrious 18 count deviations, classic table only.
+const PRO_BOOK_KEY = "bj-pro-book";
+const PRO_BOOK_STATS_KEY = "bj-probook-stats";
 
 interface TrainerStats {
   right: number;
@@ -46,10 +50,9 @@ interface UnlockedAchievement {
 
 const EMPTY_TRAINER_STATS: TrainerStats = { right: 0, wrong: 0, streak: 0, best: 0 };
 
-function loadTrainerStats(): TrainerStats {
+function loadStatsFromKey(key: string): TrainerStats {
   try {
-    localStorage.removeItem(TRAINER_STATS_KEY_V1); // pre-blind-scoring scorecard
-    const raw = localStorage.getItem(TRAINER_STATS_KEY);
+    const raw = localStorage.getItem(key);
     if (!raw) return EMPTY_TRAINER_STATS;
     const s = JSON.parse(raw) as Partial<TrainerStats>;
     return {
@@ -61,6 +64,16 @@ function loadTrainerStats(): TrainerStats {
   } catch {
     return EMPTY_TRAINER_STATS;
   }
+}
+
+function loadTrainerStats(): TrainerStats {
+  localStorage.removeItem(TRAINER_STATS_KEY_V1); // pre-blind-scoring scorecard
+  return loadStatsFromKey(TRAINER_STATS_KEY);
+}
+
+/** Pro-book counterpart to loadTrainerStats — separate local mirror of ProBookStat. */
+function loadProBookStats(): TrainerStats {
+  return loadStatsFromKey(PRO_BOOK_STATS_KEY);
 }
 
 const ACTION_LABELS: Record<string, string> = {
@@ -584,6 +597,9 @@ export function GameTable() {
   const [llBet, setLlBet] = useState(0);
   const [trainer, setTrainer] = useState(false);
   const [trainerStats, setTrainerStats] = useState<TrainerStats>(EMPTY_TRAINER_STATS);
+  /** Pro book (#9): opt-in Illustrious 18 count deviations, classic table only. */
+  const [proBook, setProBook] = useState(false);
+  const [proBookStats, setProBookStats] = useState<TrainerStats>(EMPTY_TRAINER_STATS);
   const [jackpot, setJackpot] = useState<number | null>(null);
   /** Progressive won on the CURRENT round — feeds the result receipt. */
   const [wonJackpot, setWonJackpot] = useState(0);
@@ -605,6 +621,8 @@ export function GameTable() {
     setShowHints(localStorage.getItem(SHOW_HINTS_KEY) === "1");
     setTrainer(localStorage.getItem(TRAINER_KEY) === "1");
     setTrainerStats(loadTrainerStats());
+    setProBook(localStorage.getItem(PRO_BOOK_KEY) === "1");
+    setProBookStats(loadProBookStats());
     setShowSign(localStorage.getItem(SHOW_SIGN_KEY) !== "0");
     try {
       const hh = JSON.parse(localStorage.getItem(HAND_HINTS_KEY) ?? "");
@@ -622,7 +640,11 @@ export function GameTable() {
   }, []);
 
   useEffect(() => {
-    api<TableState>("/api/game/state")
+    // Read localStorage directly here rather than the `proBook` state — this
+    // effect and the hydration effect above both run on mount, in the same
+    // commit, so `proBook` state wouldn't have updated yet when this fires.
+    const initialProBook = localStorage.getItem(PRO_BOOK_KEY) === "1";
+    api<TableState>(`/api/game/state?pro=${initialProBook ? "1" : "0"}`)
       .then((s) => {
         setChips(s.chips);
         if (typeof s.winStreak === "number") setWinStreak(s.winStreak);
@@ -728,6 +750,7 @@ export function GameTable() {
         perfectPairs: ppBet,
         twentyOnePlusThree: tpBet,
         luckyLadies: llBet,
+        proBook: proBookActive(variant, proBook),
       });
       if (r.shuffled) {
         // Hold the response while the shuffle plays, then deal as usual
@@ -786,6 +809,7 @@ export function GameTable() {
     try {
       const r = await api<{ chips: number; round: ClientView }>("/api/game/bust-bet", {
         amount,
+        proBook: proBookActive(tableVariant, proBook),
       });
       applyResponse(r);
       sounds.coins();
@@ -861,13 +885,60 @@ export function GameTable() {
     }
   }
 
+  /**
+   * Pro-book counterpart to gradeDecision (#9) — same blind-only-scoring
+   * shape, but its own scorecard (ProBookStat's local mirror) and its own
+   * coach toast, so it never mixes with the Strategy Masters numbers above.
+   */
+  function gradeProDecision(
+    action: PlayerAction,
+    expected: PlayerAction,
+    reason: string | null,
+    scored: boolean
+  ) {
+    const correct = action === expected;
+    if (scored) {
+      const next: TrainerStats = {
+        right: proBookStats.right + (correct ? 1 : 0),
+        wrong: proBookStats.wrong + (correct ? 0 : 1),
+        streak: correct ? proBookStats.streak + 1 : 0,
+        best: correct
+          ? Math.max(proBookStats.best, proBookStats.streak + 1)
+          : proBookStats.best,
+      };
+      setProBookStats(next);
+      localStorage.setItem(PRO_BOOK_STATS_KEY, JSON.stringify(next));
+    }
+    if (!correct) {
+      toast.warning(
+        `Pro book: ${ACTION_LABELS[expected] ?? expected} was the play. ${reason ?? ""}`,
+        { duration: 6000 }
+      );
+    }
+  }
+
   async function act(action: PlayerAction) {
     setBusy(true);
     const before = visibleCards(round);
-    // Snapshot the pre-action hint so the grade survives the state update —
-    // but only count it once the server actually accepts the play
-    const expected = trainer ? (round?.hint ?? null) : null;
-    const reason = round?.hintReason ?? null;
+    const proOn = proBookActive(tableVariant, proBook);
+    // Strategy Masters must grade against basic strategy no matter what the
+    // pro-book toggle is doing to the on-screen hint (#9) — recomputed
+    // independently here (same pure function the server uses) rather than
+    // read off round.hint, which becomes pro-aware the moment proOn is true.
+    const activeHand = round ? round.hands[round.active] : undefined;
+    const dealerUp = round?.dealer.cards[0] ?? null;
+    const basicExpected =
+      trainer && round && dealerUp
+        ? recommendAction(activeHand?.cards ?? [], dealerUp, round.actions, round.variant)
+        : null;
+    const basicReason =
+      basicExpected && dealerUp
+        ? explainAction(activeHand?.cards ?? [], dealerUp, basicExpected)
+        : null;
+    // The pro-book mirror grades against whatever's actually on screen —
+    // round.hint is already pro-aware when proOn is true.
+    const proExpected = trainer && proOn ? (round?.hint ?? null) : null;
+    const proReason = round?.hintReason ?? null;
     // Was the guide on screen for this decision? Insurance/even-money prompts
     // show it with the master lightbulb; regular actions also honor the
     // per-hand bulb. Visible guide → coached but not scored.
@@ -875,6 +946,8 @@ export function GameTable() {
       showHints &&
       (round?.phase === "insurance" || (handHints[round?.active ?? 0] ?? true));
     // Blind + trainer on → the server also grades it for Strategy Masters
+    // (always basic-strategy) and, additionally, for ProBookStat whenever
+    // proOn — see action/route.ts's bookPlay/proBookPlay split.
     const blind = trainer && !hintVisible;
     try {
       const r = await api<{
@@ -882,8 +955,9 @@ export function GameTable() {
         round: ClientView;
         jackpotWon?: number;
         unlocked?: UnlockedAchievement[];
-      }>("/api/game/action", { action, blind });
-      if (expected) gradeDecision(action, expected, reason, !hintVisible);
+      }>("/api/game/action", { action, blind, proBook: proOn });
+      if (basicExpected) gradeDecision(action, basicExpected, basicReason, !hintVisible);
+      if (proExpected) gradeProDecision(action, proExpected, proReason, !hintVisible);
       applyResponse(r);
       if ((r.jackpotWon ?? 0) > 0) celebrateJackpot(r.jackpotWon!);
       const settled = r.round.phase === "settled";
@@ -1124,6 +1198,74 @@ export function GameTable() {
           >
             {showCount ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
           </button>
+          {/* Pro book (#9): Illustrious 18 count deviations — classic table only,
+              hence the tableVariant gate on both the scorecard and the toggle
+              itself (Spanish 21 has no tens left in the shoe for the indices
+              to apply to). */}
+          {tableVariant === "classic" && proBook && (
+            <div
+              className="gold-ring flex items-center gap-1.5 rounded-full bg-black/40 px-3 py-1.5 font-mono text-xs tabular-nums"
+              title="Pro-book scorecard — blind decisions graded against the Illustrious 18 count deviations instead of basic strategy: correct · mistakes · accuracy · current streak (best)"
+            >
+              <span className="text-emerald-300/90">{proBookStats.right}✓</span>
+              <span className="text-red-300/80">{proBookStats.wrong}✕</span>
+              {proBookStats.right + proBookStats.wrong > 0 && (
+                <>
+                  <span className="text-[var(--cream)]/40">·</span>
+                  <span className="text-[var(--gold-bright)]">
+                    {Math.round(
+                      (proBookStats.right / (proBookStats.right + proBookStats.wrong)) * 100
+                    )}
+                    %
+                  </span>
+                  <span className="text-[var(--cream)]/40">·</span>
+                  <span className="text-[var(--cream)]/70">
+                    🔥{proBookStats.streak}
+                    <span className="text-[var(--cream)]/40"> ({proBookStats.best})</span>
+                  </span>
+                </>
+              )}
+              <button
+                onClick={() => {
+                  setProBookStats(EMPTY_TRAINER_STATS);
+                  localStorage.setItem(PRO_BOOK_STATS_KEY, JSON.stringify(EMPTY_TRAINER_STATS));
+                  sounds.chip();
+                  toast.success("Pro-book scorecard reset");
+                }}
+                className="ml-0.5 text-[var(--cream)]/40 transition-colors hover:text-[var(--gold-bright)]"
+                title="Reset pro-book scorecard"
+                aria-label="Reset pro-book scorecard"
+              >
+                <RotateCcw className="h-3 w-3" />
+              </button>
+            </div>
+          )}
+          {tableVariant === "classic" && (
+            <button
+              onClick={() => {
+                const next = !proBook;
+                setProBook(next);
+                localStorage.setItem(PRO_BOOK_KEY, next ? "1" : "0");
+                sounds.chip();
+                if (next) {
+                  toast.success(
+                    "Pro book on — the hint (and blind grading) now follows the Illustrious 18 count deviations instead of basic strategy. Classic table only."
+                  );
+                }
+              }}
+              className={`gold-ring flex h-9 w-9 items-center justify-center rounded-full bg-black/40 transition-colors hover:text-[var(--gold-bright)] ${
+                proBook ? "text-[var(--gold-bright)]" : "text-[var(--cream)]/60"
+              }`}
+              title={
+                proBook
+                  ? "Pro book on — hint follows the Illustrious 18 count deviations"
+                  : "Turn on the pro book (Illustrious 18 count deviations, classic table only)"
+              }
+              aria-label={proBook ? "Turn off pro book" : "Turn on pro book"}
+            >
+              <Calculator className="h-4 w-4" />
+            </button>
+          )}
           <button
             onClick={() => {
               const next = !muted;

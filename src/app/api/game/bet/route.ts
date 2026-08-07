@@ -45,8 +45,9 @@ export async function POST(req: Request) {
   let perfectPairs: unknown;
   let twentyOnePlusThree: unknown;
   let luckyLadies: unknown;
+  let proBook: unknown;
   try {
-    ({ bet, hands, variant, bots, perfectPairs, twentyOnePlusThree, luckyLadies } =
+    ({ bet, hands, variant, bots, perfectPairs, twentyOnePlusThree, luckyLadies, proBook } =
       await req.json());
   } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
@@ -236,7 +237,7 @@ export async function POST(req: Request) {
 
   return NextResponse.json({
     chips: updated.chips,
-    round: withHint(state, clientView(state)),
+    round: withHint(state, clientView(state), proBook === true),
     shuffled: shuffled === true,
     jackpot,
     jackpotWon,

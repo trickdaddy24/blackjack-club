@@ -40,7 +40,12 @@ it **significantly more fun and engaging** while keeping the play-money spirit.
      count only. Accepting the invite auto-starts the table immediately.)*
 
 ### Deepening the game
-7. **Pro book (Illustrious 18)** — opt-in count deviations, graded separately.
+7. **Pro book (Illustrious 18)** ✅ *(v0.49.0 — issue #9: opt-in count
+   deviations, classic table only, graded on a separate `ProBookStat`
+   scorecard so Strategy Masters' basic-strategy meaning never shifts. Wires
+   the existing, already-tested `deviations.ts` library into `withHint()`
+   rather than reimplementing the math; `proBookActive(variant, enabled)` is
+   the single gate shared by the on-screen hint and the grading write.)*
 8. **Full-fidelity Spanish 21 strategy chart** (currently honest simplification).
 9. **New side bets** — Blazing-777s-style (7s count, could feed a SECOND
    progressive pot) or Lucky Lucky; instant-payout pattern makes these cheap.

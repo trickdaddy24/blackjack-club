@@ -6,7 +6,7 @@
 // missing 10s push it toward more hitting/later standing and uses surrender
 // against an ace on hard 16-17).
 
-import { deviationFor, insuranceDeviation } from "./deviations";
+import { deviationFor, explainDeviation, insuranceDeviation, type Deviation } from "./deviations";
 import {
   cardValue,
   handValue,
@@ -217,22 +217,65 @@ export function explainAction(
   }
 }
 
-/** Attach the basic-strategy hint (and its reason) for the active hand to a client view. */
-export function withHint(state: RoundState, view: ClientView): ClientView {
+/**
+ * True when the pro book (Illustrious 18) should apply — opt-in AND the
+ * classic 6-deck table. Spanish 21 removes all the 10s the published
+ * indices are calibrated against, so applying count thresholds there would
+ * be actively wrong, not just out of scope (#9).
+ *
+ * Shared by `withHint`'s on-screen hint and the API's pro-book blind-grading
+ * gate (`ProBookStat`, see `action/route.ts`) so the two can never disagree
+ * about when the feature is live.
+ */
+export function proBookActive(variant: Variant, proBookEnabled: boolean): boolean {
+  return proBookEnabled === true && variant === "classic";
+}
+
+/**
+ * Attach the strategy hint (and its reason) for the active hand to a client
+ * view. `proBook` opts into the Illustrious 18 count deviations (using the
+ * view's own `trueCount`) — off by default, and a no-op outside the classic
+ * table (see `proBookActive`). Strategy Masters' grading in `action/route.ts`
+ * deliberately calls this WITHOUT `proBook` so its basic-strategy meaning
+ * never shifts for anyone.
+ */
+export function withHint(
+  state: RoundState,
+  view: ClientView,
+  proBook?: boolean
+): ClientView {
+  const variant = state.variant ?? "classic";
+  const proOn = proBookActive(variant, Boolean(proBook));
+  const pro: ProBookOptions | undefined = proOn
+    ? { enabled: true, trueCount: view.trueCount }
+    : undefined;
+
   let hint: PlayerAction | null = null;
   let hand = state.hands[state.active] ?? state.hands[0];
+  // The deviation actually in play for this spot, if any — kept separately
+  // from `hint` so the reason text below can tell "basic strategy" and "the
+  // count overrode it" apart instead of running a deviation's action through
+  // explainAction's basic-strategy reasoning (which can read backwards, e.g.
+  // explaining a count-driven stand on 16 vs a dealer 10 as if 10 were a
+  // weak upcard).
+  let deviation: Deviation | null = null;
   if (state.phase === "insurance") {
-    hint = view.actions.includes("even-money-no") ? "even-money-no" : "insurance-no";
+    if (proOn && view.actions.includes("insurance-yes") && view.actions.includes("insurance-no")) {
+      deviation = insuranceDeviation(view.trueCount);
+    }
+    hint = recommendAction(hand?.cards ?? [], state.dealer[0], view.actions, variant, pro);
   } else if (state.phase === "player") {
     hand = state.hands[state.active];
-    hint = recommendAction(
-      hand.cards,
-      state.dealer[0],
-      view.actions,
-      state.variant ?? "classic"
-    );
+    if (proOn) {
+      deviation = deviationFor(hand.cards, state.dealer[0], view.trueCount, view.actions);
+    }
+    hint = recommendAction(hand.cards, state.dealer[0], view.actions, variant, pro);
   }
   const hintReason =
-    hint && hand ? explainAction(hand.cards, state.dealer[0], hint) : null;
+    !hint || !hand
+      ? null
+      : deviation && deviation.action === hint
+        ? explainDeviation(deviation, view.trueCount)
+        : explainAction(hand.cards, state.dealer[0], hint);
   return { ...view, hint, hintReason };
 }
