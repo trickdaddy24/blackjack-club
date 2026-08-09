@@ -71,6 +71,10 @@ export type Outcome = "blackjack" | "win" | "push" | "lose" | "surrender" | "eve
 
 export type Variant = "classic" | "spanish21";
 
+/** Which physical table a round is played at — cosmetic + side-bet menu,
+ *  orthogonal to `Variant` (deck/payout rules). Trilux is classic rules only. */
+export type Room = "classic" | "trilux";
+
 /** Table rules derived from the variant — never persisted, always recomputed. */
 export interface Rules {
   variant: Variant;
@@ -96,6 +100,14 @@ export interface Rules {
   llSuited20: number;
   llMatched20: number;
   llQueenOfHearts: number;
+  /** Match the Dealer side bet (Trilux table): X-to-1 per matching card. */
+  mtdUnsuited: number;
+  mtdSuited: number;
+  /** Trilux Bonus side bet (Trilux table): flat X-to-1, flush or better. */
+  tbFlush: number;
+  tbStraight: number;
+  tbTrips: number;
+  tbStraightFlush: number;
 }
 
 export function rulesFor(variant: Variant = "classic"): Rules {
@@ -127,6 +139,15 @@ export function rulesFor(variant: Variant = "classic"): Rules {
     llSuited20: 9,
     llMatched20: 19,
     llQueenOfHearts: 125,
+    // Match the Dealer (Trilux table) — standard 6-deck paytable, both
+    // matching cards add. Spanish's 48-card shoe has fewer suited outs.
+    mtdUnsuited: 4,
+    mtdSuited: spanish ? 9 : 11,
+    // Trilux Bonus (Trilux table) — flat 9:1, flush or better
+    tbFlush: 9,
+    tbStraight: 9,
+    tbTrips: 9,
+    tbStraightFlush: 9,
   };
 }
 
@@ -159,8 +180,10 @@ export interface HandState {
   llQueens?: boolean;
   /** Set at settle: this hand hit the Lucky Ladies progressive (API pays the pot). */
   llJackpot?: boolean;
-  /** Legacy Match the Dealer field — only read at settle for in-flight rounds. */
+  /** Match the Dealer side bet (Trilux table), resolved at the deal. */
   mtd?: SideBetResult;
+  /** Trilux Bonus side bet (Trilux table), resolved at the deal. */
+  tb?: SideBetResult;
   /** Seat that owns this hand (multiplayer tables). Absent/0 = solo player.
    *  Splits copy the owner, so per-player accounting survives them. */
   owner?: number;
@@ -195,6 +218,8 @@ export interface RoundState {
   payoutTotal: number;
   /** Game variant. Absent in pre-0.4.0 persisted rounds → classic. */
   variant: Variant;
+  /** Which table this round was dealt at. Absent in pre-0.50.0 rounds → classic. */
+  room: Room;
   /** Hi-Lo running count of every card seen since the shuffle. */
   runningCount: number;
   /** Simulated players at the table. Absent in pre-0.4.0 rounds → none. */
@@ -323,6 +348,7 @@ function draw(state: RoundState, visible = true): Card {
 /** Fill in fields absent from older persisted rounds. */
 function normalizeState(state: RoundState): RoundState {
   state.variant ??= "classic";
+  state.room ??= "classic";
   state.runningCount ??= 0;
   state.bots ??= [];
   state.bustBet ??= 0;
@@ -376,6 +402,8 @@ export interface RoundOptions {
   rng?: Rng;
   seats?: number;
   variant?: Variant;
+  /** Which table this round is dealt at (default "classic"). */
+  room?: Room;
   /** Simulated players at the table, 0–MAX_BOTS. */
   bots?: number;
   /** Perfect Pairs side bet per seat (0 = none). */
@@ -384,6 +412,10 @@ export interface RoundOptions {
   twentyOnePlusThree?: number;
   /** Lucky Ladies side bet per seat (0 = none). */
   luckyLadies?: number;
+  /** Match the Dealer side bet per seat, Trilux table (0 = none). */
+  matchTheDealer?: number;
+  /** Trilux Bonus side bet per seat, Trilux table (0 = none). */
+  triluxBonus?: number;
   /** Per-seat main bets (multiplayer tables) — length must equal `seats`;
    *  overrides `bet` per seat. `bet` still validates as seat 0's wager. */
   seatBets?: number[];
@@ -422,10 +454,13 @@ export function startRound(
   const rng = opts.rng ?? defaultRng;
   const seats = opts.seats ?? 1;
   const variant = opts.variant ?? "classic";
+  const room = opts.room ?? "classic";
   const bots = opts.bots ?? 0;
   const ppBet = opts.perfectPairs ?? 0;
   const tpBet = opts.twentyOnePlusThree ?? 0;
   const llBet = opts.luckyLadies ?? 0;
+  const mtdBet = opts.matchTheDealer ?? 0;
+  const tbBet = opts.triluxBonus ?? 0;
   const rules = rulesFor(variant);
 
   if (!Number.isInteger(bet) || bet <= 0) {
@@ -446,6 +481,12 @@ export function startRound(
   if (!Number.isInteger(llBet) || llBet < 0) {
     throw new IllegalActionError("Lucky Ladies bet must be a non-negative integer");
   }
+  if (!Number.isInteger(mtdBet) || mtdBet < 0) {
+    throw new IllegalActionError("Match the Dealer bet must be a non-negative integer");
+  }
+  if (!Number.isInteger(tbBet) || tbBet < 0) {
+    throw new IllegalActionError("Trilux Bonus bet must be a non-negative integer");
+  }
 
   // Multiplayer: per-seat wagers. Every seat resolves to a main bet plus a
   // side-bet trio; solo play falls back to the flat values.
@@ -460,6 +501,8 @@ export function startRound(
     pp: opts.seatSideBets?.[i]?.pp ?? ppBet,
     tp: opts.seatSideBets?.[i]?.tp ?? tpBet,
     ll: opts.seatSideBets?.[i]?.ll ?? llBet,
+    mtd: mtdBet,
+    tb: tbBet,
   });
   for (let i = 0; i < seats; i++) {
     const b = betFor(i);
@@ -467,7 +510,7 @@ export function startRound(
     if (!Number.isInteger(b) || b <= 0) {
       throw new IllegalActionError("Every seat needs a positive integer bet");
     }
-    for (const v of [s.pp, s.tp, s.ll]) {
+    for (const v of [s.pp, s.tp, s.ll, s.mtd, s.tb]) {
       if (!Number.isInteger(v) || v < 0) {
         throw new IllegalActionError("Side bets must be non-negative integers");
       }
@@ -487,7 +530,7 @@ export function startRound(
   let mainStaked = 0;
   for (let i = 0; i < seats; i++) {
     const side = sideFor(i);
-    debit += betFor(i) + side.pp + side.tp + side.ll;
+    debit += betFor(i) + side.pp + side.tp + side.ll + side.mtd + side.tb;
     mainStaked += betFor(i);
   }
   const state: RoundState = {
@@ -503,6 +546,7 @@ export function startRound(
     staked: mainStaked,
     payoutTotal: 0,
     variant,
+    room,
     runningCount: reuseShoe ? (opts.previousCount ?? 0) : 0,
     bustBet: 0,
     promo: opts.promo ?? null,
@@ -597,8 +641,52 @@ export function startRound(
     if (queens) hand.llQueens = true;
   });
 
+  // Match the Dealer also resolves at the deal (Trilux table): each of the
+  // seat's first two cards that matches the upcard's rank pays — suited pays
+  // more, both matching cards add together.
+  state.hands.forEach((hand, i) => {
+    const stake = sideFor(i).mtd;
+    if (stake <= 0) return;
+    let mult = 0;
+    const parts: string[] = [];
+    for (const c of hand.cards) {
+      if (c.rank === upcard.rank) {
+        const suited = c.suit === upcard.suit;
+        mult += suited ? rules.mtdSuited : rules.mtdUnsuited;
+        parts.push(suited ? "suited match" : "unsuited match");
+      }
+    }
+    hand.mtd = {
+      bet: stake,
+      payout: mult > 0 ? stake + stake * mult : 0,
+      label: parts.length > 0 ? parts.join(" + ") : "no match",
+    };
+  });
+
+  // Trilux Bonus also resolves at the deal (Trilux table): same "first two
+  // cards + dealer upcard" three-card poker hand as 21+3, flat paytable.
+  state.hands.forEach((hand, i) => {
+    const stake = sideFor(i).tb;
+    if (stake <= 0) return;
+    const { mult, label } = evaluateTriluxBonus(
+      [hand.cards[0], hand.cards[1], upcard],
+      rules
+    );
+    hand.tb = {
+      bet: stake,
+      payout: mult > 0 ? stake + stake * mult : 0,
+      label,
+    };
+  });
+
   const sideBetPayout = state.hands.reduce(
-    (sum, h) => sum + (h.pp?.payout ?? 0) + (h.tp?.payout ?? 0) + (h.ll?.payout ?? 0),
+    (sum, h) =>
+      sum +
+      (h.pp?.payout ?? 0) +
+      (h.tp?.payout ?? 0) +
+      (h.ll?.payout ?? 0) +
+      (h.mtd?.payout ?? 0) +
+      (h.tb?.payout ?? 0),
     0
   );
 
@@ -639,6 +727,29 @@ export function evaluate21Plus3(
   if (trips) return { mult: rules.tpTrips, label: "three of a kind" };
   if (straight) return { mult: rules.tpStraight, label: "straight" };
   if (suited) return { mult: rules.tpFlush, label: "flush" };
+  return { mult: 0, label: "no hand" };
+}
+
+/**
+ * Trilux Bonus evaluation (Trilux table): the seat's first two cards + the
+ * dealer upcard, same three-card hand as 21+3 but a flat paytable — anything
+ * below a flush pays nothing.
+ */
+export function evaluateTriluxBonus(
+  cards: [Card, Card, Card],
+  rules: Rules
+): { mult: number; label: string } {
+  const suited = cards.every((c) => c.suit === cards[0].suit);
+  const trips = cards.every((c) => c.rank === cards[0].rank);
+  const idx = cards.map((c) => RANKS.indexOf(c.rank)).sort((a, b) => a - b);
+  const straight =
+    (idx[1] === idx[0] + 1 && idx[2] === idx[1] + 1) ||
+    (idx[0] === 0 && idx[1] === 11 && idx[2] === 12); // Q-K-A (ace high)
+
+  if (straight && suited) return { mult: rules.tbStraightFlush, label: "straight flush" };
+  if (trips) return { mult: rules.tbTrips, label: "three of a kind" };
+  if (straight) return { mult: rules.tbStraight, label: "straight" };
+  if (suited) return { mult: rules.tbFlush, label: "flush" };
   return { mult: 0, label: "no hand" };
 }
 
@@ -1044,12 +1155,9 @@ function settle(state: RoundState): RoundState {
     ).outcome;
   }
 
-  // Perfect Pairs and 21+3 were paid on the spot at the deal — NOT counted here.
-  // (mtd = legacy pre-0.6.0 in-flight rounds, still settled the old way.)
-  s.payoutTotal = s.hands.reduce(
-    (sum, h) => sum + h.payout + (h.mtd?.payout ?? 0),
-    0
-  );
+  // Perfect Pairs, 21+3, Lucky Ladies, Match the Dealer, and Trilux Bonus were
+  // all paid on the spot at the deal — NOT counted here.
+  s.payoutTotal = s.hands.reduce((sum, h) => sum + h.payout, 0);
 
   // Insurance pays 2:1 when the dealer has blackjack
   if (dealerBJ && s.insuranceBet && s.insuranceBet > 0) {
@@ -1067,15 +1175,15 @@ export function netResult(state: RoundState): number {
 }
 
 /**
- * Side-bet net for a settled round: Perfect Pairs / 21+3 / Lucky Ladies
- * payouts minus stakes across every hand, plus the bust bet's result.
- * The Lucky Ladies JACKPOT is paid by the API (the pot amount never lives
- * in round state) — callers add the jackpot on top.
+ * Side-bet net for a settled round: Perfect Pairs / 21+3 / Lucky Ladies /
+ * Match the Dealer / Trilux Bonus payouts minus stakes across every hand,
+ * plus the bust bet's result. The Lucky Ladies JACKPOT is paid by the API
+ * (the pot amount never lives in round state) — callers add the jackpot on top.
  */
 export function sideNetFromState(state: RoundState): number {
   let net = 0;
   for (const h of state.hands) {
-    for (const sb of [h.pp, h.tp, h.ll]) {
+    for (const sb of [h.pp, h.tp, h.ll, h.mtd, h.tb]) {
       if (sb) net += sb.payout - sb.bet;
     }
   }
@@ -1097,13 +1205,13 @@ export function netResultForOwner(state: RoundState, owner: number): number {
     .reduce((net, h) => net + h.payout - h.bet, 0);
 }
 
-/** Per-owner side-bet net (PP/21+3/LL stakes vs payouts). Jackpot added by
- *  the API; the bust bet is solo-only and never rides at shared tables. */
+/** Per-owner side-bet net (PP/21+3/LL/MTD/TB stakes vs payouts). Jackpot
+ *  added by the API; the bust bet is solo-only and never rides at shared tables. */
 export function sideNetForOwner(state: RoundState, owner: number): number {
   let net = 0;
   for (const h of state.hands) {
     if ((h.owner ?? 0) !== owner) continue;
-    for (const sb of [h.pp, h.tp, h.ll, h.mtd]) {
+    for (const sb of [h.pp, h.tp, h.ll, h.mtd, h.tb]) {
       if (sb) net += sb.payout - sb.bet;
     }
   }
@@ -1137,6 +1245,10 @@ export interface ClientHand {
   tp?: SideBetResult;
   /** Lucky Ladies side bet result (resolved at the deal). */
   ll?: SideBetResult;
+  /** Match the Dealer side bet result, Trilux table (resolved at the deal). */
+  mtd?: SideBetResult;
+  /** Trilux Bonus side bet result, Trilux table (resolved at the deal). */
+  tb?: SideBetResult;
   /** This hand hit the Lucky Ladies progressive jackpot at settle. */
   llJackpot?: boolean;
   /** Seat that owns this hand (multiplayer tables). Absent = solo. */
@@ -1157,6 +1269,7 @@ export interface ClientBotHand {
 export interface ClientView {
   phase: Phase;
   variant: Variant;
+  room: Room;
   baseBet: number;
   insuranceBet: number | null;
   insuranceCost: number;
@@ -1220,6 +1333,7 @@ export function clientView(state: RoundState): ClientView {
   return {
     phase: state.phase,
     variant: state.variant,
+    room: state.room,
     baseBet: state.baseBet,
     insuranceBet: state.insuranceBet,
     insuranceCost:
@@ -1252,6 +1366,8 @@ export function clientView(state: RoundState): ClientView {
         ...(h.pp ? { pp: h.pp } : {}),
         ...(h.tp ? { tp: h.tp } : {}),
         ...(h.ll ? { ll: h.ll } : {}),
+        ...(h.mtd ? { mtd: h.mtd } : {}),
+        ...(h.tb ? { tb: h.tb } : {}),
         ...(h.llJackpot ? { llJackpot: true } : {}),
         ...(h.owner !== undefined ? { owner: h.owner } : {}),
       };

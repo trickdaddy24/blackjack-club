@@ -18,13 +18,14 @@ export const metadata = {
 
 const TOP_N = 10;
 
-type Board = "stacks" | "today" | "week" | "masters";
+type Board = "stacks" | "today" | "week" | "masters" | "trilux";
 
 const TABS: { id: Board; label: string }[] = [
   { id: "stacks", label: "High Rollers" },
   { id: "today", label: "Today" },
   { id: "week", label: "This Week" },
   { id: "masters", label: "Strategy Masters" },
+  { id: "trilux", label: "Trilux Table" },
 ];
 
 function RankBadge({ rank }: { rank: number }) {
@@ -184,14 +185,20 @@ export default async function LeaderboardPage({
       const mine = roundsByUser.get(userId) ?? 0;
       callout = `You've played ${mine} of the ${MIN_ROUNDS_TO_RANK} rounds needed to rank High Rollers.`;
     }
-  } else if (board === "today" || board === "week") {
-    const start = board === "today" ? vegasDayStart() : vegasWeekStart();
+  } else if (board === "today" || board === "week" || board === "trilux") {
+    const start = board === "today" ? vegasDayStart() : board === "week" ? vegasWeekStart() : null;
     subtitle =
       board === "today"
         ? "Net winnings since midnight, Vegas time — side bets and jackpots included"
-        : "Net winnings since Monday midnight, Vegas time";
+        : board === "week"
+          ? "Net winnings since Monday midnight, Vegas time"
+          : "All-time net at the Trilux table — Match the Dealer, Trilux Bonus, and Lucky Ladies included";
     const rounds = await prisma.round.findMany({
-      where: { status: "settled", settledAt: { gte: start } },
+      where: {
+        status: "settled",
+        ...(start ? { settledAt: { gte: start } } : {}),
+        ...(board === "trilux" ? { room: "trilux" } : {}),
+      },
       select: {
         userId: true,
         netResult: true,
@@ -232,9 +239,9 @@ export default async function LeaderboardPage({
       meRow = toRow(ranked[myIdx]);
     } else if (myIdx === -1 && byUser.has(userId)) {
       const mine = byUser.get(userId)!;
-      callout = `You've played ${mine.count} of the ${MIN_ROUNDS_TO_RANK} rounds needed to rank ${
-        board === "today" ? "today" : "this week"
-      } (running ${fmtNet(mine.net)}).`;
+      const windowLabel =
+        board === "today" ? "today" : board === "week" ? "this week" : "at the Trilux table";
+      callout = `You've played ${mine.count} of the ${MIN_ROUNDS_TO_RANK} rounds needed to rank ${windowLabel} (running ${fmtNet(mine.net)}).`;
     }
     if (biggest) {
       callout = `💥 Biggest single win: ${biggest.name}, ${fmtNet(biggest.net)} on one round.${

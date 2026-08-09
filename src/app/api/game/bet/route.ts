@@ -8,6 +8,7 @@ import {
   netResult,
   sideNetFromState,
   startRound,
+  type Room,
   type Variant,
 } from "@/lib/blackjack/engine";
 import {
@@ -30,6 +31,7 @@ import { progressQuestsAtSettle } from "@/lib/quests-io";
 import { isVoucherActive, voucherBonusFor } from "@/lib/voucher";
 
 const VARIANTS: Variant[] = ["classic", "spanish21"];
+const ROOMS: Room[] = ["classic", "trilux"];
 
 export async function POST(req: Request) {
   const session = await auth();
@@ -41,16 +43,35 @@ export async function POST(req: Request) {
   let bet: unknown;
   let hands: unknown;
   let variant: unknown;
+  let room: unknown;
   let bots: unknown;
   let perfectPairs: unknown;
   let twentyOnePlusThree: unknown;
   let luckyLadies: unknown;
+  let matchTheDealer: unknown;
+  let triluxBonus: unknown;
   let proBook: unknown;
   try {
-    ({ bet, hands, variant, bots, perfectPairs, twentyOnePlusThree, luckyLadies, proBook } =
-      await req.json());
+    ({
+      bet,
+      hands,
+      variant,
+      room,
+      bots,
+      perfectPairs,
+      twentyOnePlusThree,
+      luckyLadies,
+      matchTheDealer,
+      triluxBonus,
+      proBook,
+    } = await req.json());
   } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
+
+  const tableRoom = room === undefined ? "classic" : room;
+  if (typeof tableRoom !== "string" || !ROOMS.includes(tableRoom as Room)) {
+    return NextResponse.json({ error: "Unknown table" }, { status: 400 });
   }
 
   const tableMin = currentTableMinimum();
@@ -102,6 +123,32 @@ export async function POST(req: Request) {
     );
   }
 
+  const mtd = matchTheDealer === undefined ? 0 : matchTheDealer;
+  if (
+    typeof mtd !== "number" ||
+    !Number.isInteger(mtd) ||
+    mtd < 0 ||
+    mtd > MAX_SIDE_BET
+  ) {
+    return NextResponse.json(
+      { error: `Match the Dealer bet must be 0 to ${MAX_SIDE_BET}` },
+      { status: 400 }
+    );
+  }
+
+  const tb = triluxBonus === undefined ? 0 : triluxBonus;
+  if (
+    typeof tb !== "number" ||
+    !Number.isInteger(tb) ||
+    tb < 0 ||
+    tb > MAX_SIDE_BET
+  ) {
+    return NextResponse.json(
+      { error: `Trilux Bonus bet must be 0 to ${MAX_SIDE_BET}` },
+      { status: 400 }
+    );
+  }
+
   const seats = hands === undefined ? 1 : hands;
   if (typeof seats !== "number" || !Number.isInteger(seats) || seats < 1 || seats > MAX_SEATS) {
     return NextResponse.json(
@@ -114,6 +161,20 @@ export async function POST(req: Request) {
   if (typeof tableVariant !== "string" || !VARIANTS.includes(tableVariant as Variant)) {
     return NextResponse.json({ error: "Unknown game variant" }, { status: 400 });
   }
+
+  // Each table's side-bet menu is server-authoritative, not just a UI choice:
+  // Trilux is classic rules only (Match the Dealer + Trilux Bonus), the
+  // classic table keeps Perfect Pairs/21+3. Lucky Ladies rides at both.
+  if (tableRoom === "trilux" && tableVariant !== "classic") {
+    return NextResponse.json(
+      { error: "The Trilux table only deals classic rules" },
+      { status: 400 }
+    );
+  }
+  const ppBet = tableRoom === "trilux" ? 0 : pp;
+  const tpBet = tableRoom === "trilux" ? 0 : tp;
+  const mtdBet = tableRoom === "trilux" ? mtd : 0;
+  const tbBet = tableRoom === "trilux" ? tb : 0;
 
   const botCount = bots === undefined ? 0 : bots;
   if (
@@ -140,7 +201,7 @@ export async function POST(req: Request) {
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  if (user.chips < (bet + pp + tp + ll) * seats) {
+  if (user.chips < (bet + ppBet + tpBet + ll + mtdBet + tbBet) * seats) {
     return NextResponse.json({ error: "Not enough chips" }, { status: 400 });
   }
 
@@ -152,10 +213,13 @@ export async function POST(req: Request) {
     previousCount: carry?.runningCount,
     seats,
     variant: tableVariant as Variant,
+    room: tableRoom as Room,
     bots: botCount,
-    perfectPairs: pp,
-    twentyOnePlusThree: tp,
+    perfectPairs: ppBet,
+    twentyOnePlusThree: tpBet,
     luckyLadies: ll,
+    matchTheDealer: mtdBet,
+    triluxBonus: tbBet,
     promo: promo?.id ?? null,
   });
   const settled = state.phase === "settled";
@@ -209,6 +273,7 @@ export async function POST(req: Request) {
         netResult: settled ? netResult(state) : 0,
         sideNet: settled ? sideNetFromState(state) + jackpotWon : 0,
         settledAt: settled ? new Date() : null,
+        room: tableRoom,
       },
     }),
   ]);

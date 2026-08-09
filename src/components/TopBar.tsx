@@ -29,6 +29,13 @@ export async function TopBar() {
               Table
             </Link>
             <Link
+              href="/play/trilux"
+              className="uppercase tracking-widest text-[var(--cream)]/70 hover:text-[var(--gold-bright)] transition-colors"
+              title="Trilux Table — Match the Dealer + Trilux Bonus"
+            >
+              Trilux
+            </Link>
+            <Link
               href="/table"
               className="flex items-center gap-1.5 uppercase tracking-widest text-[var(--cream)]/70 hover:text-[var(--gold-bright)] transition-colors"
               title="Shared table — invite a friend"

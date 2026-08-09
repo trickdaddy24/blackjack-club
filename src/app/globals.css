@@ -18,6 +18,19 @@
   --danger: #c0392b;
 }
 
+/* Trilux table — blue felt, Match the Dealer + Trilux Bonus. Every existing
+   component styles off these same custom properties, so scoping the override
+   to GameTable's own root (data-room="trilux") reskins the whole table with
+   no component changes. */
+[data-room="trilux"] {
+  --felt: #0b1f3b;
+  --felt-light: #123258;
+  --felt-glow: #1b4d80;
+  --gold: #2f7fd1;
+  --gold-bright: #6ecbff;
+  --gold-dim: #1c4a75;
+}
+
 * {
   box-sizing: border-box;
 }

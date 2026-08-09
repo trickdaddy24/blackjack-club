@@ -5,6 +5,35 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the `VERSION` fi
 
 ---
 
+## [0.50.0] — 2026-08-09
+
+### Added
+- **🔷 Trilux Table** — a second, blue-felt table at `/play/trilux`, modeled on
+  a real Hard Rock Casino Trilux layout. Classic rules only; its own side-bet
+  menu instead of Perfect Pairs/21+3:
+  - **Match the Dealer** — either/both of your first two cards match the
+    dealer's upcard: 4:1 unsuited, 11:1 suited, both matches add. This is the
+    same bet that shipped at v0.5.0 and was swapped out for Perfect Pairs at
+    v0.6.0 — the paytable and resolve-at-deal logic came back largely as-is.
+  - **Trilux Bonus** — same "first two cards + dealer upcard" three-card
+    poker hand as 21+3, new bet type (`tb`), flat 9:1 on flush or better.
+  - **Lucky Ladies** still rides at the Trilux table — it's a shared,
+    site-wide progressive, not table-exclusive.
+  - New **"Trilux Table" leaderboard tab** — all-time net winnings scoped to
+    rounds played there, via a new `Round.room` column (`"classic" |
+    "trilux"`, server-authoritative — the API rejects a Perfect Pairs/21+3
+    bet at the Trilux table and vice versa regardless of what the client
+    sends).
+  - The blue reskin is a single `[data-room="trilux"]` CSS override of the
+    same `--felt`/`--gold` custom properties every component already styles
+    off — no component-level restyling needed.
+
+### Changed
+- `RoundState.mtd`/`sideNetFromState` dropped the "legacy pre-0.6.0
+  in-flight round" special-casing now that Match the Dealer is a live bet
+  again — it's paid on the spot at the deal exactly like Perfect Pairs/21+3/
+  Lucky Ladies, not folded into `payoutTotal` at settle.
+
 ## [0.49.0] — 2026-08-07
 
 ### Added

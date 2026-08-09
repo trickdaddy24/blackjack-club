@@ -87,10 +87,15 @@ model Round {
   tournamentEntryId String?
   createdAt DateTime  @default(now())
   settledAt DateTime?
+  // Which table this round was played at — "classic" (green/gold) or
+  // "trilux" (blue, Match the Dealer + Trilux Bonus). Drives the leaderboard
+  // filter; stateJson.room carries the same value for the engine's own use.
+  room      String    @default("classic")
 
   @@index([userId, status])
   @@index([settledAt])
   @@index([tournamentEntryId])
+  @@index([room, settledAt])
 }
 
 // A shared 2-player table (game-agnostic social layer — gameType decides the

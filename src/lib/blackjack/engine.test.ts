@@ -705,6 +705,7 @@ describe("hi-lo count", () => {
       staked: 10,
       payoutTotal: 0,
       variant: "classic",
+      room: "classic",
       runningCount: 8,
       bots: [],
       bustBet: 0,
@@ -911,13 +912,6 @@ describe("perfect pairs", () => {
     expect(state.hands[1].pp?.payout).toBe(0); // 2♥ + 3♥
   });
 
-  it("still pays a legacy in-flight Match the Dealer result at settle", () => {
-    const { state } = startRound(10, { previousShoe: shoeFor(c("K", "H"), c("9", "D"), c("9", "H"), c("5", "H")) });
-    state.hands[0].mtd = { bet: 5, payout: 25, label: "unsuited match" };
-    const settled = applyAction(state, "stand").state;
-    expect(settled.payoutTotal).toBe(settled.hands[0].payout + 25);
-  });
-
   it("rejects invalid bets and passes through clientView", () => {
     expect(() => startRound(10, { perfectPairs: -1 })).toThrow(IllegalActionError);
     expect(() => startRound(10, { perfectPairs: 2.5 })).toThrow(IllegalActionError);
@@ -1020,6 +1014,122 @@ describe("21+3", () => {
     expect(() => startRound(10, { twentyOnePlusThree: 2.5 })).toThrow(IllegalActionError);
     const { state } = tpRound(c("K", "H"), c("K", "H"), c("K", "H"));
     expect(clientView(state).hands[0].tp?.payout).toBe(505);
+  });
+});
+
+describe("match the dealer (Trilux table)", () => {
+  // Deal order: player c1, dealer up, player c2, hole
+  const mtdRound = (c1: Card, up: Card, c2: Card) =>
+    startRound(10, {
+      previousShoe: shoeFor(c1, up, c2, c("5", "H")),
+      room: "trilux",
+      matchTheDealer: 5,
+    });
+
+  it("pays 4:1 on a single unsuited match, credited immediately at the deal", () => {
+    const { state, debit, sideBetPayout } = mtdRound(c("K", "H"), c("K", "D"), c("9", "S"));
+    expect(debit).toBe(15); // 10 bet + 5 side bet leave the stack together
+    expect(sideBetPayout).toBe(25); // 5 stake + 5 × 4
+    expect(state.staked).toBe(10); // main-game accounting excludes the side bet
+    expect(state.hands[0].mtd).toEqual({ bet: 5, payout: 25, label: "unsuited match" });
+    const settled = applyAction(state, "stand").state;
+    // settle pays the main hand only — the side bet was already paid
+    expect(settled.payoutTotal).toBe(settled.hands[0].payout);
+  });
+
+  it("pays 11:1 on a single suited match", () => {
+    const { state } = mtdRound(c("K", "H"), c("K", "H"), c("9", "S"));
+    expect(state.hands[0].mtd).toEqual({ bet: 5, payout: 60, label: "suited match" });
+  });
+
+  it("adds both matches together when both cards match the upcard", () => {
+    const { state } = mtdRound(c("K", "S"), c("K", "D"), c("K", "H"));
+    expect(state.hands[0].mtd).toEqual({
+      bet: 5,
+      payout: 45, // 5 + 5 × (4 + 4)
+      label: "unsuited match + unsuited match",
+    });
+  });
+
+  it("loses the stake on no match (zero immediate payout)", () => {
+    const { state, sideBetPayout } = mtdRound(c("9", "D"), c("K", "H"), c("2", "S"));
+    expect(sideBetPayout).toBe(0);
+    expect(state.hands[0].mtd).toEqual({ bet: 5, payout: 0, label: "no match" });
+    const settled = applyAction(state, "stand").state;
+    expect(netResult(settled)).toBe(settled.payoutTotal - 10);
+  });
+
+  it("rejects invalid bets and passes through clientView", () => {
+    expect(() => startRound(10, { matchTheDealer: -1 })).toThrow(IllegalActionError);
+    expect(() => startRound(10, { matchTheDealer: 2.5 })).toThrow(IllegalActionError);
+    const { state } = mtdRound(c("K", "H"), c("K", "H"), c("9", "S"));
+    expect(clientView(state).hands[0].mtd?.payout).toBe(60);
+  });
+});
+
+describe("trilux bonus (Trilux table)", () => {
+  // Deal order: player c1, dealer up, player c2, hole — same three-card
+  // hand as 21+3 (player c1 + player c2 + upcard) but a flat paytable
+  const tbRound = (c1: Card, up: Card, c2: Card) =>
+    startRound(10, {
+      previousShoe: shoeFor(c1, up, c2, c("5", "H")),
+      room: "trilux",
+      triluxBonus: 5,
+    });
+
+  it("pays 9:1 on a straight flush, credited immediately at the deal", () => {
+    const { state, debit, sideBetPayout } = tbRound(c("9", "H"), c("10", "H"), c("J", "H"));
+    expect(debit).toBe(15); // 10 bet + 5 side bet leave the stack together
+    expect(sideBetPayout).toBe(50); // 5 stake + 5 × 9
+    expect(state.staked).toBe(10); // main-game accounting excludes the side bet
+    expect(state.hands[0].tb).toEqual({ bet: 5, payout: 50, label: "straight flush" });
+    const settled = applyAction(state, "stand").state;
+    expect(settled.payoutTotal).toBe(settled.hands[0].payout);
+  });
+
+  it("pays 9:1 on three of a kind", () => {
+    const { state } = tbRound(c("K", "H"), c("K", "D"), c("K", "S"));
+    expect(state.hands[0].tb).toEqual({ bet: 5, payout: 50, label: "three of a kind" });
+  });
+
+  it("pays 9:1 on a mixed-suit straight", () => {
+    const { state } = tbRound(c("9", "H"), c("10", "D"), c("J", "S"));
+    expect(state.hands[0].tb).toEqual({ bet: 5, payout: 50, label: "straight" });
+  });
+
+  it("pays 9:1 on a flush", () => {
+    const { state, sideBetPayout } = tbRound(c("2", "H"), c("9", "H"), c("K", "H"));
+    expect(state.hands[0].tb).toEqual({ bet: 5, payout: 50, label: "flush" });
+    expect(sideBetPayout).toBe(50);
+  });
+
+  it("loses the stake below a flush (zero immediate payout)", () => {
+    const { state, sideBetPayout } = tbRound(c("2", "H"), c("9", "D"), c("K", "S"));
+    expect(sideBetPayout).toBe(0);
+    expect(state.hands[0].tb).toEqual({ bet: 5, payout: 0, label: "no hand" });
+    const settled = applyAction(state, "stand").state;
+    expect(netResult(settled)).toBe(settled.payoutTotal - 10);
+  });
+
+  it("stacks with Match the Dealer — both paid on the spot", () => {
+    // K♥ upcard K♦, player K♥ K♦: unsuited + suited match, AND trips for Trilux Bonus
+    const { debit, sideBetPayout, state } = startRound(10, {
+      previousShoe: shoeFor(c("K", "H"), c("K", "D"), c("K", "H"), c("5", "H")),
+      room: "trilux",
+      matchTheDealer: 5,
+      triluxBonus: 5,
+    });
+    expect(debit).toBe(20); // 10 + 5 + 5
+    expect(state.hands[0].mtd?.payout).toBeGreaterThan(0);
+    expect(state.hands[0].tb?.payout).toBe(50); // trips 9:1
+    expect(sideBetPayout).toBe((state.hands[0].mtd?.payout ?? 0) + 50);
+  });
+
+  it("rejects invalid bets and passes through clientView", () => {
+    expect(() => startRound(10, { triluxBonus: -1 })).toThrow(IllegalActionError);
+    expect(() => startRound(10, { triluxBonus: 2.5 })).toThrow(IllegalActionError);
+    const { state } = tbRound(c("9", "H"), c("10", "H"), c("J", "H"));
+    expect(clientView(state).hands[0].tb?.payout).toBe(50);
   });
 });
 

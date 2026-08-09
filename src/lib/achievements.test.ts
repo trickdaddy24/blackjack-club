@@ -42,6 +42,7 @@ function round(over: Partial<RoundState> = {}): RoundState {
     staked,
     payoutTotal,
     variant: "classic",
+    room: "classic",
     runningCount: 0,
     bots: [],
     bustBet: 0,

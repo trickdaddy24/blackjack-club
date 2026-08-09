@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Calculator, Coins, Crown, Eye, EyeOff, Flame, Gift, GraduationCap, HandCoins, Lightbulb, LightbulbOff, Loader2, RotateCcw, Volume2, VolumeX } from "lucide-react";
-import { rulesFor, type ClientView, type PlayerAction, type Variant } from "@/lib/blackjack/engine";
+import { rulesFor, type ClientView, type PlayerAction, type Room, type Variant } from "@/lib/blackjack/engine";
 import { explainAction, proBookActive, recommendAction } from "@/lib/blackjack/strategy";
 import { PROMO_SCHEDULE, promoStatus, type PromoStatus } from "@/lib/promotions";
 import { PlayingCard } from "@/components/PlayingCard";
@@ -384,10 +384,12 @@ function TableSign({
   jackpot,
   tableMin,
   variant,
+  room = "classic",
 }: {
   jackpot: number | null;
   tableMin: TableMin;
   variant: Variant;
+  room?: Room;
 }) {
   const rules = rulesFor(variant);
   const pot = jackpot === null ? "—" : jackpot.toLocaleString();
@@ -411,7 +413,7 @@ function TableSign({
     <div className="bj-sign">
       <div className="bj-sign-inner px-4 py-4">
         <p className="text-center font-display text-[11px] font-bold uppercase tracking-[0.3em] text-[var(--cream)]/60">
-          ♠ Blackjack Club
+          {room === "trilux" ? "♠ Trilux Table" : "♠ Blackjack Club"}
         </p>
         <div className="mt-3 text-center">
           <p className="font-display text-xs font-bold uppercase tracking-[0.2em] text-[var(--gold-bright)]">
@@ -433,28 +435,56 @@ function TableSign({
             ["Any 20", `${rules.llAny20}:1`],
           ]}
         />
-        <p className="mt-3 font-display text-[11px] font-bold uppercase tracking-[0.2em] text-[var(--gold-bright)]">
-          21+3
-        </p>
-        <PayRows
-          rows={[
-            ["Suited trips", `${rules.tpSuitedTrips}:1`],
-            ["Straight flush", `${rules.tpStraightFlush}:1`],
-            ["Three of a kind", `${rules.tpTrips}:1`],
-            ["Straight", `${rules.tpStraight}:1`],
-            ["Flush", `${rules.tpFlush}:1`],
-          ]}
-        />
-        <p className="mt-3 font-display text-[11px] font-bold uppercase tracking-[0.2em] text-[var(--gold-bright)]">
-          Perfect Pairs
-        </p>
-        <PayRows
-          rows={[
-            ["Perfect pair", `${rules.ppPerfect}:1`],
-            ["Colored pair", `${rules.ppColored}:1`],
-            ["Mixed pair", `${rules.ppMixed}:1`],
-          ]}
-        />
+        {room === "trilux" ? (
+          <>
+            <p className="mt-3 font-display text-[11px] font-bold uppercase tracking-[0.2em] text-[var(--gold-bright)]">
+              Match the Dealer
+            </p>
+            <PayRows
+              rows={[
+                ["Suited match", `${rules.mtdSuited}:1`],
+                ["Unsuited match", `${rules.mtdUnsuited}:1`],
+                ["Both matches add", "—"],
+              ]}
+            />
+            <p className="mt-3 font-display text-[11px] font-bold uppercase tracking-[0.2em] text-[var(--gold-bright)]">
+              Trilux Bonus
+            </p>
+            <PayRows
+              rows={[
+                ["Straight flush", `${rules.tbStraightFlush}:1`],
+                ["Three of a kind", `${rules.tbTrips}:1`],
+                ["Straight", `${rules.tbStraight}:1`],
+                ["Flush", `${rules.tbFlush}:1`],
+              ]}
+            />
+          </>
+        ) : (
+          <>
+            <p className="mt-3 font-display text-[11px] font-bold uppercase tracking-[0.2em] text-[var(--gold-bright)]">
+              21+3
+            </p>
+            <PayRows
+              rows={[
+                ["Suited trips", `${rules.tpSuitedTrips}:1`],
+                ["Straight flush", `${rules.tpStraightFlush}:1`],
+                ["Three of a kind", `${rules.tpTrips}:1`],
+                ["Straight", `${rules.tpStraight}:1`],
+                ["Flush", `${rules.tpFlush}:1`],
+              ]}
+            />
+            <p className="mt-3 font-display text-[11px] font-bold uppercase tracking-[0.2em] text-[var(--gold-bright)]">
+              Perfect Pairs
+            </p>
+            <PayRows
+              rows={[
+                ["Perfect pair", `${rules.ppPerfect}:1`],
+                ["Colored pair", `${rules.ppColored}:1`],
+                ["Mixed pair", `${rules.ppMixed}:1`],
+              ]}
+            />
+          </>
+        )}
         <div className="mt-3 border-t border-white/10 pt-2 text-center text-[10px] leading-relaxed text-[var(--cream)]/55">
           <p className="font-semibold text-[var(--cream)]/70">
             MIN {tableMin.min.toLocaleString()} · {tableMin.label.toUpperCase()}
@@ -572,7 +602,7 @@ function playResult(view: ClientView, delay: number) {
   }
 }
 
-export function GameTable() {
+export function GameTable({ room = "classic" }: { room?: Room } = {}) {
   const [chips, setChips] = useState<number | null>(null);
   /** Server-tracked consecutive round wins — ≥5 sets the chip stack on fire. */
   const [winStreak, setWinStreak] = useState(0);
@@ -595,6 +625,9 @@ export function GameTable() {
   const [ppBet, setPpBet] = useState(0);
   const [tpBet, setTpBet] = useState(0);
   const [llBet, setLlBet] = useState(0);
+  /** Trilux table only. */
+  const [mtdBet, setMtdBet] = useState(0);
+  const [tbBet, setTbBet] = useState(0);
   const [trainer, setTrainer] = useState(false);
   const [trainerStats, setTrainerStats] = useState<TrainerStats>(EMPTY_TRAINER_STATS);
   /** Pro book (#9): opt-in Illustrious 18 count deviations, classic table only. */
@@ -614,7 +647,7 @@ export function GameTable() {
   useEffect(() => {
     setMuted(sounds.muted);
     const v = localStorage.getItem(VARIANT_KEY);
-    if (v === "spanish21") setVariant(v);
+    if (room !== "trilux" && v === "spanish21") setVariant(v);
     const b = parseInt(localStorage.getItem(BOTS_KEY) ?? "0", 10);
     if (Number.isInteger(b) && b >= 0 && b <= MAX_BOTS) setBotCount(b);
     setShowCount(localStorage.getItem(SHOW_COUNT_KEY) === "1");
@@ -745,11 +778,14 @@ export function GameTable() {
       }>("/api/game/bet", {
         bet: pendingBet,
         hands: seats,
-        variant,
+        variant: room === "trilux" ? "classic" : variant,
+        room,
         bots: botCount,
         perfectPairs: ppBet,
         twentyOnePlusThree: tpBet,
         luckyLadies: llBet,
+        matchTheDealer: mtdBet,
+        triluxBonus: tbBet,
         proBook: proBookActive(variant, proBook),
       });
       if (r.shuffled) {
@@ -768,7 +804,11 @@ export function GameTable() {
       // Side bet hits are paid on the spot — celebrate right after the deal
       const ppHands = r.round.hands.filter((h) => (h.pp?.payout ?? 0) > 0);
       const otherSideHit = r.round.hands.some(
-        (h) => (h.tp?.payout ?? 0) > 0 || (h.ll?.payout ?? 0) > 0
+        (h) =>
+          (h.tp?.payout ?? 0) > 0 ||
+          (h.ll?.payout ?? 0) > 0 ||
+          (h.mtd?.payout ?? 0) > 0 ||
+          (h.tb?.payout ?? 0) > 0
       );
       let resultExtraDelay = 0;
       if (ppHands.length || otherSideHit) {
@@ -1028,7 +1068,10 @@ export function GameTable() {
   const tableVariant = round?.variant ?? variant;
 
   return (
-    <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col px-3 pb-6 xl:max-w-6xl xl:flex-row xl:items-stretch xl:gap-5">
+    <div
+      data-room={room}
+      className="mx-auto flex w-full max-w-4xl flex-1 flex-col px-3 pb-6 xl:max-w-6xl xl:flex-row xl:items-stretch xl:gap-5"
+    >
       <div className="flex w-full min-w-0 flex-1 flex-col">
       <PromoBanner />
       {/* chips HUD — on fire while a 5+ win streak is alive */}
@@ -1465,6 +1508,34 @@ export function GameTable() {
                                 : "Ladies ✕"}
                           </span>
                         )}
+                        {hand.mtd && (
+                          <span
+                            className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
+                              hand.mtd.payout > 0
+                                ? "sidebet-win bg-[var(--gold)]/25 text-[var(--gold-bright)]"
+                                : "bg-black/40 text-[var(--cream-dim)]"
+                            }`}
+                            title={`Match the Dealer: ${hand.mtd.label} — paid instantly`}
+                          >
+                            {hand.mtd.payout > 0
+                              ? `🎯 ${hand.mtd.label} +${(hand.mtd.payout - hand.mtd.bet).toLocaleString()}`
+                              : "Match ✕"}
+                          </span>
+                        )}
+                        {hand.tb && (
+                          <span
+                            className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
+                              hand.tb.payout > 0
+                                ? "sidebet-win bg-[var(--gold)]/25 text-[var(--gold-bright)]"
+                                : "bg-black/40 text-[var(--cream-dim)]"
+                            }`}
+                            title={`Trilux Bonus: ${hand.tb.label} — paid instantly`}
+                          >
+                            {hand.tb.payout > 0
+                              ? `✨ ${hand.tb.label} +${(hand.tb.payout - hand.tb.bet).toLocaleString()}`
+                              : "Trilux ✕"}
+                          </span>
+                        )}
                         {!settled && showHints && (
                           <button
                             onClick={() => toggleHandHint(hi)}
@@ -1609,6 +1680,7 @@ export function GameTable() {
                   chips={chips ?? 0}
                   pending={pendingBet}
                   seats={seats}
+                  room={room}
                   variant={variant}
                   botCount={botCount}
                   tableMin={tableMin}
@@ -1626,6 +1698,16 @@ export function GameTable() {
                   onLl={(v) => {
                     sounds.chip();
                     setLlBet(v);
+                  }}
+                  mtd={mtdBet}
+                  onMtd={(v) => {
+                    sounds.chip();
+                    setMtdBet(v);
+                  }}
+                  tb={tbBet}
+                  onTb={(v) => {
+                    sounds.chip();
+                    setTbBet(v);
                   }}
                   onVariant={(v) => {
                     sounds.chip();
@@ -1647,7 +1729,7 @@ export function GameTable() {
                       Math.min(
                         p + v,
                         MAX_BET,
-                        Math.floor((chips ?? 0) / seats) - ppBet - tpBet - llBet
+                        Math.floor((chips ?? 0) / seats) - ppBet - tpBet - llBet - mtdBet - tbBet
                       )
                     );
                   }}
@@ -1655,7 +1737,7 @@ export function GameTable() {
                     sounds.coins();
                     setPendingBet(
                       Math.min(
-                        Math.floor((chips ?? 0) / seats) - ppBet - tpBet - llBet,
+                        Math.floor((chips ?? 0) / seats) - ppBet - tpBet - llBet - mtdBet - tbBet,
                         MAX_BET
                       )
                     );
@@ -1671,7 +1753,7 @@ export function GameTable() {
       </div>
       </div>
       {showSign && (
-        <TableSign jackpot={jackpot} tableMin={tableMin} variant={tableVariant} />
+        <TableSign jackpot={jackpot} tableMin={tableMin} variant={tableVariant} room={room} />
       )}
     </div>
   );
@@ -1781,6 +1863,8 @@ function ResultBanner({
   addSide("Perfect Pairs", round.hands.flatMap((h) => (h.pp ? [h.pp] : [])));
   addSide("21+3", round.hands.flatMap((h) => (h.tp ? [h.tp] : [])));
   addSide("Lucky Ladies", round.hands.flatMap((h) => (h.ll ? [h.ll] : [])));
+  addSide("Match the Dealer", round.hands.flatMap((h) => (h.mtd ? [h.mtd] : [])));
+  addSide("Trilux Bonus", round.hands.flatMap((h) => (h.tb ? [h.tb] : [])));
 
   const bustBet = round.bustBet ?? 0;
   const bustNet = bustBet > 0 ? (round.bustPayout ?? 0) - bustBet : 0;
@@ -2015,6 +2099,7 @@ function BetPicker({
   chips,
   pending,
   seats,
+  room,
   variant,
   botCount,
   tableMin,
@@ -2024,6 +2109,10 @@ function BetPicker({
   onTp,
   ll,
   onLl,
+  mtd,
+  onMtd,
+  tb,
+  onTb,
   onSeats,
   onVariant,
   onBots,
@@ -2036,6 +2125,7 @@ function BetPicker({
   chips: number;
   pending: number;
   seats: number;
+  room: Room;
   variant: Variant;
   botCount: number;
   tableMin: TableMin;
@@ -2045,6 +2135,10 @@ function BetPicker({
   onTp: (v: number) => void;
   ll: number;
   onLl: (v: number) => void;
+  mtd: number;
+  onMtd: (v: number) => void;
+  tb: number;
+  onTb: (v: number) => void;
   onSeats: (n: number) => void;
   onVariant: (v: Variant) => void;
   onBots: (n: number) => void;
@@ -2054,8 +2148,8 @@ function BetPicker({
   onDeal: () => void;
   disabled: boolean;
 }) {
-  const total = (pending + pp + tp + ll) * seats;
-  const sides = pp + tp + ll;
+  const total = (pending + pp + tp + ll + mtd + tb) * seats;
+  const sides = pp + tp + ll + mtd + tb;
   const allInAmount = Math.floor(chips / seats) - sides;
   const isAllIn = pending > 0 && pending === allInAmount;
   return (
@@ -2089,6 +2183,7 @@ function BetPicker({
 
       {/* side bets */}
       <div className="flex flex-wrap items-center justify-center gap-2">
+        {room !== "trilux" && (
         <div className="flex flex-wrap items-center justify-center gap-2 rounded-full bg-black/30 px-3 py-1.5 gold-ring">
           <span
             className="text-[11px] font-semibold uppercase tracking-wider text-[var(--cream)]/50"
@@ -2119,7 +2214,9 @@ function BetPicker({
             </button>
           )}
         </div>
+        )}
 
+        {room !== "trilux" && (
         <div className="flex flex-wrap items-center justify-center gap-2 rounded-full bg-black/30 px-3 py-1.5 gold-ring">
           <span
             className="text-[11px] font-semibold uppercase tracking-wider text-[var(--cream)]/50"
@@ -2150,6 +2247,73 @@ function BetPicker({
             </button>
           )}
         </div>
+        )}
+
+        {room === "trilux" && (
+        <div className="flex flex-wrap items-center justify-center gap-2 rounded-full bg-black/30 px-3 py-1.5 gold-ring">
+          <span
+            className="text-[11px] font-semibold uppercase tracking-wider text-[var(--cream)]/50"
+            title="Either or both of your first two cards match the dealer's upcard: unsuited match 4:1 · suited match 11:1 · both matches add"
+          >
+            Match the Dealer <span className="text-[var(--cream)]/30">$1 min</span>
+          </span>
+          {SIDE_CHIP_VALUES.map((v) => (
+            <button
+              key={v}
+              onClick={() => onMtd(Math.min(mtd + v, MAX_SIDE_BET))}
+              disabled={disabled || mtd + v > MAX_SIDE_BET || (pending + sides + v) * seats > chips}
+              className="rounded-full border border-[var(--gold)]/40 px-2.5 py-0.5 text-[11px] font-mono text-[var(--gold-bright)] transition-colors hover:bg-[var(--gold)]/15 disabled:opacity-35"
+            >
+              +{v}
+            </button>
+          ))}
+          <span className="min-w-8 text-center font-mono text-sm font-bold gold-text tabular-nums">
+            {mtd}
+          </span>
+          {mtd > 0 && (
+            <button
+              onClick={() => onMtd(0)}
+              disabled={disabled}
+              className="text-[11px] text-[var(--cream)]/40 underline-offset-2 hover:underline"
+            >
+              clear
+            </button>
+          )}
+        </div>
+        )}
+
+        {room === "trilux" && (
+        <div className="flex flex-wrap items-center justify-center gap-2 rounded-full bg-black/30 px-3 py-1.5 gold-ring">
+          <span
+            className="text-[11px] font-semibold uppercase tracking-wider text-[var(--cream)]/50"
+            title="Your two cards + dealer upcard as 3-card poker, flush or better: flush 9:1 · straight 9:1 · three of a kind 9:1 · straight flush 9:1"
+          >
+            Trilux Bonus <span className="text-[var(--cream)]/30">$1 min</span>
+          </span>
+          {SIDE_CHIP_VALUES.map((v) => (
+            <button
+              key={v}
+              onClick={() => onTb(Math.min(tb + v, MAX_SIDE_BET))}
+              disabled={disabled || tb + v > MAX_SIDE_BET || (pending + sides + v) * seats > chips}
+              className="rounded-full border border-[var(--gold)]/40 px-2.5 py-0.5 text-[11px] font-mono text-[var(--gold-bright)] transition-colors hover:bg-[var(--gold)]/15 disabled:opacity-35"
+            >
+              +{v}
+            </button>
+          ))}
+          <span className="min-w-8 text-center font-mono text-sm font-bold gold-text tabular-nums">
+            {tb}
+          </span>
+          {tb > 0 && (
+            <button
+              onClick={() => onTb(0)}
+              disabled={disabled}
+              className="text-[11px] text-[var(--cream)]/40 underline-offset-2 hover:underline"
+            >
+              clear
+            </button>
+          )}
+        </div>
+        )}
 
         <div className="flex flex-wrap items-center justify-center gap-2 rounded-full bg-black/30 px-3 py-1.5 gold-ring">
           <span
@@ -2185,6 +2349,7 @@ function BetPicker({
 
       {/* table selectors */}
       <div className="flex flex-wrap items-center justify-center gap-2">
+        {room !== "trilux" && (
         <div className="flex items-center gap-1 rounded-full bg-black/30 p-1 gold-ring">
           {(["classic", "spanish21"] as const).map((v) => (
             <button
@@ -2201,6 +2366,7 @@ function BetPicker({
             </button>
           ))}
         </div>
+        )}
 
         <div className="flex items-center gap-1 rounded-full bg-black/30 p-1 gold-ring">
           {[1, 2, 3].map((n) => (

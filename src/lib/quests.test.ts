@@ -53,6 +53,7 @@ function round(over: Partial<RoundState> = {}): RoundState {
     staked: hands.reduce((s, h) => s + h.bet, 0),
     payoutTotal: hands.reduce((s, h) => s + h.payout, 0),
     variant: "classic",
+    room: "classic",
     runningCount: 0,
     bots: [],
     bustBet: 0,
