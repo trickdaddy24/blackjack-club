@@ -5,6 +5,40 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the `VERSION` fi
 
 ---
 
+## [0.52.0] — 2026-08-09
+
+### Added
+- **💰 Separate Trilux bankroll.** The Trilux table now has its own chip balance
+  (`User.triluxChips`), independent of the main stack. Funded only by explicit transfers —
+  it starts at 0, so a player who never visits Trilux is unaffected.
+  - **`POST /api/wallet/transfer`** is the only path chips cross between wallets. Both sides move
+    in one transaction, and the debit is a conditional `updateMany` guarded on the source balance
+    so two concurrent transfers can't both pass the same affordability check and overdraw.
+    Blocked while a hand is in progress.
+  - **`src/lib/wallet.ts`** is the single room→column chokepoint (`creditData`, `readBalance`,
+    `totalWorth`, `WALLET_SELECT`). Money sites call it instead of writing `{ chips: … }` literals.
+  - Play, side bets, bust bets and dealer tips at Trilux all draw from the Trilux wallet. The
+    room is read from the round's own persisted `state.room`, never from the client.
+  - **Rewards follow the table you're at** — daily bonus, chip wheel, property bonus and quest
+    payouts land in that table's wallet. Hot seat, champion prizes, VIP tier-ups, the gym and
+    admin grants stay main-wallet-always, since the recipient isn't necessarily the requester.
+  - **Broke at Trilux prompts a transfer, not a handout.** The `RESCUE_CHIPS` house stake is
+    main-table only — otherwise the second bankroll would be a free money tap.
+
+### Fixed
+- **Net worth now spans both wallets.** High Rollers ranking, the lobby leaderboard preview,
+  chip-milestone achievements and every balance display read `totalWorth()`. Without this,
+  funding a Trilux bankroll would silently drop a player's rank despite them losing nothing.
+  (Prisma can't `orderBy` a sum of two columns, so High Rollers sorts in JS — that query already
+  fetched every user and filtered in JS anyway.)
+
+### Notes
+- VIP tiers were audited and needed no threshold change: they key off **rounds played**
+  (`tierForRounds`), not chips, so a split balance can't demote anyone. Only the displayed
+  figure became combined.
+- Duo tables are classic-only and untouched, but their achievement `chipsAfter` was switched to
+  combined worth so the same trophy doesn't fire at different points depending on the table.
+
 ## [0.51.1] — 2026-08-09
 
 ### Fixed

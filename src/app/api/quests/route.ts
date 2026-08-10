@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { totalWorth, WALLET_SELECT } from "@/lib/wallet";
 import { vegasDayKey } from "@/lib/leaderboard";
 import { CLEAN_SWEEP, CLEAN_SWEEP_SLUG, dailyQuests } from "@/lib/quests";
 import { getSweepStreak } from "@/lib/quests-io";
@@ -23,7 +24,7 @@ export async function GET() {
     }),
     prisma.user.findUnique({
       where: { id: userId },
-      select: { loginStreak: true, chips: true },
+      select: { loginStreak: true, ...WALLET_SELECT },
     }),
     getSweepStreak(userId),
   ]);
@@ -32,7 +33,7 @@ export async function GET() {
   return NextResponse.json({
     day,
     loginStreak: user?.loginStreak ?? 0,
-    chips: user?.chips ?? 0,
+    chips: user ? totalWorth(user) : 0,
     cleanSweep: {
       name: CLEAN_SWEEP.name,
       emoji: CLEAN_SWEEP.emoji,

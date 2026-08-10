@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { MAX_TIP } from "@/lib/game";
+import { creditData, readBalance, WALLET_SELECT } from "@/lib/wallet";
+import type { Room } from "@/lib/blackjack/engine";
+
+const ROOMS: Room[] = ["classic", "trilux"];
 
 export async function POST(req: Request) {
   const session = await auth();
@@ -11,8 +15,9 @@ export async function POST(req: Request) {
   const userId = session.user.id;
 
   let amount: unknown;
+  let room: unknown;
   try {
-    ({ amount } = await req.json());
+    ({ amount, room } = await req.json());
   } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
@@ -29,25 +34,38 @@ export async function POST(req: Request) {
     );
   }
 
+  // The tip comes out of the table you're sitting at. Client-supplied because
+  // tipping happens AFTER the round settles, so there's no active round to read
+  // the table from — and it's safe to trust here: a tip is a pure debit from
+  // the player's own wallet, so "lying" only picks which of your own pockets
+  // pays. Still validated so it can't be an arbitrary column name.
+  const tipRoom: Room =
+    typeof room === "string" && ROOMS.includes(room as Room) ? (room as Room) : "classic";
+
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { chips: true },
+    select: WALLET_SELECT,
   });
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  if (user.chips < amount) {
+  if (readBalance(user, tipRoom) < amount) {
     return NextResponse.json({ error: "Not enough chips" }, { status: 400 });
   }
 
   const updated = await prisma.user.update({
     where: { id: userId },
     data: {
-      chips: { decrement: amount },
+      ...creditData(tipRoom, -amount),
       dealerTips: { increment: amount },
     },
-    select: { chips: true, dealerTips: true },
+    select: { ...WALLET_SELECT, dealerTips: true },
   });
 
-  return NextResponse.json({ chips: updated.chips, dealerTips: updated.dealerTips });
+  return NextResponse.json({
+    chips: readBalance(updated, tipRoom),
+    mainChips: updated.chips,
+    triluxChips: updated.triluxChips,
+    dealerTips: updated.dealerTips,
+  });
 }

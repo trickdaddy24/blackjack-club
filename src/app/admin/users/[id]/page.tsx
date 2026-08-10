@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { totalWorth, WALLET_SELECT } from "@/lib/wallet";
 import { requireAdmin, ADMIN_ACTION_LABELS } from "@/lib/admin";
 import { getPlayerStats } from "@/lib/player-stats";
 import { findRounds } from "@/lib/admin-rounds";
@@ -36,7 +37,7 @@ export default async function AdminUserPage({
       name: true,
       email: true,
       role: true,
-      chips: true,
+      ...WALLET_SELECT,
       createdAt: true,
       bestWinStreak: true,
     },
@@ -60,7 +61,9 @@ export default async function AdminUserPage({
   const unlocked = new Set(trophies.map((t) => t.slug));
 
   const statCards = [
-    { label: "Chip stack", value: user.chips.toLocaleString() },
+    { label: "Chip stack", value: totalWorth(user).toLocaleString() },
+    { label: "— main wallet", value: user.chips.toLocaleString() },
+    { label: "— Trilux wallet", value: user.triluxChips.toLocaleString() },
     { label: "Hands played", value: stats.hands.toLocaleString() },
     { label: "Win rate", value: stats.hands > 0 ? `${stats.winRate}%` : "—" },
     {

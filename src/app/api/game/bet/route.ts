@@ -23,6 +23,7 @@ import {
   settleLuckyLadiesPot,
   settleSuper4Pot,
 } from "@/lib/game";
+import { creditData, readBalance, totalWorth, WALLET_SELECT } from "@/lib/wallet";
 import { withHint } from "@/lib/blackjack/strategy";
 import { currentTableMinimum } from "@/lib/tableMinimum";
 import { effectivePromo } from "@/lib/promotions";
@@ -219,7 +220,10 @@ export async function POST(req: Request) {
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  if (user.chips < (bet + ppBet + tpBet + ll + mtdBet + tbBet + s4Bet) * seats) {
+  // Affordability is checked against THIS TABLE's wallet — a full main stack
+  // doesn't let you bet at Trilux, and vice versa.
+  const wallet = readBalance(user, tableRoom as Room);
+  if (wallet < (bet + ppBet + tpBet + ll + mtdBet + tbBet + s4Bet) * seats) {
     return NextResponse.json({ error: "Not enough chips" }, { status: 400 });
   }
 
@@ -288,7 +292,7 @@ export async function POST(req: Request) {
     prisma.user.update({
       where: { id: userId },
       data: {
-        chips: { increment: chipDelta },
+        ...creditData(tableRoom as Room, chipDelta),
         ...(settled
           ? {
               winStreak: newStreak,
@@ -297,7 +301,7 @@ export async function POST(req: Request) {
           : {}),
         ...(voucherBonus > 0 ? { voucherExpiresAt: null } : {}),
       },
-      select: { chips: true },
+      select: WALLET_SELECT,
     }),
     prisma.round.create({
       data: {
@@ -326,17 +330,24 @@ export async function POST(req: Request) {
       earnedThisSettle({
         state,
         jackpotWon,
-        chipsAfter: updated.chips,
-        chipsBeforePayout: updated.chips - paidThisSettle,
+        // Chip-milestone trophies measure NET WORTH, so they span both
+        // wallets — funding Trilux must not look like losing money.
+        chipsAfter: totalWorth(updated),
+        chipsBeforePayout: totalWorth(updated) - paidThisSettle,
         winStreak: newStreak,
         roundsPlayed,
       })
     );
-    await progressQuestsAtSettle(userId, settleEventFor(state));
+    await progressQuestsAtSettle(userId, settleEventFor(state), new Date(), tableRoom as Room);
   }
 
   return NextResponse.json({
-    chips: updated.chips,
+    // `chips` is the balance for the table just played, so the HUD keeps
+    // showing the wallet in front of you; both raw wallets ride along for
+    // the transfer dialog.
+    chips: readBalance(updated, tableRoom as Room),
+    mainChips: updated.chips,
+    triluxChips: updated.triluxChips,
     round: withHint(state, clientView(state), proBook === true),
     shuffled: shuffled === true,
     jackpot,

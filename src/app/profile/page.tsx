@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { Coins, TrendingUp, Layers, Trophy, Flame, Swords } from "lucide-react";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { totalWorth, WALLET_SELECT } from "@/lib/wallet";
 import { TopBar } from "@/components/TopBar";
 import { ACHIEVEMENTS } from "@/lib/achievements";
 import { rivalRecords } from "@/lib/rivals";
@@ -23,7 +24,7 @@ export default async function ProfilePage() {
       where: { id: session.user.id },
       select: {
         name: true,
-        chips: true,
+        ...WALLET_SELECT,
         createdAt: true,
         winStreak: true,
         bestWinStreak: true,
@@ -41,7 +42,7 @@ export default async function ProfilePage() {
   const { hands, winRate, biggestWin, lifetimeNet: net } = stats;
 
   const statCards = [
-    { icon: Coins, label: "Chip stack", value: user.chips.toLocaleString() },
+    { icon: Coins, label: "Chip stack", value: totalWorth(user).toLocaleString() },
     { icon: Layers, label: "Hands played", value: hands.toLocaleString() },
     { icon: TrendingUp, label: "Win rate", value: hands > 0 ? `${winRate}%` : "—" },
     { icon: Trophy, label: "Biggest win", value: biggestWin != null ? `+${biggestWin.toLocaleString()}` : "—" },

@@ -3,6 +3,10 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { vegasDayKey } from "@/lib/leaderboard";
 import { WHEEL_SEGMENTS, rollSegmentIndex, segmentAt } from "@/lib/chip-wheel";
+import { creditData, readBalance, WALLET_SELECT } from "@/lib/wallet";
+import type { Room } from "@/lib/blackjack/engine";
+
+const ROOMS: Room[] = ["classic", "trilux"];
 
 /** GET: the wheel's segments (always) + whether today's spin is still available. */
 export async function GET() {
@@ -28,12 +32,23 @@ export async function GET() {
 }
 
 /** POST: spin — one per Vegas day. Rolls server-side, credits immediately. */
-export async function POST() {
+export async function POST(req: Request) {
   const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const userId = session.user.id;
+
+  // Spin lands in the wallet of the table you spun from.
+  let room: Room = "classic";
+  try {
+    const body = await req.json();
+    if (typeof body?.room === "string" && ROOMS.includes(body.room as Room)) {
+      room = body.room as Room;
+    }
+  } catch {
+    /* no body — credit the main table */
+  }
 
   const user = await prisma.user.findUnique({
     where: { id: userId },
@@ -67,12 +82,14 @@ export async function POST() {
   const segment = segmentAt(index);
   const updated = await prisma.user.update({
     where: { id: userId },
-    data: { chips: { increment: segment.value } },
-    select: { chips: true },
+    data: creditData(room, segment.value),
+    select: WALLET_SELECT,
   });
 
   return NextResponse.json({
-    chips: updated.chips,
+    chips: readBalance(updated, room),
+    mainChips: updated.chips,
+    triluxChips: updated.triluxChips,
     granted: segment.value,
     jackpot: segment.jackpot,
     tier: segment.tier,

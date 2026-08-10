@@ -11,6 +11,7 @@ import {
   vegasWeekStart,
 } from "@/lib/leaderboard";
 import { ensureChampions, latestChampions } from "@/lib/champions";
+import { totalWorth, WALLET_SELECT } from "@/lib/wallet";
 
 export const metadata = {
   title: "Leaderboard — Blackjack Club",
@@ -151,9 +152,12 @@ export default async function LeaderboardPage({
   if (board === "stacks") {
     subtitle = `The club's biggest chip stacks — all time (${MIN_ROUNDS_TO_RANK}+ rounds to qualify)`;
     const [candidates, roundCounts, me] = await Promise.all([
+      // Ranked on NET WORTH across both wallets, so funding a Trilux bankroll
+      // never costs rank. Prisma can't orderBy a sum of two columns, so the
+      // sort happens in JS below — this query already fetched every user and
+      // filtered in JS anyway.
       prisma.user.findMany({
-        orderBy: [{ chips: "desc" }, { createdAt: "asc" }],
-        select: { id: true, name: true, chips: true, createdAt: true },
+        select: { id: true, name: true, ...WALLET_SELECT, createdAt: true },
       }),
       prisma.round.groupBy({
         by: ["userId"],
@@ -162,18 +166,22 @@ export default async function LeaderboardPage({
       }),
       prisma.user.findUnique({
         where: { id: userId },
-        select: { id: true, name: true, chips: true, createdAt: true },
+        select: { id: true, name: true, ...WALLET_SELECT, createdAt: true },
       }),
     ]);
     if (!me) redirect("/login");
     const roundsByUser = new Map(roundCounts.map((r) => [r.userId, r._count]));
-    const qualified = candidates.filter(
-      (u) => (roundsByUser.get(u.id) ?? 0) >= MIN_ROUNDS_TO_RANK
-    );
+    const qualified = candidates
+      .filter((u) => (roundsByUser.get(u.id) ?? 0) >= MIN_ROUNDS_TO_RANK)
+      // Same ordering the DB used to do: worth desc, oldest account breaks ties.
+      .sort(
+        (a, b) =>
+          totalWorth(b) - totalWorth(a) || a.createdAt.getTime() - b.createdAt.getTime()
+      );
     const toRow = (u: (typeof candidates)[number]): RowData => ({
       id: u.id,
       name: u.name ?? "Player",
-      value: u.chips.toLocaleString(),
+      value: totalWorth(u).toLocaleString(),
       detail: `since ${u.createdAt.toLocaleDateString("en-US", { month: "short", year: "numeric" })}`,
     });
     rows = qualified.slice(0, TOP_N).map(toRow);

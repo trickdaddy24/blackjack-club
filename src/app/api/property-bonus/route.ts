@@ -3,6 +3,10 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { vegasDayKey } from "@/lib/leaderboard";
 import { PROPERTY_CATALOG, findProperty, rollPropertyAmount } from "@/lib/property-bonus";
+import { creditData, readBalance, WALLET_SELECT } from "@/lib/wallet";
+import type { Room } from "@/lib/blackjack/engine";
+
+const ROOMS: Room[] = ["classic", "trilux"];
 
 /** GET: today's property catalog + whether the pick is still available. */
 export async function GET() {
@@ -41,6 +45,10 @@ export async function POST(req: Request) {
 
   const body = await req.json().catch(() => null);
   const propertyId = body?.propertyId;
+  const room: Room =
+    typeof body?.room === "string" && ROOMS.includes(body.room as Room)
+      ? (body.room as Room)
+      : "classic";
   const def = typeof propertyId === "string" ? findProperty(propertyId) : undefined;
   if (!def) {
     return NextResponse.json({ error: "Unknown property" }, { status: 400 });
@@ -77,12 +85,14 @@ export async function POST(req: Request) {
   const { amount, bonusHit } = rollPropertyAmount(def);
   const updated = await prisma.user.update({
     where: { id: userId },
-    data: { chips: { increment: amount } },
-    select: { chips: true },
+    data: creditData(room, amount),
+    select: WALLET_SELECT,
   });
 
   return NextResponse.json({
-    chips: updated.chips,
+    chips: readBalance(updated, room),
+    mainChips: updated.chips,
+    triluxChips: updated.triluxChips,
     granted: amount,
     bonusHit,
     propertyId: def.id,

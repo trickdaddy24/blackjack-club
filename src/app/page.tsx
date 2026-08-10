@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Crown, Spade, Heart, Diamond, Club, CircleDot, Layers, Dice5, Banknote, Blocks, Gamepad2 } from "lucide-react";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { totalWorth, WALLET_SELECT } from "@/lib/wallet";
 import { TopBar } from "@/components/TopBar";
 import { MIN_ROUNDS_TO_RANK } from "@/lib/leaderboard";
 
@@ -12,8 +13,7 @@ export default async function LobbyPage() {
   // otherwise free daily-claim chips alone can out-rank real players.
   const [candidates, roundCounts] = await Promise.all([
     prisma.user.findMany({
-      orderBy: { chips: "desc" },
-      select: { id: true, name: true, chips: true },
+      select: { id: true, name: true, ...WALLET_SELECT },
     }),
     prisma.round.groupBy({
       by: ["userId"],
@@ -24,6 +24,9 @@ export default async function LobbyPage() {
   const roundsByUser = new Map(roundCounts.map((r) => [r.userId, r._count]));
   const leaders = candidates
     .filter((u) => (roundsByUser.get(u.id) ?? 0) >= MIN_ROUNDS_TO_RANK)
+    // Net worth across both wallets — matches the High Rollers board, so the
+    // lobby preview can't disagree with the leaderboard it previews.
+    .sort((a, b) => totalWorth(b) - totalWorth(a))
     .slice(0, 5);
 
   return (
@@ -84,7 +87,7 @@ export default async function LobbyPage() {
                     <span className="text-sm text-[var(--cream)]/85">{u.name ?? "Anonymous"}</span>
                   </span>
                   <span className="text-sm font-semibold tabular-nums gold-text">
-                    {u.chips.toLocaleString()}
+                    {totalWorth(u).toLocaleString()}
                   </span>
                 </li>
               ))}

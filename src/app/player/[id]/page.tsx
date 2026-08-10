@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { Coins, Crown, Flame, Layers, Swords, TrendingUp, Trophy } from "lucide-react";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { totalWorth, WALLET_SELECT } from "@/lib/wallet";
 import { TopBar } from "@/components/TopBar";
 import { ACHIEVEMENTS } from "@/lib/achievements";
 import { rivalRecords } from "@/lib/rivals";
@@ -30,7 +31,7 @@ export default async function PlayerPage({
     select: {
       id: true,
       name: true,
-      chips: true,
+      ...WALLET_SELECT,
       createdAt: true,
       bestWinStreak: true,
       role: true,
@@ -52,7 +53,7 @@ export default async function PlayerPage({
   const versus = myRivals.find((r) => r.userId === id) ?? null;
 
   const statCards = [
-    { icon: Coins, label: "Chip stack", value: player.chips.toLocaleString() },
+    { icon: Coins, label: "Chip stack", value: totalWorth(player).toLocaleString() },
     { icon: Layers, label: "Hands played", value: stats.hands.toLocaleString() },
     { icon: TrendingUp, label: "Win rate", value: stats.hands > 0 ? `${stats.winRate}%` : "—" },
     {

@@ -11,6 +11,7 @@
 
 import { Prisma, type Table } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { totalWorth, WALLET_SELECT } from "@/lib/wallet";
 import { liveEmotes, parseEmotes, type EmoteRecord } from "./emotes";
 import {
   applyAction,
@@ -164,7 +165,11 @@ async function settleBothPlayers(
         winStreak: newStreak,
         bestWinStreak: Math.max(user.bestWinStreak, newStreak),
       },
-      select: { chips: true },
+      // Duo is classic-only so the stake moves `chips`, but chipsAfter below
+      // feeds chip-MILESTONE achievements, which measure net worth — select
+      // both wallets so the same trophy doesn't fire at different points
+      // depending on which table you happened to be at.
+      select: WALLET_SELECT,
     });
     await tx.round.create({
       data: {
@@ -181,7 +186,7 @@ async function settleBothPlayers(
     results.push({
       userId,
       owner,
-      chipsAfter: updated.chips,
+      chipsAfter: totalWorth(updated),
       paidThisSettle: mainPayoutFor(state, owner) + jackpotWon,
       newStreak,
     });

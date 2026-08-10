@@ -23,7 +23,7 @@ interface ClaimResult {
   bonusLabel: string | null;
 }
 
-export function PropertyBonusBar() {
+export function PropertyBonusBar({ room = "classic" }: { room?: "classic" | "trilux" } = {}) {
   const [properties, setProperties] = useState<PropertySummary[] | null>(null);
   const [available, setAvailable] = useState(false);
   const [picking, setPicking] = useState<string | null>(null);
@@ -53,7 +53,7 @@ export function PropertyBonusBar() {
       const res = await fetch("/api/property-bonus", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ propertyId: id }),
+        body: JSON.stringify({ propertyId: id, room }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Couldn't claim that bonus");

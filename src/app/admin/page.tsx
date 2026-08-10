@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Users, UserPlus, Ghost, ShieldBan } from "lucide-react";
 import { prisma } from "@/lib/prisma";
+import { totalWorth, WALLET_SELECT } from "@/lib/wallet";
 import { requireAdmin } from "@/lib/admin";
 import { TopBar } from "@/components/TopBar";
 import { PlayerActions, PurgePanel } from "@/components/admin-ui";
@@ -45,7 +46,7 @@ export default async function AdminPage({
         id: true,
         name: true,
         email: true,
-        chips: true,
+        ...WALLET_SELECT,
         role: true,
         createdAt: true,
         winStreak: true,
@@ -151,7 +152,7 @@ export default async function AdminPage({
                 </div>
                 <div className="text-right text-xs text-[var(--cream)]/50">
                   <div className="font-display text-base font-bold gold-text tabular-nums">
-                    {p.chips.toLocaleString()}
+                    {totalWorth(p).toLocaleString()}
                   </div>
                   {p._count.rounds} rounds · 🏆 {p._count.achievements} · streak {p.winStreak}
                   <br />

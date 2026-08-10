@@ -6,17 +6,33 @@ import { currentTableMinimum } from "@/lib/tableMinimum";
 import { effectivePromo } from "@/lib/promotions";
 import { vegasDayKey } from "@/lib/leaderboard";
 import { tierByNumber } from "@/lib/vip";
+import { creditData, readBalance, WALLET_SELECT } from "@/lib/wallet";
+import type { Room } from "@/lib/blackjack/engine";
+
+const ROOMS: Room[] = ["classic", "trilux"];
 
 /** +250 per consecutive claim day past the first, capped at +1,750. */
 const STREAK_BOOST_PER_DAY = 250;
 const STREAK_BOOST_CAP_DAYS = 7;
 
-export async function POST() {
+export async function POST(req: Request) {
   const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const userId = session.user.id;
+
+  // Which table the player is claiming from — the daily bonus lands in that
+  // table's wallet. Body is optional (older clients / the lobby send none).
+  let room: Room = "classic";
+  try {
+    const body = await req.json();
+    if (typeof body?.room === "string" && ROOMS.includes(body.room as Room)) {
+      room = body.room as Room;
+    }
+  } catch {
+    /* no body — claim from the main table */
+  }
 
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) {
@@ -45,11 +61,17 @@ export async function POST() {
     );
     const updated = await prisma.user.update({
       where: { id: userId },
-      data: { chips: { increment: granted }, lastDailyBonus: now, loginStreak: streak },
-      select: { chips: true },
+      data: {
+        ...creditData(room, granted),
+        lastDailyBonus: now,
+        loginStreak: streak,
+      },
+      select: WALLET_SELECT,
     });
     return NextResponse.json({
-      chips: updated.chips,
+      chips: readBalance(updated, room),
+      mainChips: updated.chips,
+      triluxChips: updated.triluxChips,
       granted,
       type: "daily",
       streak,
@@ -59,16 +81,26 @@ export async function POST() {
     });
   }
 
-  // Broke rescue: can't cover the current table minimum with no round going
+  // Broke rescue is MAIN-WALLET ONLY, by design. Going broke at Trilux is
+  // meant to prompt a transfer from your own main stack, not a house handout —
+  // otherwise the Trilux bankroll is a free money tap. See api/wallet/transfer.
   const activeRound = await getActiveRound(userId);
+  if (room === "trilux") {
+    return NextResponse.json(
+      { error: "Out of chips at the Trilux table — move some across from your main stack" },
+      { status: 409 }
+    );
+  }
   if (user.chips < currentTableMinimum().min && !activeRound) {
     const updated = await prisma.user.update({
       where: { id: userId },
       data: { chips: RESCUE_CHIPS },
-      select: { chips: true },
+      select: WALLET_SELECT,
     });
     return NextResponse.json({
       chips: updated.chips,
+      mainChips: updated.chips,
+      triluxChips: updated.triluxChips,
       granted: RESCUE_CHIPS - user.chips,
       type: "rescue",
     });

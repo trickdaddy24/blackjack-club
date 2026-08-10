@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Calculator, Coins, Crown, Eye, EyeOff, Flame, Gift, GraduationCap, HandCoins, Lightbulb, LightbulbOff, Loader2, RotateCcw, Volume2, VolumeX } from "lucide-react";
+import { ArrowLeftRight, Calculator, Coins, Crown, Eye, EyeOff, Flame, Gift, GraduationCap, HandCoins, Lightbulb, LightbulbOff, Loader2, RotateCcw, Volume2, VolumeX } from "lucide-react";
 import { rulesFor, type ClientView, type PlayerAction, type Room, type Variant } from "@/lib/blackjack/engine";
 import { explainAction, proBookActive, recommendAction } from "@/lib/blackjack/strategy";
 import { PROMO_SCHEDULE, promoStatus, type PromoStatus } from "@/lib/promotions";
@@ -590,6 +590,8 @@ interface TableState {
   jackpot?: number;
   super4Jackpot?: number;
   winStreak?: number;
+  mainChips?: number;
+  triluxChips?: number;
 }
 
 /** Chip stack catches fire at this many wins in a row. */
@@ -630,7 +632,12 @@ function playResult(view: ClientView, delay: number) {
 }
 
 export function GameTable({ room = "classic" }: { room?: Room } = {}) {
+  /** Balance of the wallet backing THIS table — what the HUD shows. */
   const [chips, setChips] = useState<number | null>(null);
+  /** Both raw wallets, for the transfer panel. Every money response carries them. */
+  const [mainChips, setMainChips] = useState<number | null>(null);
+  const [triluxChips, setTriluxChips] = useState<number | null>(null);
+  const [showTransfer, setShowTransfer] = useState(false);
   /** Server-tracked consecutive round wins — ≥5 sets the chip stack on fire. */
   const [winStreak, setWinStreak] = useState(0);
   const [bonusAvailable, setBonusAvailable] = useState(false);
@@ -708,9 +715,11 @@ export function GameTable({ room = "classic" }: { room?: Room } = {}) {
     // effect and the hydration effect above both run on mount, in the same
     // commit, so `proBook` state wouldn't have updated yet when this fires.
     const initialProBook = localStorage.getItem(PRO_BOOK_KEY) === "1";
-    api<TableState>(`/api/game/state?pro=${initialProBook ? "1" : "0"}`)
+    api<TableState>(`/api/game/state?pro=${initialProBook ? "1" : "0"}&room=${room}`)
       .then((s) => {
         setChips(s.chips);
+        if (typeof s.mainChips === "number") setMainChips(s.mainChips);
+        if (typeof s.triluxChips === "number") setTriluxChips(s.triluxChips);
         if (typeof s.winStreak === "number") setWinStreak(s.winStreak);
         setBonusAvailable(s.bonusAvailable);
         setRound(s.round);
@@ -737,17 +746,27 @@ export function GameTable({ room = "classic" }: { room?: Room } = {}) {
 
   /** Pull the authoritative balance. Bails if a bet/action/tip raced us — those
    *  responses carry a fresher number than this read could. */
+  /** Every money-moving response carries both raw wallets — keep them in sync
+   *  so the transfer panel never shows a stale balance. */
+  const syncWallets = useCallback((r: { mainChips?: number; triluxChips?: number }) => {
+    if (typeof r.mainChips === "number") setMainChips(r.mainChips);
+    if (typeof r.triluxChips === "number") setTriluxChips(r.triluxChips);
+  }, []);
+
   const reconcileChips = useCallback(async () => {
     if (busyRef.current) return;
     const seq = mutationSeq.current;
     try {
-      const r = await api<{ chips: number }>("/api/game/chips");
+      const r = await api<{ chips: number; mainChips?: number; triluxChips?: number }>(
+        `/api/game/chips?room=${room}`
+      );
       if (busyRef.current || mutationSeq.current !== seq) return;
       setChips(r.chips);
+      syncWallets(r);
     } catch {
       // transient — the next credit or tick retries
     }
-  }, []);
+  }, [syncWallets, room]);
 
   // Out-of-band credits: the bars announce, we bump optimistically for instant
   // feedback, then reconcile. The interval is the backstop for credits nobody
@@ -768,8 +787,15 @@ export function GameTable({ room = "classic" }: { room?: Room } = {}) {
   }, [reconcileChips]);
 
   const applyResponse = useCallback(
-    (r: { chips: number; round: ClientView; winStreak?: number }) => {
+    (r: {
+      chips: number;
+      round: ClientView;
+      winStreak?: number;
+      mainChips?: number;
+      triluxChips?: number;
+    }) => {
       setChips(r.chips);
+      syncWallets(r);
       setRound(r.round);
       if (typeof r.winStreak === "number") setWinStreak(r.winStreak);
       setCount({
@@ -778,14 +804,20 @@ export function GameTable({ room = "classic" }: { room?: Room } = {}) {
         decksRemaining: r.round.decksRemaining,
       });
     },
-    []
+    [syncWallets]
   );
 
   async function tipDealer(amount: number) {
     setBusy(true);
     try {
-      const r = await api<{ chips: number; dealerTips: number }>("/api/game/tip", { amount });
+      const r = await api<{
+        chips: number;
+        dealerTips: number;
+        mainChips?: number;
+        triluxChips?: number;
+      }>("/api/game/tip", { amount, room });
       setChips(r.chips);
+      syncWallets(r);
       setTips(r.dealerTips);
       sounds.coins();
       toast.success("🙏 The dealer says thanks!");
@@ -1083,11 +1115,16 @@ export function GameTable({ room = "classic" }: { room?: Room } = {}) {
   async function claimBonus() {
     setBusy(true);
     try {
-      const r = await api<{ chips: number; granted: number; type: string; promo?: string }>(
-        "/api/bonus",
-        {}
-      );
+      const r = await api<{
+        chips: number;
+        granted: number;
+        type: string;
+        promo?: string;
+        mainChips?: number;
+        triluxChips?: number;
+      }>("/api/bonus", { room });
       setChips(r.chips);
+      syncWallets(r);
       setBonusAvailable(false);
       sounds.coins();
       toast.success(
@@ -1096,6 +1133,31 @@ export function GameTable({ room = "classic" }: { room?: Room } = {}) {
             ? `🌙 MIDNIGHT MADNESS — double daily bonus: +${r.granted.toLocaleString()} chips`
             : `Daily bonus: +${r.granted.toLocaleString()} chips`
           : `The house staked you ${r.chips.toLocaleString()} chips`
+      );
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /** Move chips between the main stack and the Trilux bankroll. */
+  async function transferChips(direction: "to-trilux" | "to-main", amount: number) {
+    if (!Number.isInteger(amount) || amount <= 0) return;
+    setBusy(true);
+    try {
+      const r = await api<{ mainChips: number; triluxChips: number; moved: number }>(
+        "/api/wallet/transfer",
+        { direction, amount }
+      );
+      syncWallets(r);
+      // The HUD tracks THIS table's wallet, so re-read whichever side we're on.
+      setChips(room === "trilux" ? r.triluxChips : r.mainChips);
+      sounds.coins();
+      toast.success(
+        direction === "to-trilux"
+          ? `Moved ${r.moved.toLocaleString()} chips to your Trilux bankroll`
+          : `Moved ${r.moved.toLocaleString()} chips back to your main stack`
       );
     } catch (e) {
       toast.error((e as Error).message);
@@ -1148,7 +1210,16 @@ export function GameTable({ room = "classic" }: { room?: Room } = {}) {
           >
             {loading || chips === null ? "—" : chips.toLocaleString()}
           </span>
-          <span className="text-xs uppercase tracking-widest text-[var(--cream-dim)]/60">chips</span>
+          <span
+            className="text-xs uppercase tracking-widest text-[var(--cream-dim)]/60"
+            title={
+              room === "trilux"
+                ? "Your Trilux bankroll — separate from your main stack"
+                : undefined
+            }
+          >
+            {room === "trilux" ? "trilux chips" : "chips"}
+          </span>
           {winStreak >= FIRE_STREAK && (
             <span className="rounded-full bg-orange-500/20 px-1.5 text-[10px] font-bold text-orange-300 tabular-nums">
               {winStreak}🔥
@@ -1175,7 +1246,10 @@ export function GameTable({ room = "classic" }: { room?: Room } = {}) {
         </div>
 
         <div className="flex items-center gap-2">
-          {(bonusAvailable || broke) && !loading && (
+          {/* Daily bonus is claimable at either table. The house-stake rescue
+              is main-table only: going broke at Trilux is meant to send you to
+              your own main stack, not a handout. */}
+          {(bonusAvailable || (broke && room !== "trilux")) && !loading && (
             <button
               onClick={claimBonus}
               disabled={busy}
@@ -1183,6 +1257,17 @@ export function GameTable({ room = "classic" }: { room?: Room } = {}) {
             >
               <Gift className="h-4 w-4" />
               {bonusAvailable ? "Daily Bonus" : "House Stake"}
+            </button>
+          )}
+          {room === "trilux" && !loading && (
+            <button
+              onClick={() => setShowTransfer((v) => !v)}
+              disabled={busy}
+              className={`action-btn flex items-center gap-2 !py-2 ${broke ? "primary" : ""}`}
+              title="Move chips between your main stack and your Trilux bankroll"
+            >
+              <ArrowLeftRight className="h-4 w-4" />
+              {broke ? "Buy Chips" : "Chips"}
             </button>
           )}
           {showCount && count && <CountPanel count={count} />}
@@ -1374,6 +1459,18 @@ export function GameTable({ room = "classic" }: { room?: Room } = {}) {
           </button>
         </div>
       </div>
+
+      {/* Trilux bankroll transfer — the only path chips cross between wallets */}
+      {room === "trilux" && showTransfer && (
+        <TransferPanel
+          mainChips={mainChips}
+          triluxChips={triluxChips}
+          disabled={busy || !!round}
+          roundInProgress={!!round && !settled}
+          onTransfer={transferChips}
+          onClose={() => setShowTransfer(false)}
+        />
+      )}
 
       {/* the felt */}
       <div className="felt-table relative flex flex-1 flex-col rounded-[46%_46%_38px_38px/90px_90px_38px_38px] px-2 pb-5 pt-6 sm:px-10 sm:pb-6 sm:pt-8">
@@ -1838,6 +1935,112 @@ export function GameTable({ room = "classic" }: { room?: Room } = {}) {
           variant={tableVariant}
           room={room}
         />
+      )}
+    </div>
+  );
+}
+
+/**
+ * Move chips between the main stack and the Trilux bankroll. Deliberately
+ * blunt about which side is which — the whole point of the second wallet is
+ * that the player can tell them apart.
+ */
+function TransferPanel({
+  mainChips,
+  triluxChips,
+  disabled,
+  roundInProgress,
+  onTransfer,
+  onClose,
+}: {
+  mainChips: number | null;
+  triluxChips: number | null;
+  disabled: boolean;
+  roundInProgress: boolean;
+  onTransfer: (direction: "to-trilux" | "to-main", amount: number) => void;
+  onClose: () => void;
+}) {
+  const [amount, setAmount] = useState(1000);
+  const main = mainChips ?? 0;
+  const trilux = triluxChips ?? 0;
+
+  const PRESETS = [500, 1000, 5000, 25000];
+
+  return (
+    <div className="fade-up mb-3 rounded-2xl bg-black/35 px-4 py-3 gold-ring">
+      <div className="flex items-center justify-between">
+        <span className="text-[11px] font-semibold uppercase tracking-widest text-[var(--cream)]/60">
+          Move chips
+        </span>
+        <button
+          onClick={onClose}
+          className="text-[11px] text-[var(--cream)]/40 underline-offset-2 hover:underline"
+        >
+          close
+        </button>
+      </div>
+
+      <div className="mt-2 flex items-center justify-center gap-6 text-center">
+        <div>
+          <div className="text-[10px] uppercase tracking-widest text-[var(--cream)]/45">Main</div>
+          <div className="font-display text-lg font-bold gold-text tabular-nums">
+            {main.toLocaleString()}
+          </div>
+        </div>
+        <ArrowLeftRight className="h-4 w-4 text-[var(--cream)]/35" />
+        <div>
+          <div className="text-[10px] uppercase tracking-widest text-[var(--cream)]/45">Trilux</div>
+          <div className="font-display text-lg font-bold gold-text tabular-nums">
+            {trilux.toLocaleString()}
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-2 flex flex-wrap items-center justify-center gap-1.5">
+        {PRESETS.map((v) => (
+          <button
+            key={v}
+            onClick={() => setAmount(v)}
+            className={`rounded-full border px-2.5 py-0.5 text-[11px] font-mono transition-colors ${
+              amount === v
+                ? "border-[var(--gold-bright)] bg-[var(--gold)]/20 text-[var(--gold-bright)]"
+                : "border-[var(--gold)]/40 text-[var(--gold-bright)] hover:bg-[var(--gold)]/15"
+            }`}
+          >
+            {v.toLocaleString()}
+          </button>
+        ))}
+        <input
+          type="number"
+          min={1}
+          value={amount}
+          onChange={(e) => setAmount(Math.max(0, Math.floor(Number(e.target.value) || 0)))}
+          className="w-24 rounded-full border border-[var(--gold)]/40 bg-black/40 px-3 py-0.5 text-center font-mono text-[11px] text-[var(--cream)] outline-none focus:border-[var(--gold-bright)]"
+          aria-label="Custom transfer amount"
+        />
+      </div>
+
+      <div className="mt-2 flex items-center justify-center gap-2">
+        <button
+          className="action-btn !py-1.5 !text-[11px]"
+          onClick={() => onTransfer("to-trilux", amount)}
+          disabled={disabled || amount <= 0 || amount > main}
+        >
+          Main → Trilux
+        </button>
+        <button
+          className="action-btn !py-1.5 !text-[11px]"
+          onClick={() => onTransfer("to-main", amount)}
+          disabled={disabled || amount <= 0 || amount > trilux}
+        >
+          Trilux → Main
+        </button>
+      </div>
+
+      {roundInProgress && (
+        <p className="mt-2 text-center text-[11px] text-[var(--cream)]/45">
+          Finish the hand in progress before moving chips.
+        </p>
       )}
     </div>
   );

@@ -17,6 +17,13 @@ model User {
   password       String?
   role           String    @default("user")
   chips          Int       @default(10000)
+  // Second, independent bankroll for the Trilux table (Room "trilux"). Funded
+  // only by explicit transfers from `chips` — never seeded, so it starts at 0
+  // and a player who never visits Trilux is unaffected. Every place that reads
+  // chips as a MEASURE OF WEALTH (High Rollers, VIP tier) must sum both
+  // columns via totalWorth() in lib/wallet.ts, or moving money between
+  // wallets silently demotes the player.
+  triluxChips    Int       @default(0)
   dealerTips     Int       @default(0)
   lastDailyBonus DateTime?
   // Consecutive winning rounds (pushes don't break the run) — settle-time

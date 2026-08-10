@@ -3,6 +3,8 @@
 // round (the round already settled; quests just don't advance).
 
 import { prisma } from "@/lib/prisma";
+import { creditData } from "@/lib/wallet";
+import type { Room } from "@/lib/blackjack/engine";
 import { vegasDayKey } from "@/lib/leaderboard";
 import {
   CLEAN_SWEEP,
@@ -21,7 +23,10 @@ import {
 export async function progressQuestsAtSettle(
   userId: string,
   ev: SettleEvent,
-  now: Date = new Date()
+  now: Date = new Date(),
+  // Quest rewards land in the wallet of the table that completed them. The
+  // gym and Duo callers leave this at the default — neither is a Trilux table.
+  room: Room = "classic"
 ): Promise<void> {
   const day = vegasDayKey(now);
   try {
@@ -41,11 +46,11 @@ export async function progressQuestsAtSettle(
       if (done && !row?.done) {
         await prisma.user.update({
           where: { id: userId },
-          data: { chips: { increment: def.reward } },
+          data: creditData(room, def.reward),
         });
       }
     }
-    await awardCleanSweep(userId, day);
+    await awardCleanSweep(userId, day, room);
   } catch (err) {
     console.error("quest progression failed:", (err as Error).message);
   }
@@ -58,7 +63,11 @@ export async function progressQuestsAtSettle(
  * rounds settling concurrently can't both pay out, because the second insert
  * violates the key rather than reading a stale "not yet awarded".
  */
-async function awardCleanSweep(userId: string, day: string): Promise<void> {
+async function awardCleanSweep(
+  userId: string,
+  day: string,
+  room: Room = "classic"
+): Promise<void> {
   const defs = dailyQuests(day);
   const rows = await prisma.questProgress.findMany({
     where: { userId, day, done: true },
@@ -77,7 +86,7 @@ async function awardCleanSweep(userId: string, day: string): Promise<void> {
   }
   await prisma.user.update({
     where: { id: userId },
-    data: { chips: { increment: CLEAN_SWEEP.reward } },
+    data: creditData(room, CLEAN_SWEEP.reward),
   });
 }
 

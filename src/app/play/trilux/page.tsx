@@ -15,8 +15,8 @@ export default function TriluxPage() {
       <TopBar />
       <VipStatusBar />
       <QuestsBar />
-      <PropertyBonusBar />
-      <ChipWheelBar />
+      <PropertyBonusBar room="trilux" />
+      <ChipWheelBar room="trilux" />
       <GameTable room="trilux" />
     </div>
   );

@@ -15,6 +15,7 @@ import {
   roundStatus,
   settleLuckyLadiesPot,
 } from "@/lib/game";
+import { creditData, readBalance, totalWorth, WALLET_SELECT } from "@/lib/wallet";
 import { proBookActive, withHint } from "@/lib/blackjack/strategy";
 import {
   earnedFromTrainer,
@@ -98,12 +99,15 @@ export async function POST(req: Request) {
 
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { chips: true, winStreak: true, bestWinStreak: true, voucherExpiresAt: true },
+    select: { ...WALLET_SELECT, winStreak: true, bestWinStreak: true, voucherExpiresAt: true },
   });
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  if (debit > 0 && user.chips < debit) {
+  // The round carries its own room (persisted since v0.50.0), so a hand dealt
+  // at Trilux settles against the Trilux wallet even if the client lies.
+  const room = state.room ?? "classic";
+  if (debit > 0 && readBalance(user, room) < debit) {
     return NextResponse.json({ error: "Not enough chips" }, { status: 400 });
   }
 
@@ -138,7 +142,7 @@ export async function POST(req: Request) {
     prisma.user.update({
       where: { id: userId },
       data: {
-        chips: { increment: chipDelta },
+        ...creditData(room, chipDelta),
         ...(settled
           ? {
               winStreak: newStreak,
@@ -147,7 +151,7 @@ export async function POST(req: Request) {
           : {}),
         ...(voucherBonus > 0 ? { voucherExpiresAt: null } : {}),
       },
-      select: { chips: true },
+      select: WALLET_SELECT,
     }),
     prisma.round.update({
       where: { id: round.id },
@@ -229,17 +233,19 @@ export async function POST(req: Request) {
     const earned = earnedThisSettle({
       state: next,
       jackpotWon,
-      chipsAfter: updated.chips,
-      chipsBeforePayout: updated.chips - paidThisSettle,
+      chipsAfter: totalWorth(updated),
+      chipsBeforePayout: totalWorth(updated) - paidThisSettle,
       winStreak: newStreak,
       roundsPlayed,
     });
     unlocked.push(...(await awardAchievements(userId, earned)));
-    await progressQuestsAtSettle(userId, settleEventFor(next));
+    await progressQuestsAtSettle(userId, settleEventFor(next), new Date(), room);
   }
 
   return NextResponse.json({
-    chips: updated.chips,
+    chips: readBalance(updated, room),
+    mainChips: updated.chips,
+    triluxChips: updated.triluxChips,
     // On-screen hint only (never grading, see bookPlay above): respects the
     // client's pro-book toggle for the NEXT decision on this hand.
     round: withHint(next, clientView(next), proBook === true),

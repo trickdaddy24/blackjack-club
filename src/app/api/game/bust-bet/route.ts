@@ -7,6 +7,7 @@ import {
   placeBustBet,
 } from "@/lib/blackjack/engine";
 import { getActiveRound, MAX_BET, parseRoundState, roundStatus } from "@/lib/game";
+import { creditData, readBalance, WALLET_SELECT } from "@/lib/wallet";
 import { withHint } from "@/lib/blackjack/strategy";
 
 export async function POST(req: Request) {
@@ -55,19 +56,21 @@ export async function POST(req: Request) {
 
   const { state: next, debit } = result;
 
+  // Bust bet rides on the round's own table, so it draws from that wallet.
+  const room = state.room ?? "classic";
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { chips: true },
+    select: WALLET_SELECT,
   });
-  if (!user || user.chips < debit) {
+  if (!user || readBalance(user, room) < debit) {
     return NextResponse.json({ error: "Not enough chips" }, { status: 400 });
   }
 
   const [updated] = await prisma.$transaction([
     prisma.user.update({
       where: { id: userId },
-      data: { chips: { decrement: debit } },
-      select: { chips: true },
+      data: creditData(room, -debit),
+      select: WALLET_SELECT,
     }),
     prisma.round.update({
       where: { id: round.id },
@@ -79,7 +82,9 @@ export async function POST(req: Request) {
   ]);
 
   return NextResponse.json({
-    chips: updated.chips,
+    chips: readBalance(updated, room),
+    mainChips: updated.chips,
+    triluxChips: updated.triluxChips,
     round: withHint(next, clientView(next), proBook === true),
   });
 }

@@ -5,11 +5,14 @@
 
 import { prisma } from "@/lib/prisma";
 import { nextTier, tierByNumber, tierForRounds, type VipTierDef } from "@/lib/vip";
+import { totalWorth, WALLET_SELECT } from "@/lib/wallet";
 
 export interface VipStatus {
   tier: VipTierDef;
   next: VipTierDef | null;
   roundsPlayed: number;
+  /** Net worth across BOTH wallets — display only. The tier threshold is
+   *  round-count based (tierForRounds), so a split balance can't demote. */
   chips: number;
   tieredUp: boolean;
   bonusAwarded: number;
@@ -18,7 +21,7 @@ export interface VipStatus {
 export async function getVipStatus(userId: string): Promise<VipStatus> {
   const [roundsPlayed, user] = await Promise.all([
     prisma.round.count({ where: { userId, status: "settled" } }),
-    prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { vipTier: true, chips: true } }),
+    prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { vipTier: true, ...WALLET_SELECT } }),
   ]);
 
   const earned = tierForRounds(roundsPlayed);
@@ -27,7 +30,7 @@ export async function getVipStatus(userId: string): Promise<VipStatus> {
       tier: tierByNumber(user.vipTier),
       next: nextTier(user.vipTier),
       roundsPlayed,
-      chips: user.chips,
+      chips: totalWorth(user),
       tieredUp: false,
       bonusAwarded: 0,
     };
@@ -36,19 +39,20 @@ export async function getVipStatus(userId: string): Promise<VipStatus> {
   // Claim the tier-up: only the request that sees the still-old vipTier wins.
   const claimed = await prisma.user.updateMany({
     where: { id: userId, vipTier: user.vipTier },
+    // Tier-up bonus is a STATUS reward, not a table reward — always main wallet.
     data: { vipTier: earned.tier, chips: { increment: earned.tierUpBonus } },
   });
 
   const fresh = await prisma.user.findUniqueOrThrow({
     where: { id: userId },
-    select: { vipTier: true, chips: true },
+    select: { vipTier: true, ...WALLET_SELECT },
   });
 
   return {
     tier: tierByNumber(fresh.vipTier),
     next: nextTier(fresh.vipTier),
     roundsPlayed,
-    chips: fresh.chips,
+    chips: totalWorth(fresh),
     tieredUp: claimed.count > 0,
     bonusAwarded: claimed.count > 0 ? earned.tierUpBonus : 0,
   };

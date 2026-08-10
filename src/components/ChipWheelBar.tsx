@@ -34,7 +34,7 @@ function jackpotLabel(tier: JackpotTier | undefined): string {
   return tier === "mini" ? "☆ MINI JACKPOT" : "★ MEGA JACKPOT";
 }
 
-export function ChipWheelBar() {
+export function ChipWheelBar({ room = "classic" }: { room?: "classic" | "trilux" } = {}) {
   const [segments, setSegments] = useState<Segment[] | null>(null);
   const [available, setAvailable] = useState(false);
   const [open, setOpen] = useState(false);
@@ -64,7 +64,12 @@ export function ChipWheelBar() {
     if (spinning || !available) return;
     setSpinning(true);
     try {
-      const res = await fetch("/api/chip-wheel", { method: "POST" });
+      const res = await fetch("/api/chip-wheel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        // The spin credits the wallet of the table you spun from.
+        body: JSON.stringify({ room }),
+      });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Couldn't spin the wheel");
       setPending({
