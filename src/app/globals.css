@@ -23,12 +23,24 @@
    so scoping the override to GameTable's own root (data-room="trilux")
    reskins the whole table with no component changes. */
 [data-room="trilux"] {
-  --felt: #3d0d16;
+  --felt: #5c1522;
   --felt-light: #5c1522;
-  --felt-glow: #7d1f2e;
+  --felt-glow: #5c1522;
   --gold: #c98a3a;
   --gold-bright: #e8b978;
   --gold-dim: #8a5a1f;
+}
+
+/* Trilux felt is FLAT by request: one solid burgundy edge to edge. The
+   classic table's .felt-table gradient ends on a hardcoded dark green
+   (#082418) that isn't variable-driven, which is what made the burgundy
+   bleed green at the rim — overriding background outright sidesteps it.
+   The inset vignette shadows go too (they darkened the edges, which reads
+   as another colour); the outer drop shadow stays so the table still lifts
+   off the page. Classic table keeps its lit-from-above gradient. */
+[data-room="trilux"] .felt-table {
+  background: var(--felt);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.65);
 }
 
 * {

@@ -5,6 +5,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the `VERSION` fi
 
 ---
 
+## [0.51.1] — 2026-08-09
+
+### Fixed
+- **Trilux felt bled green at the outer rim.** `.felt-table`'s radial gradient has four colour
+  stops, but only three were variable-driven — the fourth, `#082418`, was a hardcoded dark green.
+  The v0.51.0 burgundy skin overrode `--felt`/`--felt-light`/`--felt-glow` and left that stop
+  untouched, so the table faded burgundy → green at the edges. The Trilux felt is now flat
+  (`background: var(--felt)`, no gradient), which sidesteps the hardcoded stop entirely rather
+  than patching it; the two `inset` vignette shadows went too, since edge darkening read as a
+  second colour. All three `--felt*` values collapsed to one burgundy so nothing can reintroduce
+  a shade shift. Scoped to `[data-room="trilux"]` — the classic table keeps its gradient.
+
 ## [0.51.0] — 2026-08-09
 
 ### Added
