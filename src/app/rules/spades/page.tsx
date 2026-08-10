@@ -81,6 +81,38 @@ export default function SpadesRulesPage() {
           </p>
         </Section>
 
+        <Section title="Spades Duo — Playing With a Friend" delay={300}>
+          <p>
+            <strong>Spades Duo</strong> seats you and a friend as{" "}
+            <strong>partners</strong> against two bots, rather than you plus a bot partner.
+            The host opens a table and invites a club member; the invite holds their seat for
+            5 minutes.
+          </p>
+          <ul className="mt-2 list-disc space-y-1.5 pl-5">
+            <li>
+              You and your friend sit <strong>across from each other</strong> — partners
+              always face each other, so the two bots play the opposing side.
+            </li>
+            <li>
+              Same rules, same scoring, same variants as the solo game: bid your contract,
+              Nil and Blind Nil are available, bags still bite at ten.
+            </li>
+            <li>
+              <strong>You only ever see your own hand.</strong> Every other seat is redacted
+              to a card count before it leaves the server — no peeking at your partner&apos;s
+              cards, deliberately.
+            </li>
+            <li>
+              A <strong>turn clock</strong> runs during play; if it expires, the hand plays
+              itself so one idle player can&apos;t stall the table.
+            </li>
+          </ul>
+          <p className="mt-2 text-[var(--cream)]/55">
+            No chips are wagered at a Spades table — it&apos;s played for the win, not the
+            bankroll.
+          </p>
+        </Section>
+
         <Section title="Deuces High Variant" delay={320}>
           <p>
             Flip the top-bar toggle and <strong>all four 2s become trump</strong>, ranked

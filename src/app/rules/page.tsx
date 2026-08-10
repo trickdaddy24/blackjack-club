@@ -21,7 +21,18 @@ const GAMES: {
     facts: [
       "3:2 blackjack · dealer stands on all 17s · six decks",
       "Perfect Pairs, 21+3, Lucky Ladies progressive, Dealer Bust bet",
-      "Spanish 21 table, strategy trainer, card counter, floor promotions",
+      "Spanish 21 table, strategy trainer, card counter, pro book (Illustrious 18)",
+    ],
+  },
+  {
+    href: "/rules/trilux",
+    icon: "🔷",
+    name: "Trilux Table",
+    tagline: "The second blackjack table — burgundy felt, its own bankroll, its own side bets",
+    facts: [
+      "Match the Dealer, Trilux Bonus, and the Super4 progressive",
+      "Separate chip bankroll — fund it from your main stack",
+      "Its own daily bonus, chip wheel and property pick",
     ],
   },
   {
@@ -32,7 +43,7 @@ const GAMES: {
     facts: [
       "13 tricks · bid your contract, or go Nil (±100) / Blind Nil (±200)",
       "Contract ×10, overtricks become bags — 10 bags costs 100",
-      "Deuces High variant: all four 2s out-trump the A♠",
+      "Deuces High and Jokers variants · Spades Duo: partner with a friend",
     ],
   },
   {

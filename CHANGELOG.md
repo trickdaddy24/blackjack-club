@@ -5,6 +5,38 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the `VERSION` fi
 
 ---
 
+## [0.54.0] — 2026-08-10
+
+### Added
+- **🎨 Table themes earned with trophies** (issue #12) — seven felts, each with a matching card
+  back, unlocked by achievements: Casino Green (always), Midnight Blue (first hand), Crimson Heat
+  (10-round streak), Royal Purple (100 rounds), Slate & Steel (90%+ blind accuracy), High Roller
+  (100k chips) and Gold Vault (win the progressive). Picked from a palette button above the felt;
+  locked themes stay visible so you can see what a trophy is worth.
+  - Built on the mechanism the Trilux skin proved — override the `--felt*`/`--gold*` custom
+    properties on one wrapper attribute and the whole table reskins with no component changes.
+    Card backs are driven by a new `--card-back*` trio so a theme can't be paired with a
+    clashing back.
+  - **Classic table only** — Trilux keeps its burgundy identity so the two tables stay
+    distinguishable. ⚠️ That's enforced in `GameTable` (it doesn't emit `data-theme` off-classic),
+    **not in CSS**: `[data-theme]` and `[data-room]` have identical specificity and the theme
+    rules come later, so CSS alone would let a theme override Trilux.
+  - Which themes you own comes from the DB (`Achievement` rows, now returned by
+    `/api/game/state`); which one you've picked is localStorage, matching every other table
+    preference. `resolveTheme()` re-checks entitlement on render, so editing localStorage to an
+    unearned theme falls back to the default rather than unlocking it.
+- **Rules for everything shipped in the last four days**, which had no documentation at all:
+  a new **`/rules/trilux`** page (Match the Dealer, Trilux Bonus, Super4, the separate bankroll
+  and per-table daily claims, all rendered from `rulesFor()` so they can't drift), a **pro book**
+  section in `/how-to-play` (Illustrious 18, separate scorecard, classic-table only), and a
+  **Spades Duo** section in `/rules/spades`.
+
+### Fixed
+- **The felt gradient's outer stop was hardcoded `#082418` (dark green)** — the same trap that
+  made the Trilux felt bleed green in v0.51.1. Every new theme inherited it, so Midnight Blue
+  faded navy → green at the rim. It's now `--felt-edge`, defaulted to the original value so the
+  classic table is pixel-identical, and set per theme.
+
 ## [0.53.1] — 2026-08-10
 
 ### Fixed

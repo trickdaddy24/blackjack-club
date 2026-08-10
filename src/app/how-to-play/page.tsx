@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { TopBar } from "@/components/TopBar";
 import { PayTable, Section } from "@/components/rules-ui";
 import { rulesFor } from "@/lib/blackjack/engine";
@@ -182,6 +183,23 @@ export default function HowToPlayPage() {
           </p>
         </Section>
 
+        <Section title="The Trilux Table" delay={370}>
+          <p>
+            The Club has a <strong>second blackjack table</strong>. Same core game — six
+            decks, 3 to 2, dealer stands on all 17s — but a different set of side bets
+            (Match the Dealer, Trilux Bonus, Super4), <strong>its own chip bankroll</strong>{" "}
+            separate from your main stack, and its own daily claims.
+          </p>
+          <p className="mt-2">
+            <Link
+              href="/rules/trilux"
+              className="text-[var(--gold-bright)] underline-offset-4 hover:underline"
+            >
+              Full Trilux table rules and paytables →
+            </Link>
+          </p>
+        </Section>
+
         <Section title="Dealer Bust Bet" delay={372}>
           <p>
             When the dealer's upcard is a <strong>5 or a 6</strong> — their two weakest
@@ -249,6 +267,36 @@ export default function HowToPlayPage() {
               <strong>Multiple hands</strong> — play up to three seats at once, same bet each.
             </li>
           </ul>
+        </Section>
+
+        <Section title="Strategy Trainer & the Pro Book" delay={450}>
+          <p>
+            Two optional coaching layers, both toggled from the icons above the felt:
+          </p>
+          <ul className="mt-2 list-disc space-y-1.5 pl-5">
+            <li>
+              <strong>Strategy guide</strong> (lightbulb) — shows the basic-strategy play for
+              your hand, with a one-line reason. Turn it off to test yourself.
+            </li>
+            <li>
+              <strong>Trainer</strong> (graduation cap) — grades every decision against the
+              book and coaches your mistakes. Only decisions made with the{" "}
+              <strong>guide hidden</strong> count toward your scorecard and the{" "}
+              <strong>Strategy Masters</strong> leaderboard — accuracy has to be earned blind.
+            </li>
+            <li>
+              <strong>Pro book</strong> (calculator) — switches the hint and your blind
+              grading from basic strategy to the <strong>Illustrious 18</strong>, the
+              count-based deviations that beat the book when the true count runs high or low
+              (taking insurance at +3, standing 16 vs 10 on a positive count, and so on).
+            </li>
+          </ul>
+          <p className="mt-2">
+            The pro book keeps a <strong>separate scorecard</strong> from Strategy Masters, so
+            opting in never disturbs your basic-strategy accuracy. It&apos;s{" "}
+            <strong>classic table only</strong> — the published indices assume a 52-card deck
+            and don&apos;t hold for Spanish 21&apos;s ten-less shoe.
+          </p>
         </Section>
 
         <Section title="Daily Bonus & VIP" delay={460}>

@@ -2,13 +2,14 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { ArrowLeftRight, Calculator, Coins, Crown, Eye, EyeOff, Flame, Gift, GraduationCap, HandCoins, Lightbulb, LightbulbOff, Loader2, RotateCcw, Volume2, VolumeX } from "lucide-react";
+import { ArrowLeftRight, Calculator, Palette, Coins, Crown, Eye, EyeOff, Flame, Gift, GraduationCap, HandCoins, Lightbulb, LightbulbOff, Loader2, RotateCcw, Volume2, VolumeX } from "lucide-react";
 import { rulesFor, type ClientView, type PlayerAction, type Room, type Variant } from "@/lib/blackjack/engine";
 import { explainAction, proBookActive, recommendAction } from "@/lib/blackjack/strategy";
 import { PROMO_SCHEDULE, promoStatus, type PromoStatus } from "@/lib/promotions";
 import { PlayingCard } from "@/components/PlayingCard";
 import { sounds } from "@/lib/sound";
 import { onChipsChanged } from "@/lib/chip-events";
+import { DEFAULT_THEME, resolveTheme, THEMES, isUnlocked } from "@/lib/themes";
 
 const CHIP_VALUES = [1, 5, 25, 100, 500, 1000] as const;
 const SIDE_CHIP_VALUES = [1, 5, 25] as const;
@@ -29,6 +30,7 @@ const TRAINER_STATS_KEY = "bj-trainer-stats-v2";
 const TRAINER_STATS_KEY_V1 = "bj-trainer-stats";
 const HAND_HINTS_KEY = "bj-hand-hints";
 const SHOW_SIGN_KEY = "bj-sign";
+const THEME_KEY = "bj-theme";
 // Pro book (#9): opt-in Illustrious 18 count deviations, classic table only.
 const PRO_BOOK_KEY = "bj-pro-book";
 const PRO_BOOK_STATS_KEY = "bj-probook-stats";
@@ -592,6 +594,7 @@ interface TableState {
   winStreak?: number;
   mainChips?: number;
   triluxChips?: number;
+  achievements?: string[];
 }
 
 /** Chip stack catches fire at this many wins in a row. */
@@ -638,6 +641,10 @@ export function GameTable({ room = "classic" }: { room?: Room } = {}) {
   const [mainChips, setMainChips] = useState<number | null>(null);
   const [triluxChips, setTriluxChips] = useState<number | null>(null);
   const [showTransfer, setShowTransfer] = useState(false);
+  /** Earned achievement slugs — gate which themes are pickable. */
+  const [earned, setEarned] = useState<string[]>([]);
+  const [theme, setTheme] = useState<string>(DEFAULT_THEME);
+  const [showThemes, setShowThemes] = useState(false);
   /** Server-tracked consecutive round wins — ≥5 sets the chip stack on fire. */
   const [winStreak, setWinStreak] = useState(0);
   const [bonusAvailable, setBonusAvailable] = useState(false);
@@ -695,6 +702,7 @@ export function GameTable({ room = "classic" }: { room?: Room } = {}) {
     setProBook(localStorage.getItem(PRO_BOOK_KEY) === "1");
     setProBookStats(loadProBookStats());
     setShowSign(localStorage.getItem(SHOW_SIGN_KEY) !== "0");
+    setTheme(localStorage.getItem(THEME_KEY) ?? DEFAULT_THEME);
     try {
       const hh = JSON.parse(localStorage.getItem(HAND_HINTS_KEY) ?? "");
       if (
@@ -727,6 +735,7 @@ export function GameTable({ room = "classic" }: { room?: Room } = {}) {
         setTips(s.dealerTips ?? 0);
         if (typeof s.jackpot === "number") setJackpot(s.jackpot);
         if (typeof s.super4Jackpot === "number") setS4Jackpot(s.super4Jackpot);
+        if (Array.isArray(s.achievements)) setEarned(s.achievements);
         if (s.round) {
           setCount({
             runningCount: s.round.runningCount,
@@ -934,6 +943,8 @@ export function GameTable({ room = "classic" }: { room?: Room } = {}) {
   /** Trophy unlock — one toast per achievement, staggered, with a fanfare. */
   function celebrateUnlocks(unlocked: UnlockedAchievement[] | undefined) {
     if (!unlocked?.length) return;
+    // Make any theme this trophy unlocks selectable without a reload.
+    setEarned((prev) => [...new Set([...prev, ...unlocked.map((a) => a.slug)])]);
     sounds.coins(0.9);
     unlocked.forEach((a, i) => {
       setTimeout(() => {
@@ -1182,6 +1193,12 @@ export function GameTable({ room = "classic" }: { room?: Room } = {}) {
   return (
     <div
       data-room={room}
+      // Themes are CLASSIC-TABLE ONLY, and this is where that's enforced —
+      // NOT in CSS. [data-theme] and [data-room] have equal specificity and
+      // the theme rules come later in globals.css, so emitting both here
+      // would let a theme override Trilux's burgundy. Also resolved against
+      // `earned`, so a hand-edited localStorage value can't unlock a skin.
+      data-theme={room === "classic" ? resolveTheme(theme, earned) : undefined}
       className="mx-auto flex w-full max-w-4xl flex-1 flex-col px-3 pb-6 xl:max-w-6xl xl:flex-row xl:items-stretch xl:gap-5"
     >
       <div className="flex w-full min-w-0 flex-1 flex-col">
@@ -1271,6 +1288,21 @@ export function GameTable({ room = "classic" }: { room?: Room } = {}) {
             </button>
           )}
           {showCount && count && <CountPanel count={count} />}
+          {room === "classic" && (
+            <button
+              onClick={() => {
+                setShowThemes((v) => !v);
+                sounds.chip();
+              }}
+              className={`gold-ring flex h-9 w-9 items-center justify-center rounded-full bg-black/40 transition-colors hover:text-[var(--gold-bright)] ${
+                showThemes ? "text-[var(--gold-bright)]" : "text-[var(--cream)]/60"
+              }`}
+              title="Table themes — felt and card backs earned with trophies"
+              aria-label="Table themes"
+            >
+              <Palette className="h-4 w-4" />
+            </button>
+          )}
           <button
             onClick={() => {
               const next = !showSign;
@@ -1469,6 +1501,19 @@ export function GameTable({ room = "classic" }: { room?: Room } = {}) {
           roundInProgress={!!round && !settled}
           onTransfer={transferChips}
           onClose={() => setShowTransfer(false)}
+        />
+      )}
+
+      {room === "classic" && showThemes && (
+        <ThemePicker
+          selected={resolveTheme(theme, earned)}
+          earned={earned}
+          onPick={(id) => {
+            setTheme(id);
+            localStorage.setItem(THEME_KEY, id);
+            sounds.chip();
+          }}
+          onClose={() => setShowThemes(false)}
         />
       )}
 
@@ -2042,6 +2087,79 @@ function TransferPanel({
           Finish the hand in progress before moving chips.
         </p>
       )}
+    </div>
+  );
+}
+
+/**
+ * Table theme picker. Locked themes stay visible on purpose — seeing what a
+ * trophy would earn you is most of the reason to chase it.
+ */
+function ThemePicker({
+  selected,
+  earned,
+  onPick,
+  onClose,
+}: {
+  selected: string;
+  earned: string[];
+  onPick: (id: string) => void;
+  onClose: () => void;
+}) {
+  return (
+    <div className="fade-up mb-3 rounded-2xl bg-black/35 px-4 py-3 gold-ring">
+      <div className="flex items-center justify-between">
+        <span className="text-[11px] font-semibold uppercase tracking-widest text-[var(--cream)]/60">
+          Table theme
+        </span>
+        <button
+          onClick={onClose}
+          className="text-[11px] text-[var(--cream)]/40 underline-offset-2 hover:underline"
+        >
+          close
+        </button>
+      </div>
+
+      <div className="mt-2 grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+        {THEMES.map((t) => {
+          const unlocked = isUnlocked(t, earned);
+          const active = t.id === selected;
+          return (
+            <button
+              key={t.id}
+              onClick={() => unlocked && onPick(t.id)}
+              disabled={!unlocked}
+              title={unlocked ? t.blurb : `Locked — ${t.blurb}`}
+              className={`flex items-center gap-2 rounded-xl border px-2.5 py-1.5 text-left transition-colors ${
+                active
+                  ? "border-[var(--gold-bright)] bg-[var(--gold)]/15"
+                  : unlocked
+                    ? "border-[var(--gold)]/30 hover:bg-[var(--gold)]/10"
+                    : "cursor-not-allowed border-white/5 opacity-45"
+              }`}
+            >
+              <span
+                aria-hidden
+                className="h-5 w-5 shrink-0 rounded-full ring-1 ring-black/40"
+                style={{ background: t.swatch }}
+              />
+              <span className="min-w-0">
+                <span className="block truncate text-[11px] font-semibold text-[var(--cream)]/85">
+                  {t.name}
+                </span>
+                <span className="block truncate text-[10px] text-[var(--cream)]/45">
+                  {unlocked ? (active ? "in play" : "unlocked") : "🔒 locked"}
+                </span>
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      <p className="mt-2 text-center text-[11px] text-[var(--cream)]/40">
+        Themes are earned with trophies and change the felt and card backs. The Trilux
+        table keeps its own colours.
+      </p>
     </div>
   );
 }

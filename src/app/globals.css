@@ -4,6 +4,10 @@
   --felt: #0c3b2c;
   --felt-light: #145741;
   --felt-glow: #1c6b50;
+  /* Outer rim of the felt gradient. Was hardcoded #082418, which made every
+     re-skin bleed green at the edge (bit the Trilux felt, v0.51.1). Defaults
+     to the original value so the classic table is unchanged. */
+  --felt-edge: #082418;
   --rail: #2b1a10;
   --rail-dark: #180d06;
   --gold: #c9a227;
@@ -41,6 +45,94 @@
 [data-room="trilux"] .felt-table {
   background: var(--felt);
   box-shadow: 0 30px 80px rgba(0, 0, 0, 0.65);
+}
+
+/* ---------------------------------------------------------- themes -- */
+/* Unlockable table themes (src/lib/themes.ts). Same mechanism as the Trilux
+   skin above: override the custom properties every component already styles
+   off, on one wrapper attribute. `--card-back-*` drive the matching card back
+   so a theme can't be paired with a clashing one.
+
+   CLASSIC TABLE ONLY. Do NOT rely on CSS to enforce that: [data-theme] and
+   [data-room] have identical specificity and these rules come LATER, so a
+   theme would override Trilux's burgundy if both attributes were ever set on
+   the same element. The guarantee lives in GameTable, which simply doesn't
+   emit data-theme when room !== "classic". */
+
+:root {
+  /* Card back defaults — the house red. Themes override these three. */
+  --card-back: #571b1e;
+  --card-back-dark: #4a1518;
+  --card-back-glow: rgba(236, 201, 94, 0.16);
+}
+
+[data-theme="midnight"] {
+  --felt-edge: #061224;
+  --felt: #0b1f3b;
+  --felt-light: #123258;
+  --felt-glow: #1b4d80;
+  --card-back: #14243f;
+  --card-back-dark: #0e1a2e;
+  --card-back-glow: rgba(140, 190, 255, 0.18);
+}
+
+[data-theme="crimson"] {
+  --felt-edge: #2b060c;
+  --felt: #4a0d16;
+  --felt-light: #6d1420;
+  --felt-glow: #8f1e2c;
+  --card-back: #6d1420;
+  --card-back-dark: #4a0d16;
+  --card-back-glow: rgba(255, 160, 140, 0.18);
+}
+
+[data-theme="royal"] {
+  --felt-edge: #180828;
+  --felt: #2a1142;
+  --felt-light: #3b1a5c;
+  --felt-glow: #522680;
+  --card-back: #3b1a5c;
+  --card-back-dark: #2a1142;
+  --card-back-glow: rgba(200, 160, 255, 0.18);
+}
+
+[data-theme="slate"] {
+  --felt-edge: #12171e;
+  --felt: #1e2530;
+  --felt-light: #2b3440;
+  --felt-glow: #3d4a5a;
+  --gold: #9aa7b5;
+  --gold-bright: #cfd8e3;
+  --gold-dim: #5e6a78;
+  --card-back: #2b3440;
+  --card-back-dark: #1e2530;
+  --card-back-glow: rgba(207, 216, 227, 0.16);
+}
+
+[data-theme="highroller"] {
+  --felt-edge: #041e1c;
+  --felt: #07332f;
+  --felt-light: #0d4a4a;
+  --felt-glow: #146868;
+  --gold: #c08a2e;
+  --gold-bright: #edc271;
+  --gold-dim: #7d5817;
+  --card-back: #0d4a4a;
+  --card-back-dark: #07332f;
+  --card-back-glow: rgba(237, 194, 113, 0.2);
+}
+
+[data-theme="gold"] {
+  --felt-edge: #241a04;
+  --felt: #3d2c08;
+  --felt-light: #5c4410;
+  --felt-glow: #7d5d18;
+  --gold: #d9b13c;
+  --gold-bright: #f7dd8a;
+  --gold-dim: #96751f;
+  --card-back: #6b5216;
+  --card-back-dark: #4a380d;
+  --card-back-glow: rgba(247, 221, 138, 0.3);
 }
 
 * {
@@ -86,7 +178,7 @@ body::before {
 
 .felt-table {
   background:
-    radial-gradient(ellipse 85% 70% at 50% 30%, var(--felt-glow) 0%, var(--felt-light) 35%, var(--felt) 70%, #082418 100%);
+    radial-gradient(ellipse 85% 70% at 50% 30%, var(--felt-glow) 0%, var(--felt-light) 35%, var(--felt) 70%, var(--felt-edge) 100%);
   box-shadow:
     inset 0 0 90px rgba(0, 0, 0, 0.55),
     inset 0 2px 18px rgba(255, 255, 255, 0.06),
@@ -169,10 +261,12 @@ body::before {
 }
 
 .pcard-back {
+  /* Variable-driven so a theme's card back can't drift from its felt — see
+     the --card-back-* trio in the themes block above. */
   background:
-    radial-gradient(circle at 50% 50%, rgba(236, 201, 94, 0.16) 0%, transparent 65%),
-    repeating-linear-gradient(45deg, #571b1e 0 7px, #4a1518 7px 14px),
-    #571b1e;
+    radial-gradient(circle at 50% 50%, var(--card-back-glow) 0%, transparent 65%),
+    repeating-linear-gradient(45deg, var(--card-back) 0 7px, var(--card-back-dark) 7px 14px),
+    var(--card-back);
   box-shadow:
     0 2px 3px rgba(0, 0, 0, 0.4),
     0 8px 18px rgba(0, 0, 0, 0.35),

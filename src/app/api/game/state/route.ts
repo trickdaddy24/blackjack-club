@@ -49,6 +49,14 @@ export async function GET(req: Request) {
 
   const round = await getActiveRound(userId);
 
+  // Which table themes this player has earned (src/lib/themes.ts). Sent as
+  // slugs so the client can resolve its stored selection — an unearned theme
+  // must never render, and localStorage is client-controlled.
+  const earned = await prisma.achievement.findMany({
+    where: { userId },
+    select: { slug: true },
+  });
+
   // Each table has its own daily allowance, so the button's availability is
   // per-table too — claiming at Trilux mustn't grey out the classic one.
   const bonusAvailable = !alreadyClaimed(
@@ -77,6 +85,7 @@ export async function GET(req: Request) {
     tableMin: currentTableMinimum(),
     dealerTips: user.dealerTips,
     winStreak: user.winStreak,
+    achievements: earned.map((a) => a.slug),
     jackpot: await getLuckyLadiesJackpot(),
     super4Jackpot: await getSuper4Jackpot(),
     hotSeat: await getHotSeatState(),
