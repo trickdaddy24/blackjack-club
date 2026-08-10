@@ -2,28 +2,34 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { vegasDayKey } from "@/lib/leaderboard";
+import { alreadyClaimed, claimField } from "@/lib/claims";
 import { WHEEL_SEGMENTS, rollSegmentIndex, segmentAt } from "@/lib/chip-wheel";
 import { creditData, readBalance, WALLET_SELECT } from "@/lib/wallet";
 import type { Room } from "@/lib/blackjack/engine";
 
 const ROOMS: Room[] = ["classic", "trilux"];
 
+/** Which table this request is for — the two tables have separate allowances. */
+function getRoom(req: Request): Room {
+  return new URL(req.url).searchParams.get("room") === "trilux" ? "trilux" : "classic";
+}
+
 /** GET: the wheel's segments (always) + whether today's spin is still available. */
-export async function GET() {
+export async function GET(req: Request) {
   const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const user = await prisma.user.findUnique({
     where: { id: session.user.id },
-    select: { lastChipWheelSpin: true },
+    select: { lastChipWheelSpin: true, triluxLastChipWheelSpin: true },
   });
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const available =
-    !user.lastChipWheelSpin || vegasDayKey(user.lastChipWheelSpin) !== vegasDayKey();
+    !alreadyClaimed(user[claimField(getRoom(req), "wheel")], "wheel");
 
   return NextResponse.json({
     available,
@@ -52,14 +58,15 @@ export async function POST(req: Request) {
 
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { lastChipWheelSpin: true },
+    select: { lastChipWheelSpin: true, triluxLastChipWheelSpin: true },
   });
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const now = new Date();
-  if (user.lastChipWheelSpin && vegasDayKey(user.lastChipWheelSpin) === vegasDayKey(now)) {
+  const field = claimField(room, "wheel");
+  if (alreadyClaimed(user[field], "wheel", now)) {
     return NextResponse.json(
       { error: "Already spun the wheel today — come back tomorrow" },
       { status: 429 }
@@ -68,8 +75,8 @@ export async function POST(req: Request) {
 
   // CAS on lastChipWheelSpin guards a double-tap from two racing requests.
   const claimed = await prisma.user.updateMany({
-    where: { id: userId, lastChipWheelSpin: user.lastChipWheelSpin },
-    data: { lastChipWheelSpin: now },
+    where: { id: userId, [field]: user[field] },
+    data: { [field]: now },
   });
   if (claimed.count === 0) {
     return NextResponse.json(

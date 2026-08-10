@@ -7,6 +7,7 @@ import { getActiveRound, getLuckyLadiesJackpot, getSuper4Jackpot, parseRoundStat
 import { currentTableMinimum } from "@/lib/tableMinimum";
 import { getHotSeatState, maybeTriggerHotSeat } from "@/lib/hotseat-io";
 import { readBalance, WALLET_SELECT } from "@/lib/wallet";
+import { alreadyClaimed, claimField } from "@/lib/claims";
 
 export async function GET(req: Request) {
   const session = await auth();
@@ -36,6 +37,7 @@ export async function GET(req: Request) {
     select: {
       ...WALLET_SELECT,
       lastDailyBonus: true,
+      triluxLastDailyBonus: true,
       name: true,
       dealerTips: true,
       winStreak: true,
@@ -47,9 +49,12 @@ export async function GET(req: Request) {
 
   const round = await getActiveRound(userId);
 
-  const now = Date.now();
-  const last = user.lastDailyBonus?.getTime() ?? 0;
-  const bonusAvailable = now - last >= 24 * 60 * 60 * 1000;
+  // Each table has its own daily allowance, so the button's availability is
+  // per-table too — claiming at Trilux mustn't grey out the classic one.
+  const bonusAvailable = !alreadyClaimed(
+    user[claimField(clientRoom, "daily")],
+    "daily"
+  );
 
   let roundView = null;
   if (round) {

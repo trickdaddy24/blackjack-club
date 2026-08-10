@@ -32,7 +32,7 @@ export function PropertyBonusBar({ room = "classic" }: { room?: "classic" | "tri
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch("/api/property-bonus");
+      const res = await fetch(`/api/property-bonus?room=${room}`);
       if (!res.ok) return;
       const data = (await res.json()) as { available: boolean; properties: PropertySummary[] };
       setProperties(data.properties);

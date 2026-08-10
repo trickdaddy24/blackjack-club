@@ -5,6 +5,34 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the `VERSION` fi
 
 ---
 
+## [0.53.0] — 2026-08-10
+
+### Added
+- **🎰 Trilux gets its own daily claims.** The daily bonus, chip wheel and property pick each
+  have per-table allowances now (`triluxLastDailyBonus`/`triluxLastChipWheelSpin`/
+  `triluxLastPropertyPick`), so claiming at Trilux no longer consumes the main table's. Without
+  this the Trilux bankroll had no organic funding at all and could only be filled by transfers.
+  `src/lib/claims.ts` owns the room→column mapping, same chokepoint shape as `lib/wallet.ts`.
+  - ⚠️ This roughly **doubles the daily free-chip faucet** for players who use both tables —
+    a deliberate trade for making the second bankroll self-funding. Worth watching alongside the
+    chip-inflation note from v0.44.0.
+  - **`loginStreak` stays account-wide** and advances on the *first* daily-bonus claim of a Vegas
+    day at either table. The second table's claim that day still pays but must not advance it
+    again, or two tables would inflate the streak at double speed. The "was it yesterday?"
+    comparison runs against the most recent claim across both tables, so alternating tables day
+    to day still reads as one continuous run.
+
+### Changed
+- **Nav is grouped by game instead of a flat list of modes.** It previously read
+  "Table / Trilux / Duo / Tournaments / Spades Duo", where *four of those five are blackjack* and
+  none of them said so — "Table" was vague and "Trilux" told a new player nothing. Now a
+  **Blackjack ▾** dropdown holds Classic / Trilux / Duo / Tournaments, with Cards, Board and
+  Arcade alongside it.
+- **New `src/lib/games.ts` registry** is the single source for the nav (and, next, the lobby), so
+  the two can't drift as games are added. Delivers the core of GitHub #15; adding a game is now
+  one array entry. CSS-only dropdowns (hover + `focus-within`) keep `TopBar` a server component
+  and keyboard-reachable.
+
 ## [0.52.0] — 2026-08-09
 
 ### Added

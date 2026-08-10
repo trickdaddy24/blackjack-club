@@ -7,6 +7,7 @@ import { effectivePromo } from "@/lib/promotions";
 import { vegasDayKey } from "@/lib/leaderboard";
 import { tierByNumber } from "@/lib/vip";
 import { creditData, readBalance, WALLET_SELECT } from "@/lib/wallet";
+import { alreadyClaimed, claimField, latestClaim, shouldAdvanceStreak } from "@/lib/claims";
 import type { Room } from "@/lib/blackjack/engine";
 
 const ROOMS: Room[] = ["classic", "trilux"];
@@ -40,16 +41,28 @@ export async function POST(req: Request) {
   }
 
   const now = new Date();
-  const last = user.lastDailyBonus?.getTime() ?? 0;
-  const dailyAvailable = now.getTime() - last >= 24 * 60 * 60 * 1000;
+  // Each table has its own daily allowance, so claiming at Trilux doesn't
+  // consume the main table's (and vice versa).
+  const thisTableLast = user[claimField(room, "daily")];
+  const dailyAvailable = !alreadyClaimed(thisTableLast, "daily", now);
 
   if (dailyAvailable) {
     // Login streak on the Vegas calendar: claiming on consecutive PT days
-    // grows it; skipping a day resets to 1.
+    // grows it; skipping a day resets to 1. It's an ACCOUNT-wide streak, so it
+    // advances on the first claim of the day at EITHER table — the second
+    // table's claim still pays out but must not double-advance it. The
+    // "was it yesterday?" comparison runs against the most recent claim across
+    // both tables, so alternating tables day to day still reads as a run.
     const DAY_MS = 24 * 60 * 60 * 1000;
-    const lastKey = user.lastDailyBonus ? vegasDayKey(user.lastDailyBonus) : null;
+    const anyLast = latestClaim(user.lastDailyBonus, user.triluxLastDailyBonus);
+    const advance = shouldAdvanceStreak(user.lastDailyBonus, user.triluxLastDailyBonus, now);
+    const lastKey = anyLast ? vegasDayKey(anyLast) : null;
     const yesterdayKey = vegasDayKey(new Date(now.getTime() - DAY_MS));
-    const streak = lastKey === yesterdayKey ? user.loginStreak + 1 : 1;
+    const streak = advance
+      ? lastKey === yesterdayKey
+        ? user.loginStreak + 1
+        : 1
+      : user.loginStreak;
     const boost = Math.min(streak - 1, STREAK_BOOST_CAP_DAYS) * STREAK_BOOST_PER_DAY;
 
     // Midnight Madness doubles the whole thing while it runs
@@ -63,7 +76,7 @@ export async function POST(req: Request) {
       where: { id: userId },
       data: {
         ...creditData(room, granted),
-        lastDailyBonus: now,
+        [claimField(room, "daily")]: now,
         loginStreak: streak,
       },
       select: WALLET_SELECT,

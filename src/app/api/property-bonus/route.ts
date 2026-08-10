@@ -2,28 +2,34 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { vegasDayKey } from "@/lib/leaderboard";
+import { alreadyClaimed, claimField } from "@/lib/claims";
 import { PROPERTY_CATALOG, findProperty, rollPropertyAmount } from "@/lib/property-bonus";
 import { creditData, readBalance, WALLET_SELECT } from "@/lib/wallet";
 import type { Room } from "@/lib/blackjack/engine";
 
 const ROOMS: Room[] = ["classic", "trilux"];
 
+/** Which table this request is for — the two tables have separate allowances. */
+function getRoom(req: Request): Room {
+  return new URL(req.url).searchParams.get("room") === "trilux" ? "trilux" : "classic";
+}
+
 /** GET: today's property catalog + whether the pick is still available. */
-export async function GET() {
+export async function GET(req: Request) {
   const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const user = await prisma.user.findUnique({
     where: { id: session.user.id },
-    select: { lastPropertyPick: true },
+    select: { lastPropertyPick: true, triluxLastPropertyPick: true },
   });
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const available =
-    !user.lastPropertyPick || vegasDayKey(user.lastPropertyPick) !== vegasDayKey();
+    !alreadyClaimed(user[claimField(getRoom(req), "property")], "property");
 
   return NextResponse.json({
     available,
@@ -56,14 +62,15 @@ export async function POST(req: Request) {
 
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { lastPropertyPick: true },
+    select: { lastPropertyPick: true, triluxLastPropertyPick: true },
   });
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const now = new Date();
-  if (user.lastPropertyPick && vegasDayKey(user.lastPropertyPick) === vegasDayKey(now)) {
+  const field = claimField(room, "property");
+  if (alreadyClaimed(user[field], "property", now)) {
     return NextResponse.json(
       { error: "Already picked a property today — come back tomorrow" },
       { status: 429 }
@@ -72,8 +79,8 @@ export async function POST(req: Request) {
 
   // CAS on lastPropertyPick guards a double-claim from two racing taps.
   const claimed = await prisma.user.updateMany({
-    where: { id: userId, lastPropertyPick: user.lastPropertyPick },
-    data: { lastPropertyPick: now },
+    where: { id: userId, [field]: user[field] },
+    data: { [field]: now },
   });
   if (claimed.count === 0) {
     return NextResponse.json(

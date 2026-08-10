@@ -46,7 +46,7 @@ export function ChipWheelBar({ room = "classic" }: { room?: "classic" | "trilux"
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch("/api/chip-wheel");
+      const res = await fetch(`/api/chip-wheel?room=${room}`);
       if (!res.ok) return;
       const data = (await res.json()) as { available: boolean; segments: Segment[] };
       setSegments(data.segments);

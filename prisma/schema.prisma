@@ -46,6 +46,15 @@ model User {
   // Last Vegas day the chip wheel was spun — independent of, and stacks
   // alongside, the flat daily bonus and the property-pick bonus.
   lastChipWheelSpin DateTime?
+  // Per-table daily claims. The Trilux bankroll is independent, so it gets its
+  // own once-a-day allowances rather than sharing the main table's — otherwise
+  // the second wallet has no organic funding and can only be filled by
+  // transfers. See lib/claims.ts for the room -> column mapping.
+  // NOTE: loginStreak stays account-wide and advances on the FIRST daily-bonus
+  // claim of a Vegas day at either table, not once per table.
+  triluxLastDailyBonus   DateTime?
+  triluxLastChipWheelSpin DateTime?
+  triluxLastPropertyPick  DateTime?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
