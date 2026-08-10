@@ -5,6 +5,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the `VERSION` fi
 
 ---
 
+## [0.53.1] — 2026-08-10
+
+### Fixed
+- **The new grouped nav was unopenable on iPhone.** v0.53.0's dropdowns were CSS-only
+  (`group-hover:` with `group-focus-within:` as the fallback) to keep `TopBar` a server
+  component. That combination is dead on iOS: there's no hover on a touchscreen, and **Safari
+  does not focus `<button>` elements when tapped**, so the focus fallback never fired either.
+  Replaced with a small `"use client"` component driven by explicit click state
+  (`src/components/GameMenu.tsx`) — a tap is a click, so touch, mouse and keyboard all behave
+  the same. Adds `aria-expanded`, Escape-to-close and tap-outside-to-close, which the CSS
+  version never had. `TopBar` remains a server component and just renders it.
+- **The nav had no responsive handling at all** and overflowed a phone viewport — four category
+  dropdowns plus Gym/Leaders/Rules/username in one flex row. Below `sm` the whole thing now
+  collapses into a hamburger panel with the games grouped by category; the desktop bar is
+  unchanged. (The pre-v0.53.0 nav had `hidden sm:inline` guards that the rewrite dropped.)
+
 ## [0.53.0] — 2026-08-10
 
 ### Added
