@@ -5,6 +5,26 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the `VERSION` fi
 
 ---
 
+## [0.55.0] — 2026-08-10
+
+### Added
+- **🔷 The Trilux table has its own leaderboard page** at `/leaderboard/trilux`, split out from
+  the single tab it had on the club board. Four boards instead of one:
+  **All Time** (net at Trilux), **Today** and **This Week** (Vegas-clock windows, previously
+  club-wide only), and **Biggest Bankroll** — a High Rollers equivalent ranking `triluxChips`,
+  which only became meaningful once the Trilux bankroll became a real separate wallet in v0.52.0.
+- Shared row rendering extracted to **`src/components/leaderboard-ui.tsx`** (`BoardList`,
+  `RankBadge`, `RowData`, `fmtNet`, `netClass`, `TOP_N`) so both pages render identically —
+  duplicating it would have been ~80 lines destined to drift.
+
+### Changed
+- The club leaderboard's **Trilux Table tab is gone**, replaced by a link across to the new page.
+  **Today** and **This Week** there are club-wide again (both tables), which is what they always
+  read as — the Trilux-scoped versions now live on the Trilux page.
+- Every net board still filters `Round.room`, never a chip balance. That's why these numbers were
+  correct even before the bankrolls were separate; **Biggest Bankroll** is the sole board that
+  reads a balance.
+
 ## [0.54.0] — 2026-08-10
 
 ### Added

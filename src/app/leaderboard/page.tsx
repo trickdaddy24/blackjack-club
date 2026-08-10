@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Crown, Medal } from "lucide-react";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { TopBar } from "@/components/TopBar";
@@ -12,119 +11,22 @@ import {
 } from "@/lib/leaderboard";
 import { ensureChampions, latestChampions } from "@/lib/champions";
 import { totalWorth, WALLET_SELECT } from "@/lib/wallet";
+import { BoardList, fmtNet, netClass, TOP_N, type RowData } from "@/components/leaderboard-ui";
 
 export const metadata = {
   title: "Leaderboard — Blackjack Club",
 };
 
-const TOP_N = 10;
 
-type Board = "stacks" | "today" | "week" | "masters" | "trilux";
+type Board = "stacks" | "today" | "week" | "masters";
 
 const TABS: { id: Board; label: string }[] = [
   { id: "stacks", label: "High Rollers" },
   { id: "today", label: "Today" },
   { id: "week", label: "This Week" },
   { id: "masters", label: "Strategy Masters" },
-  { id: "trilux", label: "Trilux Table" },
 ];
 
-function RankBadge({ rank }: { rank: number }) {
-  if (rank === 1) return <Crown className="h-5 w-5 text-[var(--gold-bright)]" fill="currentColor" />;
-  if (rank === 2) return <Medal className="h-5 w-5 text-slate-300" />;
-  if (rank === 3) return <Medal className="h-5 w-5 text-amber-600" />;
-  return <span className="font-mono text-sm text-[var(--cream)]/50 tabular-nums">{rank}</span>;
-}
-
-interface RowData {
-  id: string;
-  name: string;
-  /** Right-hand number (chips, net, or accuracy). */
-  value: string;
-  valueClass?: string;
-  /** Small middle detail (member-since, rounds played, decision volume). */
-  detail?: string;
-  /** Achievements unlocked — rendered as a 🏆 chip after the name. */
-  trophies?: number;
-}
-
-function BoardList({
-  rows,
-  meRow,
-  myRank,
-  userId,
-}: {
-  rows: RowData[];
-  meRow: RowData | null;
-  myRank: number | null;
-  userId: string;
-}) {
-  const render = (r: RowData, rank: number) => {
-    const isMe = r.id === userId;
-    return (
-      <li
-        key={`${r.id}-${rank}`}
-        className={`flex items-center gap-4 px-5 py-3 ${
-          isMe ? "bg-[var(--gold)]/10 shadow-[inset_2px_0_0_var(--gold)]" : ""
-        }`}
-      >
-        <span className="flex w-8 items-center justify-center">
-          <RankBadge rank={rank} />
-        </span>
-        <span className="flex-1 truncate font-display font-semibold text-[var(--cream)]/90">
-          <Link
-            href={isMe ? "/profile" : `/player/${r.id}`}
-            className="underline-offset-4 hover:text-[var(--gold-bright)] hover:underline"
-          >
-            {r.name}
-          </Link>
-          {(r.trophies ?? 0) > 0 && (
-            <span className="ml-2 rounded-full bg-black/30 px-1.5 py-0.5 text-[10px] font-semibold text-[var(--cream)]/60">
-              🏆 {r.trophies}
-            </span>
-          )}
-          {isMe && (
-            <span className="ml-2 rounded bg-[var(--gold)]/20 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[var(--gold-bright)]">
-              you
-            </span>
-          )}
-        </span>
-        {r.detail && (
-          <span className="hidden text-xs text-[var(--cream)]/40 sm:block">{r.detail}</span>
-        )}
-        <span
-          className={`font-display text-lg font-bold tabular-nums ${r.valueClass ?? "gold-text"}`}
-        >
-          {r.value}
-        </span>
-      </li>
-    );
-  };
-
-  return (
-    <ul
-      className="fade-up gold-ring mt-6 divide-y divide-[var(--gold)]/10 overflow-hidden rounded-2xl bg-black/25"
-      style={{ animationDelay: "120ms" }}
-    >
-      {rows.length === 0 && (
-        <li className="px-5 py-8 text-center text-sm text-[var(--cream)]/40">
-          Nobody has qualified yet — the board is wide open.
-        </li>
-      )}
-      {rows.map((r, i) => render(r, i + 1))}
-      {meRow && myRank !== null && (
-        <>
-          <li className="px-5 py-1.5 text-center text-xs text-[var(--cream)]/30">···</li>
-          {render(meRow, myRank)}
-        </>
-      )}
-    </ul>
-  );
-}
-
-const fmtNet = (n: number) => `${n > 0 ? "+" : ""}${n.toLocaleString()}`;
-const netClass = (n: number) =>
-  n > 0 ? "gold-text" : n < 0 ? "text-red-300/90" : "text-[var(--cream-dim)]";
 
 export default async function LeaderboardPage({
   searchParams,
@@ -193,19 +95,18 @@ export default async function LeaderboardPage({
       const mine = roundsByUser.get(userId) ?? 0;
       callout = `You've played ${mine} of the ${MIN_ROUNDS_TO_RANK} rounds needed to rank High Rollers.`;
     }
-  } else if (board === "today" || board === "week" || board === "trilux") {
-    const start = board === "today" ? vegasDayStart() : board === "week" ? vegasWeekStart() : null;
+  } else if (board === "today" || board === "week") {
+    const start = board === "today" ? vegasDayStart() : vegasWeekStart();
     subtitle =
       board === "today"
         ? "Net winnings since midnight, Vegas time — side bets and jackpots included"
-        : board === "week"
-          ? "Net winnings since Monday midnight, Vegas time"
-          : "All-time net at the Trilux table — Match the Dealer, Trilux Bonus, and Lucky Ladies included";
+        : "Net winnings since Monday midnight, Vegas time";
+    // Club-wide: both tables count. Trilux-only boards live at
+    // /leaderboard/trilux.
     const rounds = await prisma.round.findMany({
       where: {
         status: "settled",
-        ...(start ? { settledAt: { gte: start } } : {}),
-        ...(board === "trilux" ? { room: "trilux" } : {}),
+        settledAt: { gte: start },
       },
       select: {
         userId: true,
@@ -247,8 +148,7 @@ export default async function LeaderboardPage({
       meRow = toRow(ranked[myIdx]);
     } else if (myIdx === -1 && byUser.has(userId)) {
       const mine = byUser.get(userId)!;
-      const windowLabel =
-        board === "today" ? "today" : board === "week" ? "this week" : "at the Trilux table";
+      const windowLabel = board === "today" ? "today" : "this week";
       callout = `You've played ${mine.count} of the ${MIN_ROUNDS_TO_RANK} rounds needed to rank ${windowLabel} (running ${fmtNet(mine.net)}).`;
     }
     if (biggest) {
@@ -338,6 +238,18 @@ export default async function LeaderboardPage({
             </Link>
           ))}
         </nav>
+
+        <p
+          className="fade-up mt-3 text-center text-xs text-[var(--cream)]/45"
+          style={{ animationDelay: "70ms" }}
+        >
+          <Link
+            href="/leaderboard/trilux"
+            className="text-[var(--gold-bright)]/80 underline-offset-4 hover:underline"
+          >
+            🔷 Trilux table has its own leaderboards →
+          </Link>
+        </p>
 
         {(champions.daily || champions.weekly) && (
           <p
