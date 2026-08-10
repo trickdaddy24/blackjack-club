@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Menu, X } from "lucide-react";
-import { activeCategories, gamesIn, type GameCategory } from "@/lib/games";
+import { activeCategories, gamesIn } from "@/lib/games";
 
 // Why this is a client component rather than the CSS-only version it replaced:
 //
@@ -46,11 +46,30 @@ function useDismiss(open: boolean, close: () => void) {
   return ref;
 }
 
-/** One category dropdown in the desktop bar. */
-function CategoryMenu({ category }: { category: GameCategory }) {
+export interface NavItem {
+  href: string;
+  label: string;
+  /** Tooltip / one-line description. */
+  blurb?: string;
+}
+
+/**
+ * One dropdown in the desktop bar. Generic over its items so the same
+ * component backs both the game categories and the Leaders menu — the games
+ * version just feeds it entries from the registry.
+ */
+export function NavDropdown({
+  label,
+  items,
+  align = "left",
+}: {
+  label: string;
+  items: NavItem[];
+  /** Right-align the panel for menus near the end of the bar. */
+  align?: "left" | "right";
+}) {
   const [open, setOpen] = useState(false);
   const ref = useDismiss(open, () => setOpen(false));
-  const entries = gamesIn(category, true);
 
   return (
     <div ref={ref} className="relative">
@@ -63,7 +82,7 @@ function CategoryMenu({ category }: { category: GameCategory }) {
           open ? "text-[var(--gold-bright)]" : "text-[var(--cream)]/70 hover:text-[var(--gold-bright)]"
         }`}
       >
-        {category}
+        {label}
         <span
           aria-hidden
           className={`text-[9px] leading-none opacity-60 transition-transform ${open ? "rotate-180" : ""}`}
@@ -72,17 +91,19 @@ function CategoryMenu({ category }: { category: GameCategory }) {
         </span>
       </button>
       {open && (
-        <div className="absolute left-0 top-full z-50 pt-2">
+        <div
+          className={`absolute top-full z-50 pt-2 ${align === "right" ? "right-0" : "left-0"}`}
+        >
           <div className={PANEL}>
-            {entries.map((g) => (
+            {items.map((it) => (
               <Link
-                key={g.href}
-                href={g.href}
-                title={g.blurb}
+                key={it.href}
+                href={it.href}
+                title={it.blurb}
                 onClick={() => setOpen(false)}
                 className={ITEM}
               >
-                {g.label}
+                {it.label}
               </Link>
             ))}
           </div>
@@ -97,7 +118,15 @@ export function GameMenus() {
   return (
     <>
       {activeCategories(true).map((cat) => (
-        <CategoryMenu key={cat} category={cat} />
+        <NavDropdown
+          key={cat}
+          label={cat}
+          items={gamesIn(cat, true).map((g) => ({
+            href: g.href,
+            label: g.label,
+            blurb: g.blurb,
+          }))}
+        />
       ))}
     </>
   );

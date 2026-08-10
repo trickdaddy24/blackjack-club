@@ -1,12 +1,12 @@
 import Link from "next/link";
-import { Dumbbell, HelpCircle, Shield, Spade, LogOut, Trophy, User } from "lucide-react";
+import { Dumbbell, HelpCircle, Shield, Spade, LogOut, User } from "lucide-react";
 import { auth } from "@/auth";
 import { logout } from "@/lib/actions";
 import { InviteBell } from "@/components/InviteBell";
 import { SpadesInviteBell } from "@/components/SpadesInviteBell";
 import { HotSeatWatcher } from "@/components/HotSeatWatcher";
 import { VoucherBadge } from "@/components/VoucherBadge";
-import { GameMenus, MobileNav } from "@/components/GameMenu";
+import { GameMenus, MobileNav, NavDropdown } from "@/components/GameMenu";
 
 export async function TopBar() {
   const session = await auth();
@@ -34,7 +34,8 @@ export async function TopBar() {
             <MobileNav
               extra={[
                 { href: "/gym", label: "Counting Gym" },
-                { href: "/leaderboard", label: "Leaderboard" },
+                { href: "/leaderboard", label: "Club Leaderboards" },
+                { href: "/leaderboard/trilux", label: "Trilux Leaderboard" },
                 { href: "/rules", label: "House Rules" },
                 { href: "/profile", label: "Profile" },
                 // Admin isn't listed here on purpose — its red shield stays
@@ -63,14 +64,26 @@ export async function TopBar() {
               <Dumbbell className="h-3.5 w-3.5" />
               <span className="hidden md:inline">Gym</span>
             </Link>
-            <Link
-              href="/leaderboard"
-              className="hidden items-center gap-1.5 uppercase tracking-widest text-[var(--cream)]/70 transition-colors hover:text-[var(--gold-bright)] sm:flex"
-              title="Top chip stacks"
-            >
-              <Trophy className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Leaders</span>
-            </Link>
+            {/* Leaders is a dropdown for the same reason the games are: the
+                Trilux table has its own boards, and a buried in-page link
+                made them undiscoverable. */}
+            <div className="hidden items-center sm:flex">
+              <NavDropdown
+                label="Leaders"
+                items={[
+                  {
+                    href: "/leaderboard",
+                    label: "Club Leaderboards",
+                    blurb: "High Rollers, Today, This Week, Strategy Masters",
+                  },
+                  {
+                    href: "/leaderboard/trilux",
+                    label: "Trilux Table",
+                    blurb: "All Time, Today, This Week, Biggest Bankroll — Trilux only",
+                  },
+                ]}
+              />
+            </div>
             <Link
               href="/rules"
               className="hidden items-center gap-1.5 uppercase tracking-widest text-[var(--cream)]/70 transition-colors hover:text-[var(--gold-bright)] sm:flex"

@@ -10,13 +10,15 @@ export const metadata = {
   title: "Trilux Leaderboard — Blackjack Club",
 };
 
-type Board = "net" | "today" | "week" | "bankroll";
+type Board = "bankroll" | "today" | "week" | "net";
 
+// Mirrors the club board: same names, same order, High Rollers first and
+// default. "All Time" is the one extra — the club has no all-time net board.
 const TABS: { id: Board; label: string }[] = [
-  { id: "net", label: "All Time" },
+  { id: "bankroll", label: "High Rollers" },
   { id: "today", label: "Today" },
   { id: "week", label: "This Week" },
-  { id: "bankroll", label: "Biggest Bankroll" },
+  { id: "net", label: "All Time" },
 ];
 
 /**
@@ -38,7 +40,7 @@ export default async function TriluxLeaderboardPage({
   const userId = session.user.id;
 
   const { board: boardParam } = await searchParams;
-  const board: Board = (TABS.find((t) => t.id === boardParam)?.id ?? "net") as Board;
+  const board: Board = (TABS.find((t) => t.id === boardParam)?.id ?? "bankroll") as Board;
 
   let rows: RowData[] = [];
   let meRow: RowData | null = null;
@@ -47,25 +49,41 @@ export default async function TriluxLeaderboardPage({
   let callout: string | null = null;
 
   if (board === "bankroll") {
-    subtitle = `The deepest Trilux bankrolls — chips currently sitting at this table`;
-    const players = await prisma.user.findMany({
-      where: { triluxChips: { gt: 0 } },
-      select: { id: true, name: true, triluxChips: true },
-      orderBy: [{ triluxChips: "desc" }],
-    });
+    subtitle = `The biggest Trilux bankrolls — all time (${MIN_ROUNDS_TO_RANK}+ Trilux rounds to qualify)`;
+    // Same qualification gate as the club's High Rollers, and for the same
+    // reason: a bankroll can be filled by transferring chips across, so
+    // without a rounds requirement someone could top this board without
+    // ever playing a hand here.
+    const [players, roundCounts] = await Promise.all([
+      prisma.user.findMany({
+        where: { triluxChips: { gt: 0 } },
+        select: { id: true, name: true, triluxChips: true },
+        orderBy: [{ triluxChips: "desc" }],
+      }),
+      prisma.round.groupBy({
+        by: ["userId"],
+        where: { status: "settled", room: "trilux" },
+        _count: true,
+      }),
+    ]);
+    const triluxRounds = new Map(roundCounts.map((r) => [r.userId, r._count]));
+    const qualified = players.filter(
+      (u) => (triluxRounds.get(u.id) ?? 0) >= MIN_ROUNDS_TO_RANK
+    );
     const toRow = (u: (typeof players)[number]): RowData => ({
       id: u.id,
       name: u.name ?? "Player",
       value: u.triluxChips.toLocaleString(),
+      detail: `${(triluxRounds.get(u.id) ?? 0).toLocaleString()} rounds`,
     });
-    rows = players.slice(0, TOP_N).map(toRow);
-    const myIdx = players.findIndex((u) => u.id === userId);
+    rows = qualified.slice(0, TOP_N).map(toRow);
+    const myIdx = qualified.findIndex((u) => u.id === userId);
     if (myIdx >= TOP_N) {
       myRank = myIdx + 1;
-      meRow = toRow(players[myIdx]);
+      meRow = toRow(qualified[myIdx]);
     } else if (myIdx === -1) {
-      callout =
-        "You haven't moved any chips across yet — use the Chips button at the Trilux table to fund a bankroll.";
+      const mine = triluxRounds.get(userId) ?? 0;
+      callout = `You've played ${mine} of the ${MIN_ROUNDS_TO_RANK} Trilux rounds needed to rank High Rollers here.`;
     }
   } else {
     const start =
@@ -151,7 +169,7 @@ export default async function TriluxLeaderboardPage({
       <main className="mx-auto w-full max-w-2xl flex-1 px-4 pb-16">
         <div className="fade-up mt-8 text-center">
           <h1 className="font-display text-3xl font-bold tracking-wide gold-text">
-            🔷 Trilux Leaderboard
+            Trilux Leaderboard
           </h1>
           <p className="mt-1 text-sm text-[var(--cream)]/50">{subtitle}</p>
         </div>
@@ -163,7 +181,7 @@ export default async function TriluxLeaderboardPage({
           {TABS.map((t) => (
             <Link
               key={t.id}
-              href={t.id === "net" ? "/leaderboard/trilux" : `/leaderboard/trilux?board=${t.id}`}
+              href={t.id === "bankroll" ? "/leaderboard/trilux" : `/leaderboard/trilux?board=${t.id}`}
               className={`rounded-full px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wider transition-colors ${
                 board === t.id
                   ? "bg-[var(--gold)]/25 text-[var(--gold-bright)]"

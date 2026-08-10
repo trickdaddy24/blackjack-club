@@ -5,6 +5,30 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the `VERSION` fi
 
 ---
 
+## [0.56.0] — 2026-08-10
+
+### Added
+- **Leaders is a dropdown in the nav** — Club Leaderboards / Trilux Table — matching the game
+  menus. v0.55.0 shipped the Trilux boards with only an in-page cross-link, which left them
+  effectively undiscoverable. The dropdown was generalised out of the existing game-category
+  component (`NavDropdown`) rather than written twice, so both use the same click-state
+  implementation and behave identically on touch.
+
+### Changed
+- **The Trilux leaderboard mirrors the club board.** It shipped in v0.55.0 as
+  "All Time / Today / This Week / Biggest Bankroll" — the same concepts as the club board under
+  different names and in a different order. Now: **High Rollers** (first and default, biggest
+  Trilux bankroll), **Today**, **This Week**, **All Time**. Title dropped its emoji to match the
+  club board's plain style.
+
+### Fixed
+- **The Trilux High Rollers board could be topped without playing.** Mirroring the club board
+  surfaced that its High Rollers requires **10+ rounds to qualify**, specifically so free
+  daily-claim chips can't out-rank real players — and the Trilux bankroll board shipped with no
+  such gate. Since a Trilux bankroll is funded by *transferring chips across*, anyone could have
+  ranked first without playing a single hand there. It now carries the same 10-round gate
+  (counting Trilux rounds only) and shows each player's round count.
+
 ## [0.55.0] — 2026-08-10
 
 ### Added
