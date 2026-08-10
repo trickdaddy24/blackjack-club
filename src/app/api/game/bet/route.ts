@@ -16,10 +16,12 @@ import {
   getLuckyLadiesJackpot,
   getPreviousCarry,
   getPromoOverride,
+  getSuper4Jackpot,
   MAX_BET,
   MAX_SIDE_BET,
   roundStatus,
   settleLuckyLadiesPot,
+  settleSuper4Pot,
 } from "@/lib/game";
 import { withHint } from "@/lib/blackjack/strategy";
 import { currentTableMinimum } from "@/lib/tableMinimum";
@@ -50,6 +52,7 @@ export async function POST(req: Request) {
   let luckyLadies: unknown;
   let matchTheDealer: unknown;
   let triluxBonus: unknown;
+  let super4: unknown;
   let proBook: unknown;
   try {
     ({
@@ -63,6 +66,7 @@ export async function POST(req: Request) {
       luckyLadies,
       matchTheDealer,
       triluxBonus,
+      super4,
       proBook,
     } = await req.json());
   } catch {
@@ -149,6 +153,19 @@ export async function POST(req: Request) {
     );
   }
 
+  const s4 = super4 === undefined ? 0 : super4;
+  if (
+    typeof s4 !== "number" ||
+    !Number.isInteger(s4) ||
+    s4 < 0 ||
+    s4 > MAX_SIDE_BET
+  ) {
+    return NextResponse.json(
+      { error: `Super4 bet must be 0 to ${MAX_SIDE_BET}` },
+      { status: 400 }
+    );
+  }
+
   const seats = hands === undefined ? 1 : hands;
   if (typeof seats !== "number" || !Number.isInteger(seats) || seats < 1 || seats > MAX_SEATS) {
     return NextResponse.json(
@@ -175,6 +192,7 @@ export async function POST(req: Request) {
   const tpBet = tableRoom === "trilux" ? 0 : tp;
   const mtdBet = tableRoom === "trilux" ? mtd : 0;
   const tbBet = tableRoom === "trilux" ? tb : 0;
+  const s4Bet = tableRoom === "trilux" ? s4 : 0;
 
   const botCount = bots === undefined ? 0 : bots;
   if (
@@ -201,7 +219,7 @@ export async function POST(req: Request) {
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  if (user.chips < (bet + ppBet + tpBet + ll + mtdBet + tbBet) * seats) {
+  if (user.chips < (bet + ppBet + tpBet + ll + mtdBet + tbBet + s4Bet) * seats) {
     return NextResponse.json({ error: "Not enough chips" }, { status: 400 });
   }
 
@@ -220,6 +238,7 @@ export async function POST(req: Request) {
     luckyLadies: ll,
     matchTheDealer: mtdBet,
     triluxBonus: tbBet,
+    super4: s4Bet,
     promo: promo?.id ?? null,
   });
   const settled = state.phase === "settled";
@@ -235,6 +254,17 @@ export async function POST(req: Request) {
         )
       : { won: 0, pot: await getLuckyLadiesJackpot() };
 
+  // Super4 pot: unlike Lucky Ladies, the dealer's own two cards (and thus
+  // the jackpot tier) are already fully known right here — no need to wait
+  // for settle. Paid + reseeded exactly once, at the deal.
+  const { won: super4Won, pot: super4Jackpot } =
+    s4Bet > 0
+      ? await settleSuper4Pot(s4Bet * seats, state.hands.some((h) => h.s4Jackpot))
+      : { won: 0, pot: await getSuper4Jackpot() };
+  // Carried in state so sideNetFromState() still counts it if this round
+  // settles later via a separate /api/game/action request.
+  state.super4JackpotWon = super4Won;
+
   // Win streak: only rounds that settle on the deal (naturals/dealer BJ)
   // move it here — everything else settles in the action route.
   const roundNet = settled ? netResult(state) : 0;
@@ -247,7 +277,12 @@ export async function POST(req: Request) {
 
   // Side-bet winnings are paid on the spot, in the same transaction as the deal
   const chipDelta =
-    -debit + (sideBetPayout ?? 0) + jackpotWon + voucherBonus + (settled ? state.payoutTotal : 0);
+    -debit +
+    (sideBetPayout ?? 0) +
+    jackpotWon +
+    super4Won +
+    voucherBonus +
+    (settled ? state.payoutTotal : 0);
 
   const [updated] = await prisma.$transaction([
     prisma.user.update({
@@ -285,7 +320,7 @@ export async function POST(req: Request) {
     const roundsPlayed = await prisma.round.count({
       where: { userId, status: "settled" },
     });
-    const paidThisSettle = (sideBetPayout ?? 0) + jackpotWon + state.payoutTotal;
+    const paidThisSettle = (sideBetPayout ?? 0) + jackpotWon + super4Won + state.payoutTotal;
     unlocked = await awardAchievements(
       userId,
       earnedThisSettle({
@@ -306,6 +341,8 @@ export async function POST(req: Request) {
     shuffled: shuffled === true,
     jackpot,
     jackpotWon,
+    super4Jackpot,
+    super4Won,
     ...(settled ? { winStreak: newStreak } : {}),
     ...(unlocked.length > 0 ? { unlocked } : {}),
     ...(voucherBonus > 0 ? { voucherBonus } : {}),

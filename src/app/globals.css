@@ -18,17 +18,17 @@
   --danger: #c0392b;
 }
 
-/* Trilux table — blue felt, Match the Dealer + Trilux Bonus. Every existing
-   component styles off these same custom properties, so scoping the override
-   to GameTable's own root (data-room="trilux") reskins the whole table with
-   no component changes. */
+/* Trilux table — deep burgundy felt, Match the Dealer + Super4 + Trilux
+   Bonus. Every existing component styles off these same custom properties,
+   so scoping the override to GameTable's own root (data-room="trilux")
+   reskins the whole table with no component changes. */
 [data-room="trilux"] {
-  --felt: #0b1f3b;
-  --felt-light: #123258;
-  --felt-glow: #1b4d80;
-  --gold: #2f7fd1;
-  --gold-bright: #6ecbff;
-  --gold-dim: #1c4a75;
+  --felt: #3d0d16;
+  --felt-light: #5c1522;
+  --felt-glow: #7d1f2e;
+  --gold: #c98a3a;
+  --gold-bright: #e8b978;
+  --gold-dim: #8a5a1f;
 }
 
 * {

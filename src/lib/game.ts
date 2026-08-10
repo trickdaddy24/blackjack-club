@@ -56,6 +56,51 @@ export async function settleLuckyLadiesPot(
   });
 }
 
+// Super4 progressive (Trilux table): seeded pot, fed by every Super4 stake,
+// paid in full on a suited-diamond dealer blackjack, then reseeded. Diamond-
+// suited blackjack is far more common than Lucky Ladies' QoH-pair + dealer
+// blackjack, so it seeds smaller.
+export const SUPER4_JACKPOT_NAME = "super4";
+export const SUPER4_JACKPOT_SEED = 10_000;
+
+/** Current Super4 pot, creating it at the seed on first use. */
+export async function getSuper4Jackpot(): Promise<number> {
+  const pot = await prisma.jackpot.upsert({
+    where: { name: SUPER4_JACKPOT_NAME },
+    create: { name: SUPER4_JACKPOT_NAME, amount: SUPER4_JACKPOT_SEED },
+    update: {},
+    select: { amount: true },
+  });
+  return pot.amount;
+}
+
+/**
+ * Feed the pot with this deal's Super4 stakes and, if a hand hit the
+ * jackpot tier (suited blackjack, diamonds), pay the ENTIRE pot and reseed.
+ * Same shape as settleLuckyLadiesPot.
+ */
+export async function settleSuper4Pot(
+  contribution: number,
+  jackpotHit: boolean
+): Promise<{ won: number; pot: number }> {
+  return prisma.$transaction(async (tx) => {
+    const current = await tx.jackpot.upsert({
+      where: { name: SUPER4_JACKPOT_NAME },
+      create: { name: SUPER4_JACKPOT_NAME, amount: SUPER4_JACKPOT_SEED },
+      update: {},
+      select: { amount: true },
+    });
+    const fed = current.amount + contribution;
+    const won = jackpotHit ? fed : 0;
+    const next = jackpotHit ? SUPER4_JACKPOT_SEED : fed;
+    await tx.jackpot.update({
+      where: { name: SUPER4_JACKPOT_NAME },
+      data: { amount: next },
+    });
+    return { won, pot: next };
+  });
+}
+
 /** Pit-boss force-promo override row, or null (nothing has ever been set). */
 export async function getPromoOverride() {
   return prisma.promoOverride.findUnique({

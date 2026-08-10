@@ -382,17 +382,23 @@ interface TableMin {
  */
 function TableSign({
   jackpot,
+  super4Jackpot,
   tableMin,
   variant,
   room = "classic",
 }: {
   jackpot: number | null;
+  super4Jackpot?: number | null;
   tableMin: TableMin;
   variant: Variant;
   room?: Room;
 }) {
   const rules = rulesFor(variant);
   const pot = jackpot === null ? "—" : jackpot.toLocaleString();
+  const s4Pot =
+    super4Jackpot === undefined || super4Jackpot === null
+      ? "—"
+      : super4Jackpot.toLocaleString();
 
   const PayRows = ({ rows }: { rows: [string, string][] }) => (
     <table className="w-full text-[11px]">
@@ -456,6 +462,26 @@ function TableSign({
                 ["Three of a kind", `${rules.tbTrips}:1`],
                 ["Straight", `${rules.tbStraight}:1`],
                 ["Flush", `${rules.tbFlush}:1`],
+              ]}
+            />
+            <div className="mt-3 text-center">
+              <p className="font-display text-xs font-bold uppercase tracking-[0.2em] text-[var(--gold-bright)]">
+                🎰 Super4
+              </p>
+              <p className="text-[10px] uppercase tracking-[0.3em] text-[var(--cream)]/50">
+                Progressive Jackpot
+              </p>
+              <p className="mt-1 animate-pulse font-display text-3xl font-black gold-text tabular-nums">
+                {s4Pot}
+              </p>
+            </div>
+            <PayRows
+              rows={[
+                ["Suited blackjack, diamonds", "JACKPOT"],
+                ["Suited blackjack, other suit", `+${rules.s4OtherSuitPay}`],
+                ["Same-color blackjack", `+${rules.s4SameColorPay}`],
+                ["Dealer blackjack", `+${rules.s4NoHandPay}`],
+                ["Dealer ace up, no BJ", `+${rules.s4AceUpPay}`],
               ]}
             />
           </>
@@ -562,6 +588,7 @@ interface TableState {
   tableMin?: TableMin;
   dealerTips?: number;
   jackpot?: number;
+  super4Jackpot?: number;
   winStreak?: number;
 }
 
@@ -628,6 +655,7 @@ export function GameTable({ room = "classic" }: { room?: Room } = {}) {
   /** Trilux table only. */
   const [mtdBet, setMtdBet] = useState(0);
   const [tbBet, setTbBet] = useState(0);
+  const [s4Bet, setS4Bet] = useState(0);
   const [trainer, setTrainer] = useState(false);
   const [trainerStats, setTrainerStats] = useState<TrainerStats>(EMPTY_TRAINER_STATS);
   /** Pro book (#9): opt-in Illustrious 18 count deviations, classic table only. */
@@ -636,6 +664,9 @@ export function GameTable({ room = "classic" }: { room?: Room } = {}) {
   const [jackpot, setJackpot] = useState<number | null>(null);
   /** Progressive won on the CURRENT round — feeds the result receipt. */
   const [wonJackpot, setWonJackpot] = useState(0);
+  const [s4Jackpot, setS4Jackpot] = useState<number | null>(null);
+  /** Super4 progressive won on the CURRENT round — feeds the result receipt. */
+  const [wonS4Jackpot, setWonS4Jackpot] = useState(0);
   /** Per-seat opt-out for the strategy guide (master lightbulb still rules). */
   const [handHints, setHandHints] = useState<boolean[]>([true, true, true]);
   const [showSign, setShowSign] = useState(true);
@@ -686,6 +717,7 @@ export function GameTable({ room = "classic" }: { room?: Room } = {}) {
         if (s.tableMin) setTableMin(s.tableMin);
         setTips(s.dealerTips ?? 0);
         if (typeof s.jackpot === "number") setJackpot(s.jackpot);
+        if (typeof s.super4Jackpot === "number") setS4Jackpot(s.super4Jackpot);
         if (s.round) {
           setCount({
             runningCount: s.round.runningCount,
@@ -774,6 +806,8 @@ export function GameTable({ room = "classic" }: { room?: Room } = {}) {
         shuffled?: boolean;
         jackpot?: number;
         jackpotWon?: number;
+        super4Jackpot?: number;
+        super4Won?: number;
         unlocked?: UnlockedAchievement[];
       }>("/api/game/bet", {
         bet: pendingBet,
@@ -786,6 +820,7 @@ export function GameTable({ room = "classic" }: { room?: Room } = {}) {
         luckyLadies: llBet,
         matchTheDealer: mtdBet,
         triluxBonus: tbBet,
+        super4: s4Bet,
         proBook: proBookActive(variant, proBook),
       });
       if (r.shuffled) {
@@ -798,6 +833,8 @@ export function GameTable({ room = "classic" }: { room?: Room } = {}) {
       applyResponse(r);
       if (typeof r.jackpot === "number") setJackpot(r.jackpot);
       if ((r.jackpotWon ?? 0) > 0) celebrateJackpot(r.jackpotWon!);
+      if (typeof r.super4Jackpot === "number") setS4Jackpot(r.super4Jackpot);
+      if ((r.super4Won ?? 0) > 0) celebrateSuper4Jackpot(r.super4Won!);
       // Opening deal: two cards per seat and bot, plus the dealer's two
       const dealt = (seats + (r.round.bots?.length ?? 0)) * 2 + 2;
       for (let i = 0; i < dealt; i++) sounds.deal(i * 0.13);
@@ -808,7 +845,8 @@ export function GameTable({ room = "classic" }: { room?: Room } = {}) {
           (h.tp?.payout ?? 0) > 0 ||
           (h.ll?.payout ?? 0) > 0 ||
           (h.mtd?.payout ?? 0) > 0 ||
-          (h.tb?.payout ?? 0) > 0
+          (h.tb?.payout ?? 0) > 0 ||
+          (h.s4?.payout ?? 0) > 0
       );
       let resultExtraDelay = 0;
       if (ppHands.length || otherSideHit) {
@@ -882,6 +920,17 @@ export function GameTable({ room = "classic" }: { room?: Room } = {}) {
     sounds.coins(0.6);
     toast.success(
       `👑 LUCKY LADIES JACKPOT! Queen of Hearts pair + dealer blackjack pays the whole pot: +${amount.toLocaleString()} chips`,
+      { duration: 12000 }
+    );
+  }
+
+  /** Suited blackjack in diamonds — the Super4 jackpot tier. */
+  function celebrateSuper4Jackpot(amount: number) {
+    setWonS4Jackpot(amount); // feeds the result receipt
+    sounds.blackjack(0.2);
+    sounds.coins(0.6);
+    toast.success(
+      `🎰 SUPER4 JACKPOT! Dealer blackjack suited in diamonds pays the whole pot: +${amount.toLocaleString()} chips`,
       { duration: 12000 }
     );
   }
@@ -1059,6 +1108,7 @@ export function GameTable({ room = "classic" }: { room?: Room } = {}) {
     setRound(null);
     setPendingBet(0);
     setWonJackpot(0);
+    setWonS4Jackpot(0);
   }
 
   const settled = round?.phase === "settled";
@@ -1536,6 +1586,28 @@ export function GameTable({ room = "classic" }: { room?: Room } = {}) {
                               : "Trilux ✕"}
                           </span>
                         )}
+                        {hand.s4 && (
+                          <span
+                            className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
+                              hand.s4Jackpot
+                                ? "sidebet-win bg-[var(--gold)]/40 text-[var(--gold-bright)]"
+                                : hand.s4.payout > 0
+                                  ? "sidebet-win bg-[var(--gold)]/25 text-[var(--gold-bright)]"
+                                  : "bg-black/40 text-[var(--cream-dim)]"
+                            }`}
+                            title={
+                              hand.s4Jackpot
+                                ? "Super4 PROGRESSIVE JACKPOT — suited blackjack in diamonds!"
+                                : `Super4: ${hand.s4.label} — paid instantly`
+                            }
+                          >
+                            {hand.s4Jackpot
+                              ? "🎰 JACKPOT!"
+                              : hand.s4.payout > 0
+                                ? `🎰 ${hand.s4.label} +${(hand.s4.payout - hand.s4.bet).toLocaleString()}`
+                                : "Super4 ✕"}
+                          </span>
+                        )}
                         {!settled && showHints && (
                           <button
                             onClick={() => toggleHandHint(hi)}
@@ -1617,6 +1689,7 @@ export function GameTable({ room = "classic" }: { room?: Room } = {}) {
                 net={round.netResult ?? 0}
                 round={round}
                 jackpotWon={wonJackpot}
+                super4JackpotWon={wonS4Jackpot}
                 onNext={newHand}
                 disabled={busy}
                 chips={chips ?? 0}
@@ -1709,6 +1782,11 @@ export function GameTable({ room = "classic" }: { room?: Room } = {}) {
                     sounds.chip();
                     setTbBet(v);
                   }}
+                  s4={s4Bet}
+                  onS4={(v) => {
+                    sounds.chip();
+                    setS4Bet(v);
+                  }}
                   onVariant={(v) => {
                     sounds.chip();
                     setVariant(v);
@@ -1729,7 +1807,7 @@ export function GameTable({ room = "classic" }: { room?: Room } = {}) {
                       Math.min(
                         p + v,
                         MAX_BET,
-                        Math.floor((chips ?? 0) / seats) - ppBet - tpBet - llBet - mtdBet - tbBet
+                        Math.floor((chips ?? 0) / seats) - ppBet - tpBet - llBet - mtdBet - tbBet - s4Bet
                       )
                     );
                   }}
@@ -1737,7 +1815,7 @@ export function GameTable({ room = "classic" }: { room?: Room } = {}) {
                     sounds.coins();
                     setPendingBet(
                       Math.min(
-                        Math.floor((chips ?? 0) / seats) - ppBet - tpBet - llBet - mtdBet - tbBet,
+                        Math.floor((chips ?? 0) / seats) - ppBet - tpBet - llBet - mtdBet - tbBet - s4Bet,
                         MAX_BET
                       )
                     );
@@ -1753,7 +1831,13 @@ export function GameTable({ room = "classic" }: { room?: Room } = {}) {
       </div>
       </div>
       {showSign && (
-        <TableSign jackpot={jackpot} tableMin={tableMin} variant={tableVariant} room={room} />
+        <TableSign
+          jackpot={jackpot}
+          super4Jackpot={s4Jackpot}
+          tableMin={tableMin}
+          variant={tableVariant}
+          room={room}
+        />
       )}
     </div>
   );
@@ -1835,6 +1919,7 @@ function ResultBanner({
   net,
   round,
   jackpotWon,
+  super4JackpotWon,
   onNext,
   disabled,
   chips,
@@ -1843,6 +1928,7 @@ function ResultBanner({
   net: number;
   round: ClientView;
   jackpotWon: number;
+  super4JackpotWon: number;
   onNext: () => void;
   disabled: boolean;
   chips: number;
@@ -1865,14 +1951,17 @@ function ResultBanner({
   addSide("Lucky Ladies", round.hands.flatMap((h) => (h.ll ? [h.ll] : [])));
   addSide("Match the Dealer", round.hands.flatMap((h) => (h.mtd ? [h.mtd] : [])));
   addSide("Trilux Bonus", round.hands.flatMap((h) => (h.tb ? [h.tb] : [])));
+  addSide("Super4", round.hands.flatMap((h) => (h.s4 ? [h.s4] : [])));
 
   const bustBet = round.bustBet ?? 0;
   const bustNet = bustBet > 0 ? (round.bustPayout ?? 0) - bustBet : 0;
-  const total = net + sideRows.reduce((n, r) => n + r.value, 0) + bustNet + jackpotWon;
-  const hasReceipt = sideRows.length > 0 || bustBet > 0 || jackpotWon > 0;
+  const total =
+    net + sideRows.reduce((n, r) => n + r.value, 0) + bustNet + jackpotWon + super4JackpotWon;
+  const hasReceipt = sideRows.length > 0 || bustBet > 0 || jackpotWon > 0 || super4JackpotWon > 0;
 
   const staked = round.staked || 1;
-  const bigWin = total > 0 && (jackpotWon > 0 || total >= staked * 3);
+  const bigWin =
+    total > 0 && (jackpotWon > 0 || super4JackpotWon > 0 || total >= staked * 3);
   const title = total > 0 ? "YOU WIN" : total < 0 ? "HOUSE WINS" : "PUSH";
 
   return (
@@ -1904,6 +1993,9 @@ function ResultBanner({
             />
           )}
           {jackpotWon > 0 && <ReceiptRow label="👑 PROGRESSIVE JACKPOT" value={jackpotWon} hot />}
+          {super4JackpotWon > 0 && (
+            <ReceiptRow label="🎰 SUPER4 JACKPOT" value={super4JackpotWon} hot />
+          )}
           <div className="border-t border-[var(--gold)]/20 pt-1">
             <ReceiptRow label="Round total" value={total} hot />
           </div>
@@ -2113,6 +2205,8 @@ function BetPicker({
   onMtd,
   tb,
   onTb,
+  s4,
+  onS4,
   onSeats,
   onVariant,
   onBots,
@@ -2139,6 +2233,8 @@ function BetPicker({
   onMtd: (v: number) => void;
   tb: number;
   onTb: (v: number) => void;
+  s4: number;
+  onS4: (v: number) => void;
   onSeats: (n: number) => void;
   onVariant: (v: Variant) => void;
   onBots: (n: number) => void;
@@ -2148,8 +2244,8 @@ function BetPicker({
   onDeal: () => void;
   disabled: boolean;
 }) {
-  const total = (pending + pp + tp + ll + mtd + tb) * seats;
-  const sides = pp + tp + ll + mtd + tb;
+  const total = (pending + pp + tp + ll + mtd + tb + s4) * seats;
+  const sides = pp + tp + ll + mtd + tb + s4;
   const allInAmount = Math.floor(chips / seats) - sides;
   const isAllIn = pending > 0 && pending === allInAmount;
   return (
@@ -2306,6 +2402,39 @@ function BetPicker({
           {tb > 0 && (
             <button
               onClick={() => onTb(0)}
+              disabled={disabled}
+              className="text-[11px] text-[var(--cream)]/40 underline-offset-2 hover:underline"
+            >
+              clear
+            </button>
+          )}
+        </div>
+        )}
+
+        {room === "trilux" && (
+        <div className="flex flex-wrap items-center justify-center gap-2 rounded-full bg-black/30 px-3 py-1.5 gold-ring">
+          <span
+            className="text-[11px] font-semibold uppercase tracking-wider text-[var(--cream)]/50"
+            title="Dealer's own two cards: suited blackjack in diamonds wins the PROGRESSIVE JACKPOT, suited any other suit / same-color / dealer blackjack / dealer ace up all pay flat bonuses"
+          >
+            🎰 Super4 <span className="text-[var(--cream)]/30">$1 min</span>
+          </span>
+          {SIDE_CHIP_VALUES.map((v) => (
+            <button
+              key={v}
+              onClick={() => onS4(Math.min(s4 + v, MAX_SIDE_BET))}
+              disabled={disabled || s4 + v > MAX_SIDE_BET || (pending + sides + v) * seats > chips}
+              className="rounded-full border border-[var(--gold)]/40 px-2.5 py-0.5 text-[11px] font-mono text-[var(--gold-bright)] transition-colors hover:bg-[var(--gold)]/15 disabled:opacity-35"
+            >
+              +{v}
+            </button>
+          ))}
+          <span className="min-w-8 text-center font-mono text-sm font-bold gold-text tabular-nums">
+            {s4}
+          </span>
+          {s4 > 0 && (
+            <button
+              onClick={() => onS4(0)}
               disabled={disabled}
               className="text-[11px] text-[var(--cream)]/40 underline-offset-2 hover:underline"
             >

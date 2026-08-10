@@ -3,7 +3,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { clientView } from "@/lib/blackjack/engine";
 import { withHint } from "@/lib/blackjack/strategy";
-import { getActiveRound, getLuckyLadiesJackpot, parseRoundState } from "@/lib/game";
+import { getActiveRound, getLuckyLadiesJackpot, getSuper4Jackpot, parseRoundState } from "@/lib/game";
 import { currentTableMinimum } from "@/lib/tableMinimum";
 import { getHotSeatState, maybeTriggerHotSeat } from "@/lib/hotseat-io";
 
@@ -60,6 +60,7 @@ export async function GET(req: Request) {
     dealerTips: user.dealerTips,
     winStreak: user.winStreak,
     jackpot: await getLuckyLadiesJackpot(),
+    super4Jackpot: await getSuper4Jackpot(),
     hotSeat: await getHotSeatState(),
   });
 }

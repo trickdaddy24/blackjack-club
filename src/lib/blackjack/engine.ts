@@ -108,6 +108,13 @@ export interface Rules {
   tbStraight: number;
   tbTrips: number;
   tbStraightFlush: number;
+  /** Super4 side bet (Trilux table): flat chip payouts by dealer-hand tier
+   *  (not X-to-1 — the top tier is a real progressive pot, handled by the
+   *  API; these are the fixed lower tiers). */
+  s4OtherSuitPay: number;
+  s4SameColorPay: number;
+  s4NoHandPay: number;
+  s4AceUpPay: number;
 }
 
 export function rulesFor(variant: Variant = "classic"): Rules {
@@ -148,6 +155,15 @@ export function rulesFor(variant: Variant = "classic"): Rules {
     tbStraight: 9,
     tbTrips: 9,
     tbStraightFlush: 9,
+    // Super4 (Trilux table) — flat chip payouts by dealer-hand tier. The top
+    // tier (suited blackjack in diamonds) is a real progressive pot, not
+    // listed here — see SUPER4_JACKPOT_SEED in lib/game.ts. These four are
+    // fixed amounts, a game-balance pick (not a literal copy of a real
+    // machine's live dollar meter) — easy to retune here.
+    s4OtherSuitPay: 500,
+    s4SameColorPay: 150,
+    s4NoHandPay: 40,
+    s4AceUpPay: 15,
   };
 }
 
@@ -184,6 +200,11 @@ export interface HandState {
   mtd?: SideBetResult;
   /** Trilux Bonus side bet (Trilux table), resolved at the deal. */
   tb?: SideBetResult;
+  /** Super4 side bet (Trilux table), resolved at the deal — flat tiers only;
+   *  the jackpot tier is flagged via `s4Jackpot` instead (API pays the pot). */
+  s4?: SideBetResult;
+  /** This hand's Super4 stake hit the jackpot tier (suited blackjack, diamonds). */
+  s4Jackpot?: boolean;
   /** Seat that owns this hand (multiplayer tables). Absent/0 = solo player.
    *  Splits copy the owner, so per-player accounting survives them. */
   owner?: number;
@@ -230,6 +251,11 @@ export interface RoundState {
   bustPayout?: number;
   /** Floor promotion the round was dealt under (e.g. "happy-hour"). */
   promo?: string | null;
+  /** Super4 jackpot chips won at the deal (0/absent = none). Set by the API
+   *  right after startRound() — the engine itself never sees the live pot
+   *  size — and carried in state so sideNetFromState() still counts it
+   *  correctly if the round settles later via a separate action request. */
+  super4JackpotWon?: number;
 }
 
 export type PlayerAction =
@@ -416,6 +442,8 @@ export interface RoundOptions {
   matchTheDealer?: number;
   /** Trilux Bonus side bet per seat, Trilux table (0 = none). */
   triluxBonus?: number;
+  /** Super4 side bet per seat, Trilux table (0 = none). */
+  super4?: number;
   /** Per-seat main bets (multiplayer tables) — length must equal `seats`;
    *  overrides `bet` per seat. `bet` still validates as seat 0's wager. */
   seatBets?: number[];
@@ -461,6 +489,7 @@ export function startRound(
   const llBet = opts.luckyLadies ?? 0;
   const mtdBet = opts.matchTheDealer ?? 0;
   const tbBet = opts.triluxBonus ?? 0;
+  const s4Bet = opts.super4 ?? 0;
   const rules = rulesFor(variant);
 
   if (!Number.isInteger(bet) || bet <= 0) {
@@ -487,6 +516,9 @@ export function startRound(
   if (!Number.isInteger(tbBet) || tbBet < 0) {
     throw new IllegalActionError("Trilux Bonus bet must be a non-negative integer");
   }
+  if (!Number.isInteger(s4Bet) || s4Bet < 0) {
+    throw new IllegalActionError("Super4 bet must be a non-negative integer");
+  }
 
   // Multiplayer: per-seat wagers. Every seat resolves to a main bet plus a
   // side-bet trio; solo play falls back to the flat values.
@@ -503,6 +535,7 @@ export function startRound(
     ll: opts.seatSideBets?.[i]?.ll ?? llBet,
     mtd: mtdBet,
     tb: tbBet,
+    s4: s4Bet,
   });
   for (let i = 0; i < seats; i++) {
     const b = betFor(i);
@@ -510,7 +543,7 @@ export function startRound(
     if (!Number.isInteger(b) || b <= 0) {
       throw new IllegalActionError("Every seat needs a positive integer bet");
     }
-    for (const v of [s.pp, s.tp, s.ll, s.mtd, s.tb]) {
+    for (const v of [s.pp, s.tp, s.ll, s.mtd, s.tb, s.s4]) {
       if (!Number.isInteger(v) || v < 0) {
         throw new IllegalActionError("Side bets must be non-negative integers");
       }
@@ -530,7 +563,7 @@ export function startRound(
   let mainStaked = 0;
   for (let i = 0; i < seats; i++) {
     const side = sideFor(i);
-    debit += betFor(i) + side.pp + side.tp + side.ll + side.mtd + side.tb;
+    debit += betFor(i) + side.pp + side.tp + side.ll + side.mtd + side.tb + side.s4;
     mainStaked += betFor(i);
   }
   const state: RoundState = {
@@ -679,6 +712,25 @@ export function startRound(
     };
   });
 
+  // Super4 also resolves at the deal (Trilux table): purely a read of the
+  // dealer's own two cards — both are already in state.dealer at this point,
+  // dealerRevealed is just a display flag for the client, not a data gate.
+  // `hand.s4` always carries the stake (so net accounting never loses track
+  // of it, same as every other side bet); the jackpot tier's own payout is
+  // $0 here and added separately by the API against the live pot, exactly
+  // like Lucky Ladies' llJackpot.
+  const s4Result = evaluateSuper4(state.dealer as [Card, Card], rules);
+  state.hands.forEach((hand, i) => {
+    const stake = sideFor(i).s4;
+    if (stake <= 0) return;
+    hand.s4 = {
+      bet: stake,
+      payout: s4Result.flatPay > 0 ? stake + s4Result.flatPay : 0,
+      label: s4Result.label,
+    };
+    if (s4Result.jackpotEligible) hand.s4Jackpot = true;
+  });
+
   const sideBetPayout = state.hands.reduce(
     (sum, h) =>
       sum +
@@ -686,7 +738,8 @@ export function startRound(
       (h.tp?.payout ?? 0) +
       (h.ll?.payout ?? 0) +
       (h.mtd?.payout ?? 0) +
-      (h.tb?.payout ?? 0),
+      (h.tb?.payout ?? 0) +
+      (h.s4?.payout ?? 0),
     0
   );
 
@@ -771,6 +824,50 @@ export function evaluateLuckyLadies(
     return { mult: rules.llMatched20, label: "matched 20", queens };
   if (c1.suit === c2.suit) return { mult: rules.llSuited20, label: "suited 20", queens };
   return { mult: rules.llAny20, label: "any 20", queens };
+}
+
+/**
+ * Super4 evaluation (Trilux table): reads only the dealer's own two cards —
+ * never the player's hand. Blackjack is always one Ace + one ten-value card
+ * (different ranks), so there's no pair/trips/straight tier here, just the
+ * dealer's own hand's suit/color:
+ *   1. Suited blackjack, both diamonds → jackpot (API pays the live pot)
+ *   2. Suited blackjack, any other single suit → flat payout
+ *   3. Same-color blackjack, different suits → flat payout
+ *   4. Blackjack, mixed colors → flat consolation
+ *   5. Up card is an Ace, no blackjack → smallest flat consolation
+ *   6. Anything else → no payout
+ */
+export function evaluateSuper4(
+  dealer: [Card, Card],
+  rules: Rules
+): { jackpotEligible: boolean; flatPay: number; label: string } {
+  const [c1, c2] = dealer;
+  const isRed = (s: Suit) => s === "H" || s === "D";
+  if (dealerHasBlackjack(dealer)) {
+    if (c1.suit === c2.suit) {
+      if (c1.suit === "D") {
+        return { jackpotEligible: true, flatPay: 0, label: "suited blackjack — diamonds" };
+      }
+      return {
+        jackpotEligible: false,
+        flatPay: rules.s4OtherSuitPay,
+        label: "suited blackjack",
+      };
+    }
+    if (isRed(c1.suit) === isRed(c2.suit)) {
+      return {
+        jackpotEligible: false,
+        flatPay: rules.s4SameColorPay,
+        label: "same-color blackjack",
+      };
+    }
+    return { jackpotEligible: false, flatPay: rules.s4NoHandPay, label: "dealer blackjack" };
+  }
+  if (dealer[0].rank === "A") {
+    return { jackpotEligible: false, flatPay: rules.s4AceUpPay, label: "dealer ace up" };
+  }
+  return { jackpotEligible: false, flatPay: 0, label: "no bonus" };
 }
 
 /**
@@ -1183,13 +1280,14 @@ export function netResult(state: RoundState): number {
 export function sideNetFromState(state: RoundState): number {
   let net = 0;
   for (const h of state.hands) {
-    for (const sb of [h.pp, h.tp, h.ll, h.mtd, h.tb]) {
+    for (const sb of [h.pp, h.tp, h.ll, h.mtd, h.tb, h.s4]) {
       if (sb) net += sb.payout - sb.bet;
     }
   }
   if ((state.bustBet ?? 0) > 0) {
     net += (state.bustPayout ?? 0) - state.bustBet;
   }
+  net += state.super4JackpotWon ?? 0;
   return net;
 }
 
@@ -1211,7 +1309,7 @@ export function sideNetForOwner(state: RoundState, owner: number): number {
   let net = 0;
   for (const h of state.hands) {
     if ((h.owner ?? 0) !== owner) continue;
-    for (const sb of [h.pp, h.tp, h.ll, h.mtd, h.tb]) {
+    for (const sb of [h.pp, h.tp, h.ll, h.mtd, h.tb, h.s4]) {
       if (sb) net += sb.payout - sb.bet;
     }
   }
@@ -1249,6 +1347,10 @@ export interface ClientHand {
   mtd?: SideBetResult;
   /** Trilux Bonus side bet result, Trilux table (resolved at the deal). */
   tb?: SideBetResult;
+  /** Super4 side bet result, Trilux table (resolved at the deal). */
+  s4?: SideBetResult;
+  /** This hand's Super4 stake hit the jackpot tier (resolved at the deal). */
+  s4Jackpot?: boolean;
   /** This hand hit the Lucky Ladies progressive jackpot at settle. */
   llJackpot?: boolean;
   /** Seat that owns this hand (multiplayer tables). Absent = solo. */
@@ -1368,6 +1470,8 @@ export function clientView(state: RoundState): ClientView {
         ...(h.ll ? { ll: h.ll } : {}),
         ...(h.mtd ? { mtd: h.mtd } : {}),
         ...(h.tb ? { tb: h.tb } : {}),
+        ...(h.s4 ? { s4: h.s4 } : {}),
+        ...(h.s4Jackpot ? { s4Jackpot: true } : {}),
         ...(h.llJackpot ? { llJackpot: true } : {}),
         ...(h.owner !== undefined ? { owner: h.owner } : {}),
       };

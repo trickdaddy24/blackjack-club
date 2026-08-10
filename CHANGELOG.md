@@ -5,6 +5,28 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); the `VERSION` fi
 
 ---
 
+## [0.51.0] — 2026-08-09
+
+### Added
+- **🎰 Super4 side bet** (Trilux table) — a third bonus modeled on the real Hard Rock table's
+  overhead Super4 display. Reads only the dealer's own two cards (blackjack is always one Ace +
+  one ten-value card, so poker-hand tiers like the photo's Three of a Kind/Straight don't apply
+  to a 2-card hand): suited blackjack in diamonds hits a real progressive jackpot (seeded 10,000,
+  same fed/reseed pattern as Lucky Ladies — `SUPER4_JACKPOT_SEED` in `lib/game.ts`); suited in any
+  other suit, same-color, plain blackjack, and ace-up-no-blackjack each pay a flat fixed chip
+  amount instead of stake-multiplied odds (`rulesFor()`'s `s4*Pay` constants — a game-balance pick,
+  not a literal copy of a real machine's live dollar meter). Resolves at the deal like every other
+  side bet; the jackpot amount is carried on a new `RoundState.super4JackpotWon` field so
+  `sideNetFromState()` still counts it correctly even if the round settles later via a separate
+  action request instead of at the deal.
+- Trilux felt recolored blue → **deep burgundy**, both from a second pass over the reference
+  photos.
+
+### Fixed
+- Lucky Ladies at the Trilux table had been cosmetically relabeled "Super4" earlier this session
+  (same mechanic, display text only) before the real Super4 bet was scoped — reverted back to its
+  own name now that Super4 is a genuinely separate bet.
+
 ## [0.50.0] — 2026-08-09
 
 ### Added

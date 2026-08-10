@@ -1133,6 +1133,65 @@ describe("trilux bonus (Trilux table)", () => {
   });
 });
 
+describe("super4 (Trilux table)", () => {
+  // Deal order: player c1, dealer up, player c2, hole — Super4 only reads
+  // the dealer's own two cards, player cards are irrelevant to it.
+  const s4Round = (up: Card, hole: Card) =>
+    startRound(10, {
+      previousShoe: shoeFor(c("9", "D"), up, c("2", "S"), hole),
+      room: "trilux",
+      super4: 5,
+    });
+
+  it("flags the jackpot tier on a suited blackjack in diamonds — paid by the API, not the engine", () => {
+    const { state, debit, sideBetPayout } = s4Round(c("A", "D"), c("K", "D"));
+    expect(debit).toBe(15); // 10 bet + 5 side bet leave the stack together
+    expect(state.staked).toBe(10); // main-game accounting excludes the side bet
+    expect(state.hands[0].s4).toEqual({
+      bet: 5,
+      payout: 0, // the jackpot itself is paid by the API against the live pot
+      label: "suited blackjack — diamonds",
+    });
+    expect(state.hands[0].s4Jackpot).toBe(true);
+    expect(sideBetPayout).toBe(0);
+  });
+
+  it("pays a flat amount on a suited blackjack in any other suit", () => {
+    const { state, sideBetPayout } = s4Round(c("A", "H"), c("K", "H"));
+    expect(state.hands[0].s4).toEqual({ bet: 5, payout: 505, label: "suited blackjack" });
+    expect(state.hands[0].s4Jackpot).toBeUndefined();
+    expect(sideBetPayout).toBe(505);
+  });
+
+  it("pays a flat amount on a same-color, different-suit blackjack", () => {
+    const { state } = s4Round(c("A", "D"), c("K", "H"));
+    expect(state.hands[0].s4).toEqual({ bet: 5, payout: 155, label: "same-color blackjack" });
+  });
+
+  it("pays the smallest flat consolation on a mixed-color blackjack", () => {
+    const { state } = s4Round(c("A", "D"), c("K", "S"));
+    expect(state.hands[0].s4).toEqual({ bet: 5, payout: 45, label: "dealer blackjack" });
+  });
+
+  it("pays a flat consolation when the dealer shows an ace with no blackjack", () => {
+    const { state } = s4Round(c("A", "S"), c("5", "C")); // A+5 = 16, not blackjack
+    expect(state.hands[0].s4).toEqual({ bet: 5, payout: 20, label: "dealer ace up" });
+  });
+
+  it("loses the stake with no ace up and no blackjack", () => {
+    const { state, sideBetPayout } = s4Round(c("9", "D"), c("5", "C"));
+    expect(sideBetPayout).toBe(0);
+    expect(state.hands[0].s4).toEqual({ bet: 5, payout: 0, label: "no bonus" });
+  });
+
+  it("rejects invalid bets and passes through clientView", () => {
+    expect(() => startRound(10, { super4: -1 })).toThrow(IllegalActionError);
+    expect(() => startRound(10, { super4: 2.5 })).toThrow(IllegalActionError);
+    const { state } = s4Round(c("A", "H"), c("K", "H"));
+    expect(clientView(state).hands[0].s4?.payout).toBe(505);
+  });
+});
+
 describe("lucky ladies", () => {
   // Deal order: player c1, dealer up, player c2, hole
   const llRound = (c1: Card, c2: Card, up = c("9", "D"), hole = c("5", "H")) =>
@@ -1317,6 +1376,22 @@ describe("sideNetFromState", () => {
       previousShoe: shoeFor(c("K"), c("9", "D"), c("Q"), c("5", "H")),
     });
     expect(sideNetFromState(state)).toBe(0);
+  });
+
+  it("counts a Super4 jackpot win once the API has stamped it onto state", () => {
+    // The engine never sees the live pot size — the API resolves it via
+    // settleSuper4Pot and mutates state.super4JackpotWon before persisting,
+    // so a round that settles later (via a separate /action request) still
+    // gets credited correctly.
+    const { state } = startRound(10, {
+      previousShoe: shoeFor(c("9", "D"), c("A", "D"), c("2", "S"), c("K", "D")),
+      room: "trilux",
+      super4: 5,
+    });
+    expect(state.hands[0].s4Jackpot).toBe(true);
+    expect(sideNetFromState(state)).toBe(-5); // stake lost until the API adds the pot
+    state.super4JackpotWon = 12_345;
+    expect(sideNetFromState(state)).toBe(-5 + 12_345);
   });
 });
 
